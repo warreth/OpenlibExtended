@@ -61,9 +61,12 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
   - Progress notifications with real-time updates
   - Downloads continue even when app is in background
   - Visual download queue in Home, Search, and My Library pages
+- **Built-In Reader** - Read books with intuitive navigation
+  - Supports Epub And Pdf Formats
+  - Tap navigation: tap left/right sides of screen to navigate pages
+  - Arrow button navigation and swipe gestures also supported
+  - Works great on phones and tablets
 - Trending Books
-- Download And Read Books With In-Built Viewer
-- Supports Epub And Pdf Formats
 - Open Books In Your Favourite Ebook Reader
 - Filter Books
 - Sort Books
