@@ -26,7 +26,7 @@ import 'package:openlib/state/state.dart'
         openEpubWithExternalAppProvider,
         instanceManagerProvider,
         currentInstanceProvider,
-        enabledInstancesProvider;
+        archiveInstancesProvider;
 
 Future<void> requestStoragePermission() async {
   bool permissionGranted = false;
@@ -280,7 +280,10 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
   @override
   void initState() {
     super.initState();
-    _loadSelectedInstance();
+    // Load selected instance after widget is mounted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSelectedInstance();
+    });
   }
 
   Future<void> _loadSelectedInstance() async {
@@ -296,13 +299,17 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
   @override
   Widget build(BuildContext context) {
     final currentInstanceAsync = ref.watch(currentInstanceProvider);
-    final enabledInstancesAsync = ref.watch(enabledInstancesProvider);
+    final allInstancesAsync = ref.watch(archiveInstancesProvider);
 
     return currentInstanceAsync.when(
       data: (currentInstance) {
-        return enabledInstancesAsync.when(
+        return allInstancesAsync.when(
           data: (instances) {
             final selectedId = _selectedInstanceId ?? currentInstance.id;
+            
+            // Ensure selected instance is in the list (handle disabled instances)
+            final selectedInstanceExists = instances.any((i) => i.id == selectedId);
+            final effectiveSelectedId = selectedInstanceExists ? selectedId : currentInstance.id;
 
             return Padding(
               padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
@@ -331,15 +338,29 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                       Expanded(
                         child: DropdownButton<String>(
                           isExpanded: true,
-                          value: selectedId,
+                          value: effectiveSelectedId,
                           underline: Container(),
                           items: instances.map((instance) {
                             return DropdownMenuItem<String>(
                               value: instance.id,
-                              child: Text(
-                                instance.name,
-                                style: const TextStyle(fontSize: 13),
-                                overflow: TextOverflow.ellipsis,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      instance.name,
+                                      style: const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (!instance.enabled)
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 4.0),
+                                      child: Text(
+                                        '(disabled)',
+                                        style: TextStyle(fontSize: 10, color: Colors.grey),
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           }).toList(),

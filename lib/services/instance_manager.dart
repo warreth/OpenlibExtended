@@ -70,6 +70,14 @@ class ArchiveInstance {
 // INSTANCE MANAGER SERVICE
 // ====================================================================
 
+/// Manages archive instances (mirrors) with CRUD operations and priority management.
+/// 
+/// This singleton service handles:
+/// - Loading and storing instance configurations in the database
+/// - Managing instance priority ordering
+/// - Enabling/disabling instances
+/// - Adding and removing custom instances
+/// - Tracking the currently selected instance
 class InstanceManager {
   static final InstanceManager _instance = InstanceManager._internal();
   factory InstanceManager() => _instance;
@@ -80,59 +88,54 @@ class InstanceManager {
   static const String _selectedInstanceKey = 'selected_instance_id';
 
   // Default instances including all Anna's Archive mirrors and welib.org
+  // Note: .org domain removed as it's no longer available
   static final List<ArchiveInstance> _defaultInstances = [
-    ArchiveInstance(
-      id: 'annas_archive_org',
-      name: "Anna's Archive (.org)",
-      baseUrl: 'https://annas-archive.org',
-      priority: 0,
-      enabled: true,
-    ),
     ArchiveInstance(
       id: 'annas_archive_gs',
       name: "Anna's Archive (.gs)",
       baseUrl: 'https://annas-archive.gs',
-      priority: 1,
+      priority: 0,
       enabled: true,
     ),
     ArchiveInstance(
       id: 'annas_archive_se',
       name: "Anna's Archive (.se)",
       baseUrl: 'https://annas-archive.se',
-      priority: 2,
+      priority: 1,
       enabled: true,
     ),
     ArchiveInstance(
       id: 'annas_archive_li',
       name: "Anna's Archive (.li)",
       baseUrl: 'https://annas-archive.li',
-      priority: 3,
+      priority: 2,
       enabled: true,
     ),
     ArchiveInstance(
       id: 'annas_archive_st',
       name: "Anna's Archive (.st)",
       baseUrl: 'https://annas-archive.st',
-      priority: 4,
+      priority: 3,
       enabled: true,
     ),
     ArchiveInstance(
       id: 'annas_archive_pm',
       name: "Anna's Archive (.pm)",
       baseUrl: 'https://annas-archive.pm',
-      priority: 5,
+      priority: 4,
       enabled: true,
     ),
     ArchiveInstance(
       id: 'welib_org',
       name: 'Welib.org',
       baseUrl: 'https://welib.org',
-      priority: 6,
+      priority: 5,
       enabled: true,
     ),
   ];
 
-  // Get all instances sorted by priority
+  /// Get all instances sorted by priority.
+  /// If no instances are stored, initializes with default instances.
   Future<List<ArchiveInstance>> getInstances() async {
     try {
       final stored = await _database.getPreference(_storageKey);
@@ -150,7 +153,7 @@ class InstanceManager {
     }
   }
 
-  // Get only enabled instances sorted by priority
+  /// Get only enabled instances sorted by priority.
   Future<List<ArchiveInstance>> getEnabledInstances() async {
     final instances = await getInstances();
     return instances.where((instance) => instance.enabled).toList();
@@ -162,11 +165,13 @@ class InstanceManager {
     await _database.savePreference(_storageKey, jsonString);
   }
 
-  // Add a custom instance
+  /// Add a custom instance to the list.
+  /// [name] Display name for the instance.
+  /// [baseUrl] Base URL for the instance (will remove trailing slash).
   Future<void> addInstance(String name, String baseUrl) async {
     final instances = await getInstances();
     final newId = 'custom_${DateTime.now().millisecondsSinceEpoch}';
-    final newPriority = instances.isEmpty ? 0 : instances.map((i) => i.priority).reduce((a, b) => a > b ? a : b) + 1;
+    final newPriority = instances.isEmpty ? 0 : instances.map((i) => i.priority).fold<int>(0, (max, priority) => priority > max ? priority : max) + 1;
     
     final newInstance = ArchiveInstance(
       id: newId,
@@ -181,21 +186,31 @@ class InstanceManager {
     await _saveInstances(instances);
   }
 
-  // Remove an instance (only custom ones can be removed)
+  /// Remove an instance from the list.
+  /// Only custom instances can be removed (default instances cannot be deleted).
+  /// Returns true if the instance was removed, false otherwise.
   Future<bool> removeInstance(String id) async {
     final instances = await getInstances();
-    final instance = instances.firstWhere((i) => i.id == id, orElse: () => instances.first);
+    final index = instances.indexWhere((i) => i.id == id);
+    
+    if (index == -1) {
+      return false; // Instance not found
+    }
+
+    final instance = instances[index];
     
     if (!instance.isCustom) {
       return false; // Cannot remove default instances
     }
     
-    instances.removeWhere((i) => i.id == id);
+    instances.removeAt(index);
     await _saveInstances(instances);
     return true;
   }
 
-  // Update instance enabled state
+  /// Update instance enabled state.
+  /// [id] ID of the instance to toggle.
+  /// [enabled] New enabled state.
   Future<void> toggleInstance(String id, bool enabled) async {
     final instances = await getInstances();
     final index = instances.indexWhere((i) => i.id == id);
@@ -206,7 +221,8 @@ class InstanceManager {
     }
   }
 
-  // Reorder instances (change priority)
+  /// Reorder instances by updating their priority based on new order.
+  /// [reorderedInstances] List of instances in new order.
   Future<void> reorderInstances(List<ArchiveInstance> reorderedInstances) async {
     // Update priorities based on new order
     for (int i = 0; i < reorderedInstances.length; i++) {
@@ -215,7 +231,8 @@ class InstanceManager {
     await _saveInstances(reorderedInstances);
   }
 
-  // Get selected instance ID
+  /// Get the ID of the currently selected instance.
+  /// Returns null if no instance has been explicitly selected.
   Future<String?> getSelectedInstanceId() async {
     try {
       final value = await _database.getPreference(_selectedInstanceKey);
@@ -226,18 +243,19 @@ class InstanceManager {
     }
   }
 
-  // Set selected instance ID
+  /// Set the currently selected instance ID.
+  /// [id] ID of the instance to select, or null to clear selection.
   Future<void> setSelectedInstanceId(String? id) async {
     if (id == null) {
-      // To reset, we could delete the preference, but since savePreference doesn't handle null,
-      // we'll just not save anything or save an empty string as a convention
-      // For now, we'll skip saving null to avoid issues
+      // To reset, we skip saving null to avoid issues
       return;
     }
     await _database.savePreference(_selectedInstanceKey, id);
   }
 
-  // Get the current active instance (selected or first enabled)
+  /// Get the current active instance.
+  /// Returns the selected instance if set, otherwise returns the first enabled instance.
+  /// Falls back to the first default instance if no instances are enabled.
   Future<ArchiveInstance> getCurrentInstance() async {
     final selectedId = await getSelectedInstanceId();
     final instances = await getEnabledInstances();
@@ -258,17 +276,15 @@ class InstanceManager {
     return instances.first;
   }
 
-  // Get instance by ID
+  /// Get instance by ID.
+  /// Returns null if instance with given ID is not found.
   Future<ArchiveInstance?> getInstanceById(String id) async {
     final instances = await getInstances();
-    try {
-      return instances.firstWhere((i) => i.id == id);
-    } catch (e) {
-      return null;
-    }
+    final index = instances.indexWhere((i) => i.id == id);
+    return index != -1 ? instances[index] : null;
   }
 
-  // Reset to default instances
+  /// Reset to default instances, clearing all custom instances.
   Future<void> resetToDefaults() async {
     await _saveInstances(_defaultInstances);
     // Don't save null, just leave the preference as-is or empty

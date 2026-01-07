@@ -115,8 +115,6 @@ final currentInstanceProvider = FutureProvider<ArchiveInstance>((ref) async {
   return await manager.getCurrentInstance();
 });
 
-final selectedInstanceIdProvider = StateProvider<String?>((ref) => null);
-
 // ====================================================================
 // DERIVED (COMPUTED) STATE PROVIDERS
 // ====================================================================

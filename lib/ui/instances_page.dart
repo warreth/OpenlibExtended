@@ -74,9 +74,15 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                   return;
                 }
 
-                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                final uri = Uri.tryParse(url);
+                if (uri == null ||
+                    (uri.scheme != 'http' && uri.scheme != 'https') ||
+                    uri.host.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('URL must start with http:// or https://')),
+                    const SnackBar(
+                      content:
+                          Text('Please enter a valid URL with http:// or https://'),
+                    ),
                   );
                   return;
                 }
@@ -87,7 +93,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 // Refresh the instances list
                 ref.invalidate(archiveInstancesProvider);
 
-                if (mounted) {
+                if (mounted && Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Instance added successfully')),

@@ -68,16 +68,6 @@ class AnnasArchieve {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
   };
 
-  // Get the current base URL from instance manager
-  Future<String> _getCurrentBaseUrl() async {
-    try {
-      final instance = await _instanceManager.getCurrentInstance();
-      return instance.baseUrl;
-    } catch (e) {
-      return baseUrl; // Fallback to default
-    }
-  }
-
   // Try request with retry logic across multiple instances
   Future<T> _requestWithRetry<T>(
     Future<T> Function(String baseUrl) requestFn,
@@ -90,6 +80,7 @@ class AnnasArchieve {
     }
 
     Exception? lastException;
+    List<String> failedInstances = []; // Track failed instances for logging
     
     // Try each instance
     for (final instance in instances) {
@@ -99,6 +90,11 @@ class AnnasArchieve {
           return await requestFn(instance.baseUrl);
         } catch (e) {
           lastException = e is Exception ? e : Exception(e.toString());
+          // Log the failure
+          final attemptInfo = '${instance.name} (${instance.baseUrl}) - Attempt ${attempt + 1}/$maxRetries: ${e.toString()}';
+          failedInstances.add(attemptInfo);
+          print('Instance failed: $attemptInfo');
+          
           // If this is not the last attempt for this instance, wait before retrying
           if (attempt < maxRetries - 1) {
             await Future.delayed(Duration(milliseconds: retryDelayMs));
@@ -107,7 +103,8 @@ class AnnasArchieve {
       }
     }
     
-    // If all instances failed, throw the last exception
+    // If all instances failed, throw the last exception with context
+    print('All instances failed. Attempted: ${failedInstances.join(", ")}');
     throw lastException ?? Exception('All instances failed');
   }
 
@@ -335,10 +332,7 @@ class AnnasArchieve {
         
         // If the URL has a different host, replace it with current instance's host
         if (urlParsed.host != currentParsed.host) {
-          adjustedUrl = currentBaseUrl + urlParsed.path;
-          if (urlParsed.query.isNotEmpty) {
-            adjustedUrl += '?' + urlParsed.query;
-          }
+          adjustedUrl = '$currentBaseUrl${urlParsed.path}${urlParsed.query.isNotEmpty ? "?${urlParsed.query}" : ""}';
         }
         
         final response = await dio.get(adjustedUrl, 
