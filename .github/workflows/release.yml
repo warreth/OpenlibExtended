@@ -53,6 +53,23 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      - name: Update pubspec version
+        run: |
+          # Extract version from tag (e.g., v1.2.3 -> 1.2.3, also handles 1.2.3)
+          TAG_VERSION=$(echo "$GITHUB_REF_NAME" | sed 's/^v//')
+          # Validate version format
+          if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid version format: $TAG_VERSION"
+            echo "Expected semantic version format (e.g., 1.2.3)"
+            exit 1
+          fi
+          # Use run_number as build number
+          BUILD_NUMBER=${{ github.run_number }}
+          # Update version in pubspec.yaml
+          sed -i "s/^version: .*/version: ${TAG_VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+          echo "Updated version to: $TAG_VERSION+$BUILD_NUMBER"
+          grep "^version:" pubspec.yaml
+
       - name: Build all APKs
         run: |
           flutter build apk --release
