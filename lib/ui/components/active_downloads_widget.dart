@@ -54,49 +54,79 @@ class ActiveDownloadsWidget extends ConsumerWidget {
         }
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withAlpha(50),
-            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(12.0),
+              Container(
+                padding: const EdgeInsets.all(14.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
                 child: Row(
                   children: [
                     Icon(
-                      Icons.download,
-                      size: 16,
+                      Icons.download_rounded,
+                      size: 18,
                       color: Theme.of(context).colorScheme.secondary,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Text(
-                      'Active Downloads (${downloads.length})',
+                      'Downloads',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${downloads.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
               SizedBox(
-                height: downloads.length > 2 ? 200 : null,
+                height: downloads.length > 2 ? 220 : null,
                 child: ListView.separated(
                   shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   physics: downloads.length > 2
                       ? const AlwaysScrollableScrollPhysics()
                       : const NeverScrollableScrollPhysics(),
                   itemCount: downloads.length,
-                  separatorBuilder: (context, index) =>
-                      const Divider(height: 1),
+                  separatorBuilder: (context, index) => Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                  ),
                   itemBuilder: (context, index) {
                     final task = downloads.values.elementAt(index);
                     return _DownloadItem(
@@ -133,13 +163,26 @@ class _DownloadItem extends ConsumerWidget {
     final downloadManager = ref.read(downloadManagerProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
+              // Status icon
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _getStatusColor(task.status, context).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: _buildStatusIcon(task.status, context),
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,22 +191,50 @@ class _DownloadItem extends ConsumerWidget {
                       task.title,
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.tertiary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      getStatusText(task.status),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .tertiary
-                            .withAlpha(170),
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          getStatusText(task.status),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: _getStatusColor(task.status, context),
+                          ),
+                        ),
+                        if (task.author != null && task.author!.isNotEmpty) ...[
+                          Text(
+                            ' • ',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .tertiary
+                                  .withAlpha(120),
+                            ),
+                          ),
+                          Flexible(
+                            child: Text(
+                              task.author!,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .tertiary
+                                    .withAlpha(170),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -172,42 +243,49 @@ class _DownloadItem extends ConsumerWidget {
                   task.status == DownloadStatus.downloadingMirrors ||
                   task.status == DownloadStatus.queued)
                 IconButton(
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.tertiary.withAlpha(170),
+                  ),
                   onPressed: () {
                     downloadManager.cancelDownload(task.id);
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
+                  tooltip: 'Cancel download',
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           if (task.status == DownloadStatus.downloading) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: task.progress,
-                minHeight: 4,
+                minHeight: 6,
                 backgroundColor:
-                    Theme.of(context).colorScheme.tertiary.withAlpha(50),
+                    Theme.of(context).colorScheme.tertiary.withAlpha(30),
                 color: Theme.of(context).colorScheme.secondary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${(task.progress * 100).toStringAsFixed(1)}%',
+                  '${(task.progress * 100).toStringAsFixed(0)}%',
                   style: TextStyle(
-                    fontSize: 10,
-                    color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.secondary,
                   ),
                 ),
                 Text(
                   '${bytesToFileSize(task.downloadedBytes)} / ${bytesToFileSize(task.totalBytes)}',
                   style: TextStyle(
                     fontSize: 10,
+                    fontWeight: FontWeight.w500,
                     color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
                   ),
                 ),
@@ -217,25 +295,120 @@ class _DownloadItem extends ConsumerWidget {
               task.status == DownloadStatus.queued ||
               task.status == DownloadStatus.verifying) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
-                minHeight: 4,
+                minHeight: 6,
                 backgroundColor:
-                    Theme.of(context).colorScheme.tertiary.withAlpha(50),
+                    Theme.of(context).colorScheme.tertiary.withAlpha(30),
                 color: Theme.of(context).colorScheme.secondary,
               ),
             ),
           ] else if (task.status == DownloadStatus.failed) ...[
-            Text(
-              task.errorMessage ?? 'Download failed',
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.red,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: Colors.red.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 14,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      task.errorMessage ?? 'Download failed',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ],
       ),
     );
+  }
+
+  Widget _buildStatusIcon(DownloadStatus status, BuildContext context) {
+    switch (status) {
+      case DownloadStatus.queued:
+        return Icon(
+          Icons.schedule_rounded,
+          size: 18,
+          color: _getStatusColor(status, context),
+        );
+      case DownloadStatus.downloadingMirrors:
+        return SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: _getStatusColor(status, context),
+          ),
+        );
+      case DownloadStatus.downloading:
+        return Icon(
+          Icons.arrow_downward_rounded,
+          size: 18,
+          color: _getStatusColor(status, context),
+        );
+      case DownloadStatus.verifying:
+        return SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: _getStatusColor(status, context),
+          ),
+        );
+      case DownloadStatus.completed:
+        return Icon(
+          Icons.check_circle_rounded,
+          size: 18,
+          color: _getStatusColor(status, context),
+        );
+      case DownloadStatus.failed:
+        return Icon(
+          Icons.error_rounded,
+          size: 18,
+          color: _getStatusColor(status, context),
+        );
+      case DownloadStatus.cancelled:
+        return Icon(
+          Icons.cancel_rounded,
+          size: 18,
+          color: _getStatusColor(status, context),
+        );
+    }
+  }
+
+  Color _getStatusColor(DownloadStatus status, BuildContext context) {
+    switch (status) {
+      case DownloadStatus.queued:
+        return Colors.orange;
+      case DownloadStatus.downloadingMirrors:
+      case DownloadStatus.downloading:
+        return Theme.of(context).colorScheme.secondary;
+      case DownloadStatus.verifying:
+        return Colors.blue;
+      case DownloadStatus.completed:
+        return Colors.green;
+      case DownloadStatus.failed:
+        return Colors.red;
+      case DownloadStatus.cancelled:
+        return Colors.grey;
+    }
   }
 }

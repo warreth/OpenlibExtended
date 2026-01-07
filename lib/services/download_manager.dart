@@ -226,39 +226,75 @@ class DownloadManager {
         return;
       }
 
-      _updateTaskStatus(task.id, DownloadStatus.downloading);
+      // Try to download from each mirror until successful
+      bool downloadSuccessful = false;
+      int mirrorIndex = orderedMirrors.indexOf(workingMirror);
+      
+      while (mirrorIndex < orderedMirrors.length && !downloadSuccessful) {
+        final currentMirror = orderedMirrors[mirrorIndex];
+        
+        try {
+          _updateTaskStatus(task.id, DownloadStatus.downloading);
 
-      CancelToken cancelToken = CancelToken();
-      _activeDownloads[task.id] =
-          _activeDownloads[task.id]!.copyWith(cancelToken: cancelToken);
+          CancelToken cancelToken = CancelToken();
+          _activeDownloads[task.id] =
+              _activeDownloads[task.id]!.copyWith(cancelToken: cancelToken);
 
-      await dio.download(
-        workingMirror,
-        path,
-        options: Options(headers: {
-          'Connection': 'Keep-Alive',
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
-        }),
-        onReceiveProgress: (rcv, total) {
-          if (!(rcv.isNaN || rcv.isInfinite) &&
-              !(total.isNaN || total.isInfinite)) {
-            double progress = rcv / total;
-            _updateTaskProgress(task.id, progress, rcv, total);
+          await dio.download(
+            currentMirror,
+            path,
+            options: Options(headers: {
+              'Connection': 'Keep-Alive',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
+            }),
+            onReceiveProgress: (rcv, total) {
+              if (!(rcv.isNaN || rcv.isInfinite) &&
+                  !(total.isNaN || total.isInfinite)) {
+                double progress = rcv / total;
+                _updateTaskProgress(task.id, progress, rcv, total);
 
-            _notificationService.showDownloadNotification(
+                _notificationService.showDownloadNotification(
+                  id: task.id.hashCode,
+                  title: task.title,
+                  body: 'Downloading...',
+                  progress: (progress * 100).toInt(),
+                );
+              }
+            },
+            deleteOnError: true,
+            cancelToken: cancelToken,
+          );
+
+          // Download completed successfully
+          downloadSuccessful = true;
+          
+        } on DioException catch (e) {
+          if (e.type == DioExceptionType.cancel) {
+            _updateTaskStatus(task.id, DownloadStatus.cancelled);
+            await _notificationService.cancelNotification(task.id.hashCode);
+            return;
+          }
+          
+          // Try next mirror if available
+          mirrorIndex++;
+          if (mirrorIndex < orderedMirrors.length) {
+            _updateTaskStatus(task.id, DownloadStatus.downloadingMirrors);
+            await _notificationService.showDownloadNotification(
               id: task.id.hashCode,
               title: task.title,
-              body: 'Downloading...',
-              progress: (progress * 100).toInt(),
+              body: 'Retrying with alternate mirror...',
+              progress: 0,
             );
+            await Future.delayed(const Duration(seconds: 2));
+          } else {
+            // No more mirrors to try
+            throw e;
           }
-        },
-        deleteOnError: true,
-        cancelToken: cancelToken,
-      );
+        }
+      }
 
-      if (!_activeDownloads.containsKey(task.id)) {
+      if (!downloadSuccessful || !_activeDownloads.containsKey(task.id)) {
         return;
       }
 

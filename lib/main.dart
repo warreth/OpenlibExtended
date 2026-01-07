@@ -21,6 +21,7 @@ import 'package:openlib/ui/themes.dart';
 import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
 import 'package:openlib/services/download_manager.dart';
+import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/state/state.dart'
     show
         selectedIndexProvider,
@@ -41,6 +42,7 @@ void main() async {
   MyLibraryDb dataBase = MyLibraryDb.instance;
 
   await DownloadManager().initialize();
+  
   bool isDarkMode =
       await dataBase.getPreference('darkMode') == 0 ? false : true;
   bool openPdfwithExternalapp = await dataBase
@@ -122,6 +124,82 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     MyLibraryPage(),
     SettingsPage()
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Request notification permission after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndRequestNotificationPermission();
+    });
+  }
+
+  Future<void> _checkAndRequestNotificationPermission() async {
+    // Check if we should show the permission dialog
+    final prefs = MyLibraryDb.instance;
+    final hasAskedBefore = await prefs.getPreference('hasAskedNotificationPermission')
+        .catchError((_) => 0);
+    
+    if (hasAskedBefore == 0) {
+      final notificationService = DownloadNotificationService();
+      final hasPermission = await notificationService.requestNotificationPermission();
+      
+      if (!hasPermission && mounted) {
+        _showNotificationPermissionDialog();
+      }
+      
+      // Mark that we've asked before
+      await prefs.setPreference('hasAskedNotificationPermission', 1);
+    }
+  }
+
+  void _showNotificationPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Enable Notifications',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
+          content: Text(
+            'Openlib needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.tertiary.withAlpha(200),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Maybe Later',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.tertiary.withAlpha(170),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await DownloadNotificationService().requestNotificationPermission();
+              },
+              child: Text(
+                'Enable',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
