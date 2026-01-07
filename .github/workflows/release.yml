@@ -68,7 +68,7 @@ jobs:
           # Update version in pubspec.yaml
           sed -i "s/^version: .*/version: $TAG_VERSION+$BUILD_NUMBER/" pubspec.yaml
           echo "Updated version to: $TAG_VERSION+$BUILD_NUMBER"
-          cat pubspec.yaml | grep "^version:"
+          grep "^version:" pubspec.yaml
 
       - name: Build all APKs
         run: |
