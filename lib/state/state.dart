@@ -15,6 +15,7 @@ import 'package:openlib/services/database.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/open_library.dart';
 import 'package:openlib/services/goodreads.dart';
+import 'package:openlib/services/instance_manager.dart';
 // Assuming OpenLibrary, Goodreads, PenguinRandomHouse, BookDigits, and SubCategoriesTypeList are defined
 // or are simple placeholder services/models that work as intended.
 
@@ -95,6 +96,21 @@ final pdfCurrentPage = StateProvider.autoDispose<int>((ref) => 0);
 final totalPdfPage = StateProvider.autoDispose<int>((ref) => 0);
 final openPdfWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
+
+// Instance Management States
+final instanceManagerProvider = Provider<InstanceManager>((ref) => InstanceManager());
+
+final archiveInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+  final manager = ref.watch(instanceManagerProvider);
+  return await manager.getInstances();
+});
+
+final currentInstanceProvider = FutureProvider<ArchiveInstance>((ref) async {
+  final manager = ref.watch(instanceManagerProvider);
+  return await manager.getCurrentInstance();
+});
+
+final selectedInstanceIdProvider = StateProvider<String?>((ref) => null);
 
 // ====================================================================
 // DERIVED (COMPUTED) STATE PROVIDERS

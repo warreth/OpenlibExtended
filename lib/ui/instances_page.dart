@@ -1,0 +1,312 @@
+// Flutter imports:
+import 'package:flutter/material.dart';
+
+// Package imports:
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Project imports:
+import 'package:openlib/services/instance_manager.dart';
+import 'package:openlib/state/state.dart';
+import 'package:openlib/ui/components/page_title_widget.dart';
+
+class InstancesPage extends ConsumerStatefulWidget {
+  const InstancesPage({super.key});
+
+  @override
+  ConsumerState<InstancesPage> createState() => _InstancesPageState();
+}
+
+class _InstancesPageState extends ConsumerState<InstancesPage> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _urlController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  void _showAddInstanceDialog() {
+    _nameController.clear();
+    _urlController.clear();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Add Custom Instance'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  hintText: 'e.g., My Custom Mirror',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _urlController,
+                decoration: const InputDecoration(
+                  labelText: 'URL',
+                  hintText: 'https://example.com',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final name = _nameController.text.trim();
+                final url = _urlController.text.trim();
+
+                if (name.isEmpty || url.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please fill all fields')),
+                  );
+                  return;
+                }
+
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('URL must start with http:// or https://')),
+                  );
+                  return;
+                }
+
+                final manager = ref.read(instanceManagerProvider);
+                await manager.addInstance(name, url);
+                
+                // Refresh the instances list
+                ref.invalidate(archiveInstancesProvider);
+
+                if (mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Instance added successfully')),
+                  );
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmDialog(ArchiveInstance instance) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Instance'),
+          content: Text('Are you sure you want to delete "${instance.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final manager = ref.read(instanceManagerProvider);
+                final success = await manager.removeInstance(instance.id);
+                
+                if (success) {
+                  ref.invalidate(archiveInstancesProvider);
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Instance deleted')),
+                    );
+                  }
+                } else {
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Cannot delete default instances')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final instancesAsync = ref.watch(archiveInstancesProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Instances'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _showAddInstanceDialog,
+            tooltip: 'Add Custom Instance',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              final manager = ref.read(instanceManagerProvider);
+              await manager.resetToDefaults();
+              ref.invalidate(archiveInstancesProvider);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Reset to default instances')),
+                );
+              }
+            },
+            tooltip: 'Reset to Defaults',
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: TitleText('Archive Instances'),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: Text(
+                'Drag to reorder priority. App tries each enabled instance 2x before moving to next.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+            Expanded(
+              child: instancesAsync.when(
+                data: (instances) {
+                  if (instances.isEmpty) {
+                    return const Center(
+                      child: Text('No instances available'),
+                    );
+                  }
+
+                  return ReorderableListView.builder(
+                    itemCount: instances.length,
+                    onReorder: (oldIndex, newIndex) async {
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      
+                      final newList = List<ArchiveInstance>.from(instances);
+                      final item = newList.removeAt(oldIndex);
+                      newList.insert(newIndex, item);
+                      
+                      final manager = ref.read(instanceManagerProvider);
+                      await manager.reorderInstances(newList);
+                      ref.invalidate(archiveInstancesProvider);
+                    },
+                    itemBuilder: (context, index) {
+                      final instance = instances[index];
+                      return Card(
+                        key: ValueKey(instance.id),
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: ListTile(
+                          leading: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.drag_handle,
+                                color: Theme.of(context).colorScheme.tertiary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${index + 1}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.tertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  instance.name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              if (instance.isCustom)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'Custom',
+                                    style: TextStyle(fontSize: 10, color: Colors.blue),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          subtitle: Text(
+                            instance.baseUrl,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Switch(
+                                value: instance.enabled,
+                                activeColor: Colors.green,
+                                onChanged: (value) async {
+                                  final manager = ref.read(instanceManagerProvider);
+                                  await manager.toggleInstance(instance.id, value);
+                                  ref.invalidate(archiveInstancesProvider);
+                                },
+                              ),
+                              if (instance.isCustom)
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _showDeleteConfirmDialog(instance),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, color: Colors.red, size: 48),
+                      const SizedBox(height: 16),
+                      Text('Error: $error'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => ref.invalidate(archiveInstancesProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
