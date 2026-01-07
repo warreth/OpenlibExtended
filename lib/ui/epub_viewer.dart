@@ -201,47 +201,22 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
   }
 
   Widget _buildTapNavigationWrapper(Widget child) {
-    return Stack(
-      children: [
-        child,
-        Row(
-          children: [
-            // Left tap zone - previous page
-            Expanded(
-              flex: 1,
-              child: GestureDetector(
-                onTapUp: (details) {
-                  _epubReaderController.previousChapter();
-                },
-                behavior: HitTestBehavior.translucent,
-                child: Container(
-                  color: Colors.transparent,
-                ),
-              ),
-            ),
-            // Center zone - no action (for text selection)
-            Expanded(
-              flex: 1,
-              child: Container(
-                color: Colors.transparent,
-              ),
-            ),
-            // Right tap zone - next page
-            Expanded(
-              flex: 1,
-              child: GestureDetector(
-                onTapUp: (details) {
-                  _epubReaderController.nextChapter();
-                },
-                behavior: HitTestBehavior.translucent,
-                child: Container(
-                  color: Colors.transparent,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+    return GestureDetector(
+      onTapUp: (details) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final tapPosition = details.globalPosition.dx;
+        
+        // Divide screen into three zones: left (30%), center (40%), right (30%)
+        if (tapPosition < screenWidth * 0.3) {
+          // Left zone - previous chapter
+          _epubReaderController.previousChapter();
+        } else if (tapPosition > screenWidth * 0.7) {
+          // Right zone - next chapter
+          _epubReaderController.nextChapter();
+        }
+        // Center zone (30-70%) - no action, allows text selection
+      },
+      child: child,
     );
   }
 }
