@@ -25,6 +25,17 @@ jobs:
         with:
           channel: 'stable'
           cache: true
+      
+      - name: Decode and install Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/android/app/upload-keystore.jks
+          echo "storeFile=${{ github.workspace }}/android/app/upload-keystore.jks" > ${{ github.workspace }}/android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> ${{ github.workspace }}/android/key.properties
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" >> ${{ github.workspace }}/android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> ${{ github.workspace }}/android/key.properties
+        # This step will be skipped if the secrets are not found,
+        # allowing for builds in forks that don't have the secrets.
+        if: success() && secrets.KEYSTORE_BASE64 != ''
 
       - name: Get Flutter dependencies
         run: flutter pub get
@@ -40,6 +51,7 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk release-artifacts/openlib-extended-universal-release.apk
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-artifacts/openlib-extended-arm64-v8a-release.apk
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-artifacts/openlib-extended-armeabi-v7a-release.apk
+          
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
