@@ -53,6 +53,17 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      - name: Update pubspec version
+        run: |
+          # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          # Use run_number as build number
+          BUILD_NUMBER=${{ github.run_number }}
+          # Update version in pubspec.yaml
+          sed -i "s/^version: .*/version: $TAG_VERSION+$BUILD_NUMBER/" pubspec.yaml
+          echo "Updated version to: $TAG_VERSION+$BUILD_NUMBER"
+          cat pubspec.yaml | grep "^version:"
+
       - name: Build all APKs
         run: |
           flutter build apk --release
