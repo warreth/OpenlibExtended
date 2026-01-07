@@ -25,7 +25,8 @@ import 'package:openlib/state/state.dart'
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         instanceManagerProvider,
-        currentInstanceProvider;
+        currentInstanceProvider,
+        enabledInstancesProvider;
 
 Future<void> requestStoragePermission() async {
   bool permissionGranted = false;
@@ -295,29 +296,17 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
   @override
   Widget build(BuildContext context) {
     final currentInstanceAsync = ref.watch(currentInstanceProvider);
+    final enabledInstancesAsync = ref.watch(enabledInstancesProvider);
 
     return currentInstanceAsync.when(
       data: (currentInstance) {
-        return Padding(
-          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-          child: FutureBuilder<List<ArchiveInstance>>(
-            future: ref.read(instanceManagerProvider).getEnabledInstances(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return Container(
-                  height: 61,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(5),
-                    color: Theme.of(context).colorScheme.tertiaryContainer,
-                  ),
-                  child: const Center(child: CircularProgressIndicator()),
-                );
-              }
+        return enabledInstancesAsync.when(
+          data: (instances) {
+            final selectedId = _selectedInstanceId ?? currentInstance.id;
 
-              final instances = snapshot.data!;
-              final selectedId = _selectedInstanceId ?? currentInstance.id;
-
-              return Container(
+            return Padding(
+              padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+              child: Container(
                 height: 61,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(5),
@@ -378,8 +367,35 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                     ],
                   ),
                 ),
-              );
-            },
+              ),
+            );
+          },
+          loading: () => Padding(
+            padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+            child: Container(
+              height: 61,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+              ),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+          ),
+          error: (error, stack) => Padding(
+            padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+            child: Container(
+              height: 61,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+              ),
+              child: Center(
+                child: Text(
+                  'Error loading instances',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ),
           ),
         );
       },

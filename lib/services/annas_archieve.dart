@@ -61,6 +61,7 @@ class AnnasArchieve {
   final Dio dio = Dio();
   final InstanceManager _instanceManager = InstanceManager();
   static const int maxRetries = 2; // Check each server 2x as per requirements
+  static const int retryDelayMs = 500; // Delay between retries in milliseconds
 
   Map<String, dynamic> defaultDioHeaders = {
     "user-agent":
@@ -98,9 +99,9 @@ class AnnasArchieve {
           return await requestFn(instance.baseUrl);
         } catch (e) {
           lastException = e is Exception ? e : Exception(e.toString());
-          // If this is not the last attempt for this instance, wait a bit before retrying
+          // If this is not the last attempt for this instance, wait before retrying
           if (attempt < maxRetries - 1) {
-            await Future.delayed(Duration(milliseconds: 500));
+            await Future.delayed(Duration(milliseconds: retryDelayMs));
           }
         }
       }

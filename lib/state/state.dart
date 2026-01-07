@@ -105,6 +105,11 @@ final archiveInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) asy
   return await manager.getInstances();
 });
 
+final enabledInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+  final manager = ref.watch(instanceManagerProvider);
+  return await manager.getEnabledInstances();
+});
+
 final currentInstanceProvider = FutureProvider<ArchiveInstance>((ref) async {
   final manager = ref.watch(instanceManagerProvider);
   return await manager.getCurrentInstance();

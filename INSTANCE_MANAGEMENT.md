@@ -80,6 +80,13 @@ To modify how many times each instance is tried, edit `maxRetries` in `lib/servi
 static const int maxRetries = 2; // Change this value
 ```
 
+### Changing Retry Delay
+To modify the delay between retries, edit `retryDelayMs` in `lib/services/annas_archieve.dart`:
+
+```dart
+static const int retryDelayMs = 500; // Delay in milliseconds
+```
+
 ### Adding More Default Instances
 Edit `_defaultInstances` in `lib/services/instance_manager.dart`:
 

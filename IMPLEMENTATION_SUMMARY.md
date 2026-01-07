@@ -196,10 +196,10 @@ static const int maxRetries = 2; // Number of attempts per instance
 ```
 
 ### Changing Retry Delay
-Edit the delay in `_requestWithRetry()`:
+Edit `retryDelayMs` in `AnnasArchieve`:
 
 ```dart
-await Future.delayed(Duration(milliseconds: 500)); // Delay between retries
+static const int retryDelayMs = 500; // Delay between retries in milliseconds
 ```
 
 ## User Experience

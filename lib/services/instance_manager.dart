@@ -136,11 +136,6 @@ class InstanceManager {
   Future<List<ArchiveInstance>> getInstances() async {
     try {
       final stored = await _database.getPreference(_storageKey);
-      if (stored == null || stored.isEmpty) {
-        // Initialize with default instances
-        await _saveInstances(_defaultInstances);
-        return List.from(_defaultInstances);
-      }
       
       final List<dynamic> jsonList = jsonDecode(stored);
       final instances = jsonList.map((json) => ArchiveInstance.fromJson(json)).toList();
@@ -149,7 +144,8 @@ class InstanceManager {
       instances.sort((a, b) => a.priority.compareTo(b.priority));
       return instances;
     } catch (e) {
-      // If there's an error, return defaults
+      // If there's an error or preference not found, initialize with defaults
+      await _saveInstances(_defaultInstances);
       return List.from(_defaultInstances);
     }
   }
@@ -221,11 +217,23 @@ class InstanceManager {
 
   // Get selected instance ID
   Future<String?> getSelectedInstanceId() async {
-    return await _database.getPreference(_selectedInstanceKey);
+    try {
+      final value = await _database.getPreference(_selectedInstanceKey);
+      return value as String?;
+    } catch (e) {
+      // Preference not set yet, return null
+      return null;
+    }
   }
 
   // Set selected instance ID
-  Future<void> setSelectedInstanceId(String id) async {
+  Future<void> setSelectedInstanceId(String? id) async {
+    if (id == null) {
+      // To reset, we could delete the preference, but since savePreference doesn't handle null,
+      // we'll just not save anything or save an empty string as a convention
+      // For now, we'll skip saving null to avoid issues
+      return;
+    }
     await _database.savePreference(_selectedInstanceKey, id);
   }
 
@@ -263,6 +271,7 @@ class InstanceManager {
   // Reset to default instances
   Future<void> resetToDefaults() async {
     await _saveInstances(_defaultInstances);
-    await _database.savePreference(_selectedInstanceKey, null);
+    // Don't save null, just leave the preference as-is or empty
+    // The getCurrentInstance() will handle missing selected ID gracefully
   }
 }
