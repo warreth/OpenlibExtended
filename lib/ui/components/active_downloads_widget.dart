@@ -15,13 +15,13 @@ class ActiveDownloadsWidget extends ConsumerWidget {
     const int decimals = 1;
     const suffixes = ["B", "KB", "MB", "GB", "TB"];
     if (bytes == 0) return '0${suffixes[0]}';
-    var i = (bytes / 1024).floor();
-    if (i == 0) return '${bytes}${suffixes[0]}';
-    int pow = 1;
-    for (int j = 0; j < i && j < suffixes.length - 1; j++) {
-      pow *= 1024;
+    var i = 0;
+    var size = bytes.toDouble();
+    while (size >= 1024 && i < suffixes.length - 1) {
+      size /= 1024;
+      i++;
     }
-    return ((bytes / pow).toStringAsFixed(decimals)) + suffixes[i];
+    return '${size.toStringAsFixed(decimals)}${suffixes[i]}';
   }
 
   String _getStatusText(DownloadStatus status) {
