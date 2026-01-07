@@ -51,7 +51,7 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
 ## Features ✨
 
 - **Multi-Instance Support** - Configure multiple Anna's Archive mirrors with automatic failover
-  - 7 pre-configured instances (Anna's Archive .org, .gs, .se, .li, .st, .pm + welib.org)
+  - 6 pre-configured instances (Anna's Archive .gs, .se, .li, .st, .pm + welib.org)
   - Add custom mirror instances
   - Drag-to-reorder priority
   - Enable/disable instances
