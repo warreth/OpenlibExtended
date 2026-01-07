@@ -74,7 +74,36 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
 ## Roadmap 🎯
 
 - Adding More Book Format supports (cbz,cbr,azw3,etc...)
-- Move existing books when changing the storage path
+- Add Booklore support
+
+## Screen Layout
+
+```
+┌─────────────────────────────────────────────┐
+│                                             │
+│  ◄─────────┐     NO ACTION    ┌─────────►  │
+│            │                  │             │
+│   PREVIOUS │                  │    NEXT    │
+│    PAGE/   │                  │   PAGE/    │
+│  CHAPTER   │                  │  CHAPTER   │
+│            │                  │             │
+│            │                  │             │
+│   [30%]    │      [40%]       │   [30%]    │
+│            │                  │             │
+│  Tap here  │   Text selection │  Tap here  │
+│  to go     │   and scrolling  │  to go     │
+│  backward  │   work here      │  forward   │
+│            │                  │             │
+└─────────────────────────────────────────────┘
+```
+
+### Why This Layout?
+
+1. **Natural Reading Flow**: Matches left-to-right reading pattern
+2. **Easy Thumb Access**: Comfortable for one-handed use
+3. **Accident Prevention**: Center zone prevents accidental page changes
+4. **Text Selection**: Center zone allows selecting and copying text
+5. **Tablet Friendly**: Larger zones on bigger screens are easier to hit
 
 ## Building from Source
 
