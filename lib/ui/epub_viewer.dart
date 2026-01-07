@@ -137,6 +137,21 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
     super.dispose();
   }
 
+  void _navigateToPreviousChapter() {
+    final currentValue = _epubReaderController.currentValue;
+    if (currentValue != null && currentValue.chapterNumber > 0) {
+      _epubReaderController.jumpToChapter(currentValue.chapterNumber - 1);
+    }
+  }
+
+  void _navigateToNextChapter() {
+    final currentValue = _epubReaderController.currentValue;
+    if (currentValue != null) {
+      // Try to go to next chapter (will fail silently if at last chapter)
+      _epubReaderController.jumpToChapter(currentValue.chapterNumber + 1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final position = ref.watch(getBookPosition(widget.fileName));
@@ -209,10 +224,10 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
         // Divide screen into three zones: left (30%), center (40%), right (30%)
         if (tapPosition < screenWidth * 0.3) {
           // Left zone - previous chapter
-          _epubReaderController.previousChapter();
+          _navigateToPreviousChapter();
         } else if (tapPosition > screenWidth * 0.7) {
           // Right zone - next chapter
-          _epubReaderController.nextChapter();
+          _navigateToNextChapter();
         }
         // Center zone (30-70%) - no action, allows text selection
       },
