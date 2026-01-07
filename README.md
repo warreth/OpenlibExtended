@@ -61,9 +61,12 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
   - Progress notifications with real-time updates
   - Downloads continue even when app is in background
   - Visual download queue in Home, Search, and My Library pages
+- **Built-In Reader** - Read books with intuitive navigation
+  - Supports Epub And Pdf Formats
+  - Tap navigation: tap left/right sides of screen to navigate pages
+  - Arrow button navigation and swipe gestures also supported
+  - Works great on phones and tablets
 - Trending Books
-- Download And Read Books With In-Built Viewer
-- Supports Epub And Pdf Formats
 - Open Books In Your Favourite Ebook Reader
 - Filter Books
 - Sort Books
@@ -71,7 +74,36 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
 ## Roadmap 🎯
 
 - Adding More Book Format supports (cbz,cbr,azw3,etc...)
-- Move existing books when changing the storage path
+- Add Booklore support
+
+## Screen Layout
+
+```
+┌─────────────────────────────────────────────┐
+│                                             │
+│  ◄─────────┐     NO ACTION    ┌─────────►  │
+│            │                  │             │
+│   PREVIOUS │                  │    NEXT    │
+│    PAGE/   │                  │   PAGE/    │
+│  CHAPTER   │                  │  CHAPTER   │
+│            │                  │             │
+│            │                  │             │
+│   [30%]    │      [40%]       │   [30%]    │
+│            │                  │             │
+│  Tap here  │   Text selection │  Tap here  │
+│  to go     │   and scrolling  │  to go     │
+│  backward  │   work here      │  forward   │
+│            │                  │             │
+└─────────────────────────────────────────────┘
+```
+
+### Why This Layout?
+
+1. **Natural Reading Flow**: Matches left-to-right reading pattern
+2. **Easy Thumb Access**: Comfortable for one-handed use
+3. **Accident Prevention**: Center zone prevents accidental page changes
+4. **Text Selection**: Center zone allows selecting and copying text
+5. **Tablet Friendly**: Larger zones on bigger screens are easier to hit
 
 ## Building from Source
 

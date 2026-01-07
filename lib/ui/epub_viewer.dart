@@ -151,34 +151,38 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
       ),
       body: position.when(
         data: (data) {
-          return EpubView(
-            onDocumentLoaded: (doc) {
-              Future.delayed(const Duration(milliseconds: 20), () {
-                if (data != null && data.isNotEmpty) {
-                  _epubReaderController.gotoEpubCfi(data);
-                }
-              });
-            },
-            onChapterChanged: (value) {
-              epubConf = _epubReaderController.generateEpubCfi();
-            },
-            builders: EpubViewBuilders<DefaultBuilderOptions>(
-              options: const DefaultBuilderOptions(),
-              chapterDividerBuilder: (_) => const Divider(),
+          return _buildTapNavigationWrapper(
+            EpubView(
+              onDocumentLoaded: (doc) {
+                Future.delayed(const Duration(milliseconds: 20), () {
+                  if (data != null && data.isNotEmpty) {
+                    _epubReaderController.gotoEpubCfi(data);
+                  }
+                });
+              },
+              onChapterChanged: (value) {
+                epubConf = _epubReaderController.generateEpubCfi();
+              },
+              builders: EpubViewBuilders<DefaultBuilderOptions>(
+                options: const DefaultBuilderOptions(),
+                chapterDividerBuilder: (_) => const Divider(),
+              ),
+              controller: _epubReaderController,
             ),
-            controller: _epubReaderController,
           );
         },
         error: (err, _) {
-          return EpubView(
-            onChapterChanged: (value) {
-              epubConf = _epubReaderController.generateEpubCfi();
-            },
-            builders: EpubViewBuilders<DefaultBuilderOptions>(
-              options: const DefaultBuilderOptions(),
-              chapterDividerBuilder: (_) => const Divider(),
+          return _buildTapNavigationWrapper(
+            EpubView(
+              onChapterChanged: (value) {
+                epubConf = _epubReaderController.generateEpubCfi();
+              },
+              builders: EpubViewBuilders<DefaultBuilderOptions>(
+                options: const DefaultBuilderOptions(),
+                chapterDividerBuilder: (_) => const Divider(),
+              ),
+              controller: _epubReaderController,
             ),
-            controller: _epubReaderController,
           );
         },
         loading: () {
@@ -193,6 +197,26 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildTapNavigationWrapper(Widget child) {
+    return GestureDetector(
+      onTapUp: (details) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final tapPosition = details.globalPosition.dx;
+        
+        // Divide screen into three zones: left (30%), center (40%), right (30%)
+        if (tapPosition < screenWidth * 0.3) {
+          // Left zone - previous chapter
+          _epubReaderController.previousChapter();
+        } else if (tapPosition > screenWidth * 0.7) {
+          // Right zone - next chapter
+          _epubReaderController.nextChapter();
+        }
+        // Center zone (30-70%) - no action, allows text selection
+      },
+      child: child,
     );
   }
 }
