@@ -141,6 +141,20 @@ To manually retry a failed build in GitHub Actions:
 
 Alternatively, you can trigger a new release build by creating a new release tag.
 
+### Manual Build (Without Release)
+
+You can manually trigger a build without creating a release to test your changes:
+
+1. Go to the [Actions tab](https://github.com/warreth/OpenlibExtended/actions) in the repository
+2. Click on "Build and Release APKs" workflow on the left sidebar
+3. Click "Run workflow" button (top right)
+4. Optionally:
+   - Enter a version number (e.g., 1.0.12) or leave empty to use current version from pubspec.yaml
+   - Check "Skip running tests" if you want to skip tests
+5. Click the green "Run workflow" button
+6. Wait for the build to complete
+7. Download the APK artifacts from the workflow run page
+
 ### Android
 
 Make sure that `android/local.properties` has `flutter.minSdkVersion=21` or above

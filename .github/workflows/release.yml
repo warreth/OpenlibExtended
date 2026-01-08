@@ -3,6 +3,17 @@ name: Build and Release APKs
 on:
   release:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.0.11, leave empty to use pubspec.yaml)'
+        required: false
+        default: ''
+      skip_tests:
+        description: 'Skip running tests'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-and-release:
@@ -62,6 +73,7 @@ jobs:
           echo "Analysis completed successfully!"
 
       - name: Run tests
+        if: ${{ !inputs.skip_tests }}
         run: |
           echo "Running Flutter tests..."
           flutter test
@@ -69,26 +81,59 @@ jobs:
 
       - name: Update pubspec version
         run: |
-          # Extract version from tag (e.g., v1.2.3 -> 1.2.3, also handles 1.2.3)
-          TAG_VERSION=$(echo "$GITHUB_REF_NAME" | sed 's/^v//')
+          # For workflow_dispatch, use input version or keep current
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            INPUT_VERSION="${{ inputs.version }}"
+            if [[ -n "$INPUT_VERSION" ]]; then
+              # Use the provided version
+              TAG_VERSION="$INPUT_VERSION"
+              
+              # Fix: If version is format 1.2, append .0 to make it 1.2.0
+              if [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+                TAG_VERSION="${TAG_VERSION}.0"
+                echo "Formatted version to semantic version: $TAG_VERSION"
+              fi
+              
+              # Validate version format
+              if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "Error: Invalid version format: $TAG_VERSION"
+                echo "Expected semantic version format (e.g., 1.2.3)"
+                exit 1
+              fi
+              
+              # Use run_number as build number
+              BUILD_NUMBER=${{ github.run_number }}
+              # Update version in pubspec.yaml
+              sed -i "s/^version: .*/version: ${TAG_VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+              echo "Updated version to: $TAG_VERSION+$BUILD_NUMBER"
+            else
+              echo "No version specified, using current version from pubspec.yaml"
+              CURRENT_VERSION=$(grep "^version:" pubspec.yaml | sed 's/^version: //')
+              echo "Current version: $CURRENT_VERSION"
+            fi
+          else
+            # For release events, extract version from tag
+            # Extract version from tag (e.g., v1.2.3 -> 1.2.3, also handles 1.2.3)
+            TAG_VERSION=$(echo "$GITHUB_REF_NAME" | sed 's/^v//')
 
-          # Fix: If version is format 1.2, append .0 to make it 1.2.0
-          if [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
-            TAG_VERSION="${TAG_VERSION}.0"
-            echo "Formatted version to semantic version: $TAG_VERSION"
-          fi
+            # Fix: If version is format 1.2, append .0 to make it 1.2.0
+            if [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+              TAG_VERSION="${TAG_VERSION}.0"
+              echo "Formatted version to semantic version: $TAG_VERSION"
+            fi
 
-          # Validate version format
-          if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Error: Invalid version format: $TAG_VERSION"
-            echo "Expected semantic version format (e.g., 1.2.3)"
-            exit 1
+            # Validate version format
+            if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Error: Invalid version format: $TAG_VERSION"
+              echo "Expected semantic version format (e.g., 1.2.3)"
+              exit 1
+            fi
+            # Use run_number as build number
+            BUILD_NUMBER=${{ github.run_number }}
+            # Update version in pubspec.yaml
+            sed -i "s/^version: .*/version: ${TAG_VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+            echo "Updated version to: $TAG_VERSION+$BUILD_NUMBER"
           fi
-          # Use run_number as build number
-          BUILD_NUMBER=${{ github.run_number }}
-          # Update version in pubspec.yaml
-          sed -i "s/^version: .*/version: ${TAG_VERSION}+${BUILD_NUMBER}/" pubspec.yaml
-          echo "Updated version to: $TAG_VERSION+$BUILD_NUMBER"
           grep "^version:" pubspec.yaml
 
       - name: Build all APKs
@@ -104,8 +149,17 @@ jobs:
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-artifacts/openlib-extended-armeabi-v7a-release.apk
           
       - name: Upload Release Assets
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
           files: release-artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload Build Artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-builds
+          path: release-artifacts/*.apk
+          retention-days: 7
