@@ -18,7 +18,7 @@ class MirrorFetcherService {
   /// Fetch mirror links from the given URL in the background
   /// Returns a list of mirror download links
   Future<List<String>> fetchMirrors(String url) async {
-    _logger.info('Starting background mirror fetch from: $url', tag: 'MirrorFetcher');
+    _logger.info('Starting background mirror fetch', tag: 'MirrorFetcher', metadata: {'url': url});
     
     final Completer<List<String>> completer = Completer<List<String>>();
     final List<String> bookDownloadLinks = [];
@@ -36,7 +36,7 @@ class MirrorFetcherService {
             return;
           }
           
-          _logger.debug('Page loaded: ${url.toString()}', tag: 'MirrorFetcher');
+          _logger.debug('Page loaded successfully', tag: 'MirrorFetcher', metadata: {'url': url.toString()});
           
           try {
             if (url.toString().contains("slow_download")) {
@@ -55,7 +55,7 @@ class MirrorFetcherService {
               List<dynamic> mirrorLinks =
                   await controller.evaluateJavascript(source: query);
               bookDownloadLinks.addAll(mirrorLinks.cast<String>());
-              _logger.info('Extracted ${bookDownloadLinks.length} mirror links', tag: 'MirrorFetcher');
+              _logger.info('Extracted mirror links', tag: 'MirrorFetcher', metadata: {'count': bookDownloadLinks.length});
             }
             
             // Complete the future with the extracted links
@@ -71,7 +71,7 @@ class MirrorFetcherService {
           }
         },
         onReceivedError: (controller, request, error) {
-          _logger.error('WebView error: ${error.description}', tag: 'MirrorFetcher', error: error);
+          _logger.error('WebView load error', tag: 'MirrorFetcher', error: error.description);
           // Load error, complete with empty list
           if (!completer.isCompleted) {
             completer.complete([]);
@@ -95,7 +95,7 @@ class MirrorFetcherService {
 
       // Dispose the headless webview
       await headlessWebView.dispose();
-      _logger.debug('Headless webview disposed', tag: 'MirrorFetcher');
+      _logger.debug('Headless webview disposed', tag: 'MirrorFetcher', metadata: {'mirrors_found': result.length});
 
       return result;
     } catch (e, stackTrace) {

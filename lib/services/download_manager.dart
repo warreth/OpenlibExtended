@@ -222,7 +222,14 @@ class DownloadManager {
   Future<void> _startDownload(DownloadTask task) async {
     Dio? dio;
     try {
+      _logger.info('Starting download for: ${task.title} (${task.format})', tag: 'DownloadManager', metadata: {
+        'taskId': task.id,
+        'md5': task.md5,
+        'mirrors': task.mirrors.length,
+      });
+      
       if (task.mirrors.isEmpty) {
+        _logger.warning('No mirrors available for: ${task.title}', tag: 'DownloadManager');
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'No mirrors available!');
         return;
@@ -231,6 +238,11 @@ class DownloadManager {
       dio = Dio();
       String path = await _getFilePath('${task.md5}.${task.format}');
       List<String> orderedMirrors = _reorderMirrors(task.mirrors);
+      
+      _logger.debug('Reordered mirrors for: ${task.title}', tag: 'DownloadManager', metadata: {
+        'ipfs_count': orderedMirrors.where((m) => m.contains('ipfs')).length,
+        'https_count': orderedMirrors.where((m) => !m.contains('ipfs')).length,
+      });
 
       _updateTaskStatus(task.id, DownloadStatus.downloadingMirrors);
       await _notificationService.showDownloadNotification(
@@ -243,6 +255,9 @@ class DownloadManager {
       String? workingMirror = await _getAliveMirror(orderedMirrors);
 
       if (workingMirror == null) {
+        _logger.error('No working mirrors found for: ${task.title}', tag: 'DownloadManager', metadata: {
+          'checked_mirrors': orderedMirrors.length,
+        });
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'No working mirrors available!');
         await _notificationService.showDownloadNotification(
@@ -253,6 +268,10 @@ class DownloadManager {
         );
         return;
       }
+      
+      _logger.info('Found working mirror for: ${task.title}', tag: 'DownloadManager', metadata: {
+        'mirror': workingMirror,
+      });
 
       // Try to download from each mirror until successful
       bool downloadSuccessful = false;
