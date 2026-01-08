@@ -217,7 +217,6 @@ class DnsResolverService {
               return Socket.startConnect(
                 address,
                 uri.port,
-                timeout: const Duration(seconds: 10),
               );
             } catch (e) {
               _logger.warning('Failed to connect to IP', tag: 'DnsResolver', metadata: {
