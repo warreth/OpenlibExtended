@@ -193,6 +193,7 @@ class DownloadManager {
   }
 
   Future<void> _startDownload(DownloadTask task) async {
+    Dio? dio;
     try {
       if (task.mirrors.isEmpty) {
         _updateTaskStatus(task.id, DownloadStatus.failed,
@@ -200,7 +201,7 @@ class DownloadManager {
         return;
       }
 
-      Dio dio = Dio();
+      dio = Dio();
       String path = await _getFilePath('${task.md5}.${task.format}');
       List<String> orderedMirrors = _reorderMirrors(task.mirrors);
 
@@ -226,37 +227,98 @@ class DownloadManager {
         return;
       }
 
-      _updateTaskStatus(task.id, DownloadStatus.downloading);
-
+      // Try to download from each mirror until successful
+      bool downloadSuccessful = false;
+      int mirrorIndex = orderedMirrors.indexOf(workingMirror);
+      
+      // Create a single cancel token for the entire mirror retry sequence
       CancelToken cancelToken = CancelToken();
       _activeDownloads[task.id] =
           _activeDownloads[task.id]!.copyWith(cancelToken: cancelToken);
+      
+      while (mirrorIndex < orderedMirrors.length && !downloadSuccessful) {
+        final currentMirror = orderedMirrors[mirrorIndex];
+        
+        try {
+          _updateTaskStatus(task.id, DownloadStatus.downloading);
 
-      await dio.download(
-        workingMirror,
-        path,
-        options: Options(headers: {
-          'Connection': 'Keep-Alive',
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
-        }),
-        onReceiveProgress: (rcv, total) {
-          if (!(rcv.isNaN || rcv.isInfinite) &&
-              !(total.isNaN || total.isInfinite)) {
-            double progress = rcv / total;
-            _updateTaskProgress(task.id, progress, rcv, total);
+          await dio.download(
+            currentMirror,
+            path,
+            options: Options(headers: {
+              'Connection': 'Keep-Alive',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
+            }),
+            onReceiveProgress: (rcv, total) {
+              if (!(rcv.isNaN || rcv.isInfinite) &&
+                  !(total.isNaN || total.isInfinite)) {
+                double progress = rcv / total;
+                _updateTaskProgress(task.id, progress, rcv, total);
 
-            _notificationService.showDownloadNotification(
+                _notificationService.showDownloadNotification(
+                  id: task.id.hashCode,
+                  title: task.title,
+                  body: 'Downloading...',
+                  progress: (progress * 100).toInt(),
+                );
+              }
+            },
+            deleteOnError: true,
+            cancelToken: cancelToken,
+          );
+
+          // Download completed successfully
+          downloadSuccessful = true;
+          
+        } on DioException catch (e) {
+          if (e.type == DioExceptionType.cancel) {
+            _updateTaskStatus(task.id, DownloadStatus.cancelled);
+            await _notificationService.cancelNotification(task.id.hashCode);
+            return;
+          }
+          
+          // Try next mirror if available
+          mirrorIndex++;
+          if (mirrorIndex < orderedMirrors.length) {
+            _updateTaskStatus(task.id, DownloadStatus.downloadingMirrors);
+            await _notificationService.showDownloadNotification(
               id: task.id.hashCode,
               title: task.title,
-              body: 'Downloading...',
-              progress: (progress * 100).toInt(),
+              body: 'Retrying with alternate mirror...',
+              progress: 0,
             );
+            
+            // Wait up to 2 seconds before retrying, but check for cancellation
+            const totalDelay = Duration(seconds: 2);
+            const stepDelay = Duration(milliseconds: 100);
+            var elapsed = Duration.zero;
+            while (elapsed < totalDelay) {
+              await Future.delayed(stepDelay);
+              elapsed += stepDelay;
+
+              // Check if task was cancelled during the delay
+              if (!_activeDownloads.containsKey(task.id) || 
+                  _activeDownloads[task.id]?.cancelToken?.isCancelled == true) {
+                _updateTaskStatus(task.id, DownloadStatus.cancelled);
+                await _notificationService.cancelNotification(task.id.hashCode);
+                return;
+              }
+            }
+          } else {
+            // No more mirrors to try; mark task as failed before re-throwing
+            _updateTaskStatus(task.id, DownloadStatus.failed,
+                errorMessage: 'All mirrors failed!');
+            await _notificationService.showDownloadNotification(
+              id: task.id.hashCode,
+              title: task.title,
+              body: 'Download failed: All mirrors exhausted',
+              progress: -1,
+            );
+            rethrow;
           }
-        },
-        deleteOnError: true,
-        cancelToken: cancelToken,
-      );
+        }
+      }
 
       if (!_activeDownloads.containsKey(task.id)) {
         return;
@@ -321,6 +383,9 @@ class DownloadManager {
         body: 'Download failed',
         progress: -1,
       );
+    } finally {
+      // Always close the Dio instance to prevent resource leaks
+      dio?.close();
     }
   }
 

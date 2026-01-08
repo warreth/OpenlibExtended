@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class DownloadNotificationService {
   static final DownloadNotificationService _instance =
@@ -17,6 +18,25 @@ class DownloadNotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
+
+  Future<bool> requestNotificationPermission() async {
+    if (!Platform.isAndroid) return true;
+
+    final status = await Permission.notification.status;
+    if (status.isGranted) {
+      return true;
+    }
+
+    final result = await Permission.notification.request();
+    return result.isGranted;
+  }
+
+  Future<bool> checkNotificationPermission() async {
+    if (!Platform.isAndroid) return true;
+
+    final status = await Permission.notification.status;
+    return status.isGranted;
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -65,6 +85,11 @@ class DownloadNotificationService {
         autoCancel: false,
         playSound: false,
         enableVibration: false,
+        icon: '@mipmap/launcher_icon',
+        styleInformation: BigTextStyleInformation(
+          body ?? '',
+          contentTitle: title,
+        ),
       );
     } else {
       androidDetails = AndroidNotificationDetails(
@@ -77,6 +102,11 @@ class DownloadNotificationService {
         autoCancel: true,
         playSound: progress == -1,
         enableVibration: false,
+        icon: '@mipmap/launcher_icon',
+        styleInformation: BigTextStyleInformation(
+          body ?? '',
+          contentTitle: title,
+        ),
       );
     }
 
