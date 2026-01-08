@@ -140,10 +140,13 @@ class DnsResolverService {
   }
 
   /// Cycle to the next DNS provider (useful for fallback)
-  void cycleToNextProvider() {
+  void cycleToNextProvider({bool countAsFailure = true}) {
     _currentProviderIndex = (_currentProviderIndex + 1) % _availableProviders.length;
     _currentProvider = _availableProviders[_currentProviderIndex];
-    _consecutiveFailures++;
+    
+    if (countAsFailure) {
+      _consecutiveFailures++;
+    }
     
     _logger.info('Cycled to next DNS provider', tag: 'DnsResolver', metadata: {
       'provider': _currentProvider.name,
@@ -186,8 +189,8 @@ class DnsResolverService {
           receiveTimeout: const Duration(seconds: 5),
           sendTimeout: const Duration(seconds: 5),
           validateStatus: (status) {
-            // Accept 200 OK responses, treat everything else as an error
-            return status == 200;
+            // Accept all 2xx status codes as successful responses
+            return status != null && status >= 200 && status < 300;
           },
         ),
       );
@@ -238,12 +241,12 @@ class DnsResolverService {
       cycleToNextProvider();
       return [];
     } catch (e, stackTrace) {
-      _logger.error('DNS resolution failed', tag: 'DnsResolver', error: e, stackTrace: stackTrace, metadata: {
+      _logger.error('Unexpected DNS resolution error', tag: 'DnsResolver', error: e, stackTrace: stackTrace, metadata: {
         'domain': domain,
         'provider': _currentProvider.name,
       });
       
-      // Try cycling to next provider on failure
+      // Try cycling to next provider on failure (should rarely happen as DioException should catch most cases)
       cycleToNextProvider();
       return [];
     }
