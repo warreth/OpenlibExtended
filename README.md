@@ -130,6 +130,17 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
 
 - The Build Will Be In './build/app/outputs/flutter-apk/app-release.apk'
 
+### Retrying CI/CD Builds
+
+To manually retry a failed build in GitHub Actions:
+
+1. Go to the [Actions tab](https://github.com/warreth/OpenlibExtended/actions) in the repository
+2. Click on the failed workflow run
+3. Click the "Re-run jobs" button in the top right corner
+4. Select "Re-run failed jobs" or "Re-run all jobs"
+
+Alternatively, you can trigger a new release build by creating a new release tag.
+
 ### Android
 
 Make sure that `android/local.properties` has `flutter.minSdkVersion=21` or above

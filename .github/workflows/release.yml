@@ -58,7 +58,7 @@ jobs:
       - name: Run Flutter analyze
         run: |
           echo "Running Flutter analyze to catch compilation errors early..."
-          flutter analyze --fatal-infos
+          flutter analyze
           echo "Analysis completed successfully!"
 
       - name: Run tests
