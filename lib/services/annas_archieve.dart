@@ -6,7 +6,6 @@ import 'package:html/dom.dart' as dom;
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
-import 'package:openlib/services/dns_resolver.dart';
 
 // ====================================================================
 // DATA MODELS
@@ -59,14 +58,8 @@ class AnnasArchieve {
   final Dio dio = Dio();
   final InstanceManager _instanceManager = InstanceManager();
   final AppLogger _logger = AppLogger();
-  final DnsResolverService _dnsResolver = DnsResolverService();
   static const int maxRetries = 2; // Check each server 2x as per requirements
   static const int retryDelayMs = 500; // Delay between retries in milliseconds
-
-  AnnasArchieve() {
-    // Configure Dio to use DNS-over-HTTPS
-    _dnsResolver.configureDio(dio);
-  }
 
   Map<String, dynamic> defaultDioHeaders = {
     "user-agent":

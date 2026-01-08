@@ -66,7 +66,7 @@ class LogEntry {
 
   String _formatJson(Map<String, dynamic> json) {
     try {
-      return JsonEncoder.withIndent('  ').convert(json);
+      return const JsonEncoder.withIndent('  ').convert(json);
     } catch (_) {
       return json.toString();
     }

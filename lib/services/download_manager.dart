@@ -11,7 +11,6 @@ import 'package:openlib/services/database.dart' show MyLibraryDb, MyBook;
 import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/mirror_fetcher.dart';
-import 'package:openlib/services/dns_resolver.dart';
 
 enum DownloadStatus {
   queued,
@@ -36,6 +35,7 @@ class DownloadTask {
   final String? description;
   final String link;
   final List<String> mirrors;
+  final String? mirrorUrl; // URL to fetch mirrors from (for retry)
 
   DownloadStatus status;
   double progress;
@@ -56,6 +56,7 @@ class DownloadTask {
     this.info,
     this.description,
     required this.link,
+    this.mirrorUrl,
     this.status = DownloadStatus.queued,
     this.progress = 0.0,
     this.downloadedBytes = 0,
@@ -72,6 +73,7 @@ class DownloadTask {
     String? errorMessage,
     CancelToken? cancelToken,
     List<String>? mirrors,
+    String? mirrorUrl,
   }) {
     return DownloadTask(
       id: id,
@@ -85,6 +87,7 @@ class DownloadTask {
       info: info,
       description: description,
       link: link,
+      mirrorUrl: mirrorUrl ?? this.mirrorUrl,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       downloadedBytes: downloadedBytes ?? this.downloadedBytes,
@@ -104,11 +107,16 @@ class DownloadManager {
   final DownloadNotificationService _notificationService =
       DownloadNotificationService();
   final AppLogger _logger = AppLogger();
-  final DnsResolverService _dnsResolver = DnsResolverService();
 
   final Map<String, DownloadTask> _activeDownloads = {};
   final StreamController<Map<String, DownloadTask>> _downloadsController =
       StreamController<Map<String, DownloadTask>>.broadcast();
+
+  // Constants for download completion timing
+  // Tasks are removed 30 seconds after completion: 3s for notification clear, then 27s additional delay
+  static const Duration _notificationClearDelay = Duration(seconds: 3);
+  static const Duration _totalCompletionTime = Duration(seconds: 30);
+  static final Duration _taskRemovalDelay = _totalCompletionTime - _notificationClearDelay;
 
   Stream<Map<String, DownloadTask>> get downloadsStream =>
       _downloadsController.stream;
@@ -199,6 +207,7 @@ class DownloadManager {
       progress: 0,
     );
 
+    // Start download in background (fire-and-forget)
     _startDownload(task);
   }
 
@@ -209,7 +218,10 @@ class DownloadManager {
     }
 
     _logger.info('Adding download with mirror URL: ${task.title} (${task.format})', tag: 'DownloadManager');
-    _activeDownloads[task.id] = task;
+    
+    // Store the mirror URL in the task for potential retry
+    final taskWithMirrorUrl = task.copyWith(mirrorUrl: mirrorUrl);
+    _activeDownloads[task.id] = taskWithMirrorUrl;
     _notifyListeners();
 
     await _notificationService.showDownloadNotification(
@@ -218,7 +230,8 @@ class DownloadManager {
       progress: 0,
     );
 
-    _startDownloadWithMirrorUrl(task, mirrorUrl);
+    // Start download in background (fire-and-forget)
+    _startDownloadWithMirrorUrl(taskWithMirrorUrl, mirrorUrl);
   }
 
   Future<void> _startDownload(DownloadTask task) async {
@@ -238,8 +251,6 @@ class DownloadManager {
       }
 
       dio = Dio();
-      // Configure DNS-over-HTTPS for this download
-      _dnsResolver.configureDio(dio);
       
       String path = await _getFilePath('${task.md5}.${task.format}');
       List<String> orderedMirrors = _reorderMirrors(task.mirrors);
@@ -409,8 +420,12 @@ class DownloadManager {
         progress: -1,
       );
 
-      // Auto-remove from download list after 30 seconds
-      await Future.delayed(const Duration(seconds: 30));
+      // Clear notification after configured delay
+      await Future.delayed(_notificationClearDelay);
+      await _notificationService.cancelNotification(task.id.hashCode);
+
+      // Auto-remove from download list after configured delay
+      await Future.delayed(_taskRemovalDelay);
       removeDownload(task.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -472,9 +487,9 @@ class DownloadManager {
 
       if (fetchedMirrors.isEmpty) {
         _logger.error('Background mirror fetching failed for: ${task.title}', tag: 'DownloadManager');
-        // Background fetching failed - store the mirror URL for fallback
+        // Background fetching failed - keep task for manual retry
         _updateTaskStatus(task.id, DownloadStatus.failed,
-            errorMessage: 'Manual verification required - please use "Download" button to open captcha page');
+            errorMessage: 'Manual verification required');
         await _notificationService.showDownloadNotification(
           id: task.id.hashCode,
           title: task.title,
@@ -482,9 +497,10 @@ class DownloadManager {
           progress: -1,
         );
         
-        // Auto-remove failed downloads after 60 seconds
-        await Future.delayed(const Duration(seconds: 60));
-        removeDownload(task.id);
+        // Clear notification after configured delay but keep task in UI for manual retry
+        await Future.delayed(_notificationClearDelay);
+        await _notificationService.cancelNotification(task.id.hashCode);
+        
         return;
       }
 
@@ -496,8 +512,6 @@ class DownloadManager {
 
       // Now proceed with the regular download flow
       dio = Dio();
-      // Configure DNS-over-HTTPS for this download
-      _dnsResolver.configureDio(dio);
       
       String path = await _getFilePath('${updatedTask.md5}.${updatedTask.format}');
       List<String> orderedMirrors = _reorderMirrors(updatedTask.mirrors);
@@ -655,8 +669,12 @@ class DownloadManager {
         progress: -1,
       );
 
-      // Auto-remove from download list after 30 seconds
-      await Future.delayed(const Duration(seconds: 30));
+      // Clear notification after configured delay
+      await Future.delayed(_notificationClearDelay);
+      await _notificationService.cancelNotification(updatedTask.id.hashCode);
+
+      // Auto-remove from download list after configured delay
+      await Future.delayed(_taskRemovalDelay);
       removeDownload(updatedTask.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {

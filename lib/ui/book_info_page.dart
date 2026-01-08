@@ -243,6 +243,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                         description: widget.data.description,
                         link: widget.data.link,
                         mirrors: [], // Will be fetched in background
+                        mirrorUrl: widget.data.mirror, // Store mirror URL for retry
                       );
                       
                       await downloadManager.addDownloadWithMirrorUrl(
@@ -255,8 +256,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           context: context,
                           message: 'Download started in background',
                         );
-                        // ignore: unused_result
-                        ref.refresh(myLibraryProvider);
+                        ref.invalidate(myLibraryProvider);
                       }
                     } else {
                       showSnackBar(
@@ -269,7 +269,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                 if (showManualButton)
                   TextButton(
                     style: TextButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.tertiary.withOpacity(0.2),
+                      backgroundColor: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.2),
                       padding:
                           const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       textStyle: const TextStyle(
@@ -290,13 +290,31 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                         );
                         
                         if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
-                          // Start download with fetched mirrors
-                          await downloadFileWidget(
-                            ref,
-                            context,
-                            widget.data,
-                            mirrors,
+                          // Start download in background with fetched mirrors
+                          final downloadManager = ref.read(downloadManagerProvider);
+                          final task = DownloadTask(
+                            id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
+                            md5: widget.data.md5,
+                            title: widget.data.title,
+                            author: widget.data.author,
+                            thumbnail: widget.data.thumbnail,
+                            publisher: widget.data.publisher,
+                            info: widget.data.info,
+                            format: widget.data.format!,
+                            description: widget.data.description,
+                            link: widget.data.link,
+                            mirrors: mirrors, // Use manually fetched mirrors
                           );
+                          
+                          await downloadManager.addDownload(task);
+                          
+                          if (context.mounted) {
+                            showSnackBar(
+                              context: context,
+                              message: 'Download started in background',
+                            );
+                          }
+                          ref.invalidate(myLibraryProvider);
                         }
                       } else {
                         showSnackBar(
@@ -384,8 +402,7 @@ Future<void> downloadFileWidget(WidgetRef ref, BuildContext context,
           }
           // ignore: unused_result
           ref.refresh(checkIdExists(data.md5));
-          // ignore: unused_result
-          ref.refresh(myLibraryProvider);
+          ref.invalidate(myLibraryProvider);
           // ignore: use_build_context_synchronously
           showSnackBar(context: context, message: 'Book has been downloaded!');
         }

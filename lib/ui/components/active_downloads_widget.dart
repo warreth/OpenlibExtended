@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import 'package:openlib/services/download_manager.dart';
 import 'package:openlib/state/state.dart';
+import 'package:openlib/ui/webview_page.dart';
 
 class ActiveDownloadsWidget extends ConsumerWidget {
   const ActiveDownloadsWidget({super.key});
@@ -56,15 +57,19 @@ class ActiveDownloadsWidget extends ConsumerWidget {
         }
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -308,37 +313,109 @@ class _DownloadItem extends ConsumerWidget {
               ),
             ),
           ] else if (task.status == DownloadStatus.failed) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: Colors.red.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 14,
-                    color: Colors.red,
+            if (task.errorMessage?.contains('Manual verification required') == true) ...[
+              // Show "Verify" button for manual verification required error
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.3),
+                    width: 1,
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      task.errorMessage ?? 'Download failed',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.red,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        task.errorMessage ?? 'Manual verification required',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.orange,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () async {
+                        // Open webview for manual verification
+                        if (task.mirrorUrl != null) {
+                          final List<String>? mirrors = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (BuildContext context) =>
+                                  Webview(url: task.mirrorUrl!),
+                            ),
+                          );
+                          
+                          if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
+                            // Update task with fetched mirrors and restart download
+                            final updatedTask = task.copyWith(mirrors: mirrors);
+                            downloadManager.removeDownload(task.id);
+                            await downloadManager.addDownload(updatedTask);
+                          }
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Verify',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ] else ...[
+              // Show regular error for other failures
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: Colors.red.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 14,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        task.errorMessage ?? 'Download failed',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ],
       ),
