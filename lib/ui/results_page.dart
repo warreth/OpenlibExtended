@@ -152,7 +152,7 @@ class ResultPage extends ConsumerWidget {
                 child: TitleText("Results"),
               ),
               Expanded(
-                child: const Center(
+                child: Center(
                   child: SizedBox(
                     width: 25,
                     height: 25,

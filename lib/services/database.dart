@@ -216,7 +216,7 @@ class MyLibraryDb {
   }
 
   Future<void> savePreference(String name, dynamic value) async {
-    switch (value.runtimeType) {
+    switch (value) {
       case bool _:
         value = value ? 1 : 0;
         break;

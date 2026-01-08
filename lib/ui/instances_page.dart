@@ -87,6 +87,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                   return;
                 }
 
+                // Capture context-dependent objects before async gap
+                final navigator = Navigator.of(context);
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                
                 final manager = ref.read(instanceManagerProvider);
                 await manager.addInstance(name, url);
                 
@@ -94,10 +98,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 ref.invalidate(archiveInstancesProvider);
 
                 if (mounted) {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
+                  if (navigator.canPop()) {
+                    navigator.pop();
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(content: Text('Instance added successfully')),
                   );
                 }
@@ -124,6 +128,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
             ),
             TextButton(
               onPressed: () async {
+                // Capture context-dependent objects before async gap
+                final navigator = Navigator.of(context);
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                
                 final manager = ref.read(instanceManagerProvider);
                 final success = await manager.removeInstance(instance.id);
                 
@@ -131,13 +139,13 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 
                 if (success) {
                   ref.invalidate(archiveInstancesProvider);
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  navigator.pop();
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(content: Text('Instance deleted')),
                   );
                 } else {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  navigator.pop();
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(content: Text('Cannot delete default instances')),
                   );
                 }
@@ -166,11 +174,14 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
+              // Capture context-dependent objects before async gap
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              
               final manager = ref.read(instanceManagerProvider);
               await manager.resetToDefaults();
               ref.invalidate(archiveInstancesProvider);
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
+              scaffoldMessenger.showSnackBar(
                 const SnackBar(content: Text('Reset to default instances')),
               );
             },

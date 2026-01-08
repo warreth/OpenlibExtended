@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_file/open_file.dart';
-import 'package:openlib/services/database.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
@@ -107,7 +106,7 @@ class EpubViewer extends ConsumerStatefulWidget {
   final String fileName;
 
   @override
-  State<EpubViewer> createState() => _EpubViewerState();
+  ConsumerState<EpubViewer> createState() => _EpubViewerState();
 }
 
 class _EpubViewerState extends ConsumerState<EpubViewer> {

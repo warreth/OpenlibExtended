@@ -28,14 +28,13 @@ import 'package:openlib/state/state.dart'
         archiveInstancesProvider;
 
 Future<void> requestStoragePermission() async {
-  bool permissionGranted = false;
   // Check whether the device is running Android 11 or higher
   DeviceInfoPlugin plugin = DeviceInfoPlugin();
   AndroidDeviceInfo android = await plugin.androidInfo;
   // Android < 11
   if (android.version.sdkInt < 33) {
     if (await Permission.storage.request().isGranted) {
-      permissionGranted = true;
+      // Permission granted
     } else if (await Permission.storage.request().isPermanentlyDenied) {
       await openAppSettings();
     }
@@ -43,16 +42,15 @@ Future<void> requestStoragePermission() async {
   // Android > 11
   else {
     if (await Permission.manageExternalStorage.request().isGranted) {
-      permissionGranted = true;
+      // Permission granted
     } else if (await Permission.manageExternalStorage
         .request()
         .isPermanentlyDenied) {
       await openAppSettings();
     } else if (await Permission.manageExternalStorage.request().isDenied) {
-      permissionGranted = false;
+      // Permission denied
     }
   }
-  // Storage permission status: $permissionGranted
 }
 
 class SettingsPage extends ConsumerWidget {
@@ -365,6 +363,9 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                           }).toList(),
                           onChanged: (String? newValue) async {
                             if (newValue != null) {
+                              // Capture context-dependent objects before async gap
+                              final scaffoldMessenger = ScaffoldMessenger.of(context);
+                              
                               setState(() {
                                 _selectedInstanceId = newValue;
                               });
@@ -373,7 +374,7 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                               ref.invalidate(currentInstanceProvider);
                               
                               if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              scaffoldMessenger.showSnackBar(
                                 const SnackBar(
                                   content: Text('Instance changed successfully'),
                                   duration: Duration(seconds: 2),
