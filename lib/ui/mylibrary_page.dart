@@ -17,72 +17,93 @@ import 'package:openlib/ui/mybook_page.dart';
 class MyLibraryPage extends ConsumerWidget {
   const MyLibraryPage({super.key});
 
+  Future<void> _refreshLibrary(WidgetRef ref) async {
+    // Invalidate the provider to force a refresh
+    ref.invalidate(myLibraryProvider);
+    // Wait a bit for the refresh to complete
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final myBooks = ref.watch(myLibraryProvider);
     return myBooks.when(
       data: (data) {
         if (data.isNotEmpty) {
-          return Padding(
-            padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: <Widget>[
-                const SliverToBoxAdapter(
-                  child: ActiveDownloadsWidget(),
-                ),
-                const SliverToBoxAdapter(
-                  child: TitleText("My Library"),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate(data
-                        .map((i) => BookInfoCard(
-                            title: i.title,
-                            author: i.author ?? "",
-                            publisher: i.publisher ?? "",
-                            thumbnail: i.thumbnail,
-                            info: i.info,
-                            link: i.link,
-                            onClick: () {
-                              Navigator.push(context, MaterialPageRoute(
-                                  builder: (BuildContext context) {
-                                return BookPage(id: i.id);
-                              }));
-                            }))
-                        .toList()),
+          return RefreshIndicator(
+            onRefresh: () => _refreshLibrary(ref),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                slivers: <Widget>[
+                  const SliverToBoxAdapter(
+                    child: ActiveDownloadsWidget(),
                   ),
-                ),
-              ],
+                  const SliverToBoxAdapter(
+                    child: TitleText("My Library"),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate(data
+                          .map((i) => BookInfoCard(
+                              title: i.title,
+                              author: i.author ?? "",
+                              publisher: i.publisher ?? "",
+                              thumbnail: i.thumbnail,
+                              info: i.info,
+                              link: i.link,
+                              onClick: () {
+                                Navigator.push(context, MaterialPageRoute(
+                                    builder: (BuildContext context) {
+                                  return BookPage(id: i.id);
+                                }));
+                              }))
+                          .toList()),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         } else {
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 200,
-                child: SvgPicture.asset(
-                  'assets/empty_mylib.svg',
-                  width: 200,
+          return RefreshIndicator(
+            onRefresh: () => _refreshLibrary(ref),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height * 0.7,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: SvgPicture.asset(
+                        'assets/empty_mylib.svg',
+                        width: 200,
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 30,
+                    ),
+                    Text(
+                      "My Library Is Empty!",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: "#4D4D4D".toColor(),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  ],
                 ),
               ),
-              const SizedBox(
-                height: 30,
-              ),
-              Text(
-                "My Library Is Empty!",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: "#4D4D4D".toColor(),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              )
-            ],
+            ),
           );
         }
       },

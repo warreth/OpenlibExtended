@@ -28,6 +28,8 @@ class ActiveDownloadsWidget extends ConsumerWidget {
     switch (status) {
       case DownloadStatus.queued:
         return 'Queued';
+      case DownloadStatus.fetchingMirrors:
+        return 'Getting mirrors...';
       case DownloadStatus.downloadingMirrors:
         return 'Finding mirror...';
       case DownloadStatus.downloading:
@@ -241,6 +243,7 @@ class _DownloadItem extends ConsumerWidget {
               ),
               if (task.status == DownloadStatus.downloading ||
                   task.status == DownloadStatus.downloadingMirrors ||
+                  task.status == DownloadStatus.fetchingMirrors ||
                   task.status == DownloadStatus.queued)
                 IconButton(
                   icon: Icon(
@@ -292,6 +295,7 @@ class _DownloadItem extends ConsumerWidget {
               ],
             ),
           ] else if (task.status == DownloadStatus.downloadingMirrors ||
+              task.status == DownloadStatus.fetchingMirrors ||
               task.status == DownloadStatus.queued ||
               task.status == DownloadStatus.verifying) ...[
             ClipRRect(
@@ -349,6 +353,15 @@ class _DownloadItem extends ConsumerWidget {
           size: 18,
           color: _getStatusColor(status, context),
         );
+      case DownloadStatus.fetchingMirrors:
+        return SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: _getStatusColor(status, context),
+          ),
+        );
       case DownloadStatus.downloadingMirrors:
         return SizedBox(
           width: 16,
@@ -398,6 +411,7 @@ class _DownloadItem extends ConsumerWidget {
     switch (status) {
       case DownloadStatus.queued:
         return Colors.orange;
+      case DownloadStatus.fetchingMirrors:
       case DownloadStatus.downloadingMirrors:
       case DownloadStatus.downloading:
         return Theme.of(context).colorScheme.secondary;

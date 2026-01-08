@@ -227,37 +227,33 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                   onPressed: () async {
                     if (widget.data.mirror != null &&
                         widget.data.mirror != '') {
-                      final result = await Navigator.push(context,
-                          MaterialPageRoute(builder: (BuildContext context) {
-                        return Webview(url: widget.data.mirror ?? '');
-                      }));
-
-                      if (result != null && context.mounted) {
-                        final downloadManager = ref.read(downloadManagerProvider);
-                        final task = DownloadTask(
-                          id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
-                          md5: widget.data.md5,
-                          title: widget.data.title,
-                          author: widget.data.author,
-                          thumbnail: widget.data.thumbnail,
-                          publisher: widget.data.publisher,
-                          info: widget.data.info,
-                          format: widget.data.format!,
-                          description: widget.data.description,
-                          link: widget.data.link,
-                          mirrors: result,
+                      final downloadManager = ref.read(downloadManagerProvider);
+                      final task = DownloadTask(
+                        id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
+                        md5: widget.data.md5,
+                        title: widget.data.title,
+                        author: widget.data.author,
+                        thumbnail: widget.data.thumbnail,
+                        publisher: widget.data.publisher,
+                        info: widget.data.info,
+                        format: widget.data.format!,
+                        description: widget.data.description,
+                        link: widget.data.link,
+                        mirrors: [], // Will be fetched in background
+                      );
+                      
+                      await downloadManager.addDownloadWithMirrorUrl(
+                        task,
+                        widget.data.mirror!,
+                      );
+                      
+                      if (context.mounted) {
+                        showSnackBar(
+                          context: context,
+                          message: 'Download started in background',
                         );
-                        
-                        await downloadManager.addDownload(task);
-                        
-                        if (context.mounted) {
-                          showSnackBar(
-                            context: context,
-                            message: 'Download started in background',
-                          );
-                          // ignore: unused_result
-                          ref.refresh(myLibraryProvider);
-                        }
+                        // ignore: unused_result
+                        ref.refresh(myLibraryProvider);
                       }
                     } else {
                       showSnackBar(

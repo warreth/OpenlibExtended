@@ -258,22 +258,30 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
   }
 
   Widget _buildTapNavigationWrapper(Widget child) {
-    return GestureDetector(
-      onTapUp: (details) {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final tapPosition = details.globalPosition.dx;
-        
-        // Divide screen into three zones: left (30%), center (40%), right (30%)
-        if (tapPosition < screenWidth * 0.3) {
-          // Left zone - previous page
-          _goToPreviousPage();
-        } else if (tapPosition > screenWidth * 0.7) {
-          // Right zone - next page
-          _goToNextPage();
-        }
-        // Center zone (30-70%) - no action, allows other interactions
-      },
-      child: child,
+    return Stack(
+      children: [
+        child,
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTapUp: (details) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final tapPosition = details.globalPosition.dx;
+              
+              // Divide screen into three zones: left (30%), center (40%), right (30%)
+              if (tapPosition < screenWidth * 0.3) {
+                // Left zone - previous page
+                _goToPreviousPage();
+              } else if (tapPosition > screenWidth * 0.7) {
+                // Right zone - next page
+                _goToNextPage();
+              }
+              // Center zone (30-70%) - no action, allows other interactions
+            },
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+      ],
     );
   }
 }

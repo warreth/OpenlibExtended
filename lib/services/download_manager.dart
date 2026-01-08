@@ -9,9 +9,11 @@ import 'package:crypto/crypto.dart';
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb, MyBook;
 import 'package:openlib/services/download_notification.dart';
+import 'package:openlib/services/mirror_fetcher.dart';
 
 enum DownloadStatus {
   queued,
+  fetchingMirrors,
   downloadingMirrors,
   downloading,
   verifying,
@@ -67,12 +69,13 @@ class DownloadTask {
     int? totalBytes,
     String? errorMessage,
     CancelToken? cancelToken,
+    List<String>? mirrors,
   }) {
     return DownloadTask(
       id: id,
       md5: md5,
       title: title,
-      mirrors: mirrors,
+      mirrors: mirrors ?? this.mirrors,
       format: format,
       author: author,
       thumbnail: thumbnail,
@@ -190,6 +193,23 @@ class DownloadManager {
     );
 
     _startDownload(task);
+  }
+
+  Future<void> addDownloadWithMirrorUrl(DownloadTask task, String mirrorUrl) async {
+    if (_activeDownloads.containsKey(task.id)) {
+      return;
+    }
+
+    _activeDownloads[task.id] = task;
+    _notifyListeners();
+
+    await _notificationService.showDownloadNotification(
+      id: task.id.hashCode,
+      title: 'Queued: ${task.title}',
+      progress: 0,
+    );
+
+    _startDownloadWithMirrorUrl(task, mirrorUrl);
   }
 
   Future<void> _startDownload(DownloadTask task) async {
@@ -360,6 +380,231 @@ class DownloadManager {
 
       await Future.delayed(const Duration(seconds: 3));
       removeDownload(task.id);
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        _updateTaskStatus(task.id, DownloadStatus.cancelled);
+        await _notificationService.cancelNotification(task.id.hashCode);
+      } else {
+        _updateTaskStatus(task.id, DownloadStatus.failed,
+            errorMessage: 'Download failed! Try again...');
+        await _notificationService.showDownloadNotification(
+          id: task.id.hashCode,
+          title: task.title,
+          body: 'Download failed',
+          progress: -1,
+        );
+      }
+    } catch (e) {
+      _updateTaskStatus(task.id, DownloadStatus.failed,
+          errorMessage: 'Download failed! Try again...');
+      await _notificationService.showDownloadNotification(
+        id: task.id.hashCode,
+        title: task.title,
+        body: 'Download failed',
+        progress: -1,
+      );
+    } finally {
+      // Always close the Dio instance to prevent resource leaks
+      dio?.close();
+    }
+  }
+
+  Future<void> _startDownloadWithMirrorUrl(DownloadTask task, String mirrorUrl) async {
+    Dio? dio;
+    try {
+      // Update status to fetching mirrors
+      _updateTaskStatus(task.id, DownloadStatus.fetchingMirrors);
+      await _notificationService.showDownloadNotification(
+        id: task.id.hashCode,
+        title: task.title,
+        body: 'Getting mirrors...',
+        progress: 0,
+      );
+
+      // Fetch mirrors in background using headless webview
+      final mirrorFetcher = MirrorFetcherService();
+      List<String> fetchedMirrors = await mirrorFetcher.fetchMirrors(mirrorUrl);
+
+      if (!_activeDownloads.containsKey(task.id)) {
+        return; // Task was cancelled while fetching mirrors
+      }
+
+      if (fetchedMirrors.isEmpty) {
+        _updateTaskStatus(task.id, DownloadStatus.failed,
+            errorMessage: 'Failed to fetch mirrors!');
+        await _notificationService.showDownloadNotification(
+          id: task.id.hashCode,
+          title: task.title,
+          body: 'Failed: Could not get mirrors',
+          progress: -1,
+        );
+        return;
+      }
+
+      // Update task with fetched mirrors
+      final updatedTask = task.copyWith(mirrors: fetchedMirrors);
+      _activeDownloads[task.id] = updatedTask;
+
+      // Now proceed with the regular download flow
+      dio = Dio();
+      String path = await _getFilePath('${updatedTask.md5}.${updatedTask.format}');
+      List<String> orderedMirrors = _reorderMirrors(updatedTask.mirrors);
+
+      _updateTaskStatus(updatedTask.id, DownloadStatus.downloadingMirrors);
+      await _notificationService.showDownloadNotification(
+        id: updatedTask.id.hashCode,
+        title: updatedTask.title,
+        body: 'Finding available mirror...',
+        progress: 0,
+      );
+
+      String? workingMirror = await _getAliveMirror(orderedMirrors);
+
+      if (workingMirror == null) {
+        _updateTaskStatus(updatedTask.id, DownloadStatus.failed,
+            errorMessage: 'No working mirrors available!');
+        await _notificationService.showDownloadNotification(
+          id: updatedTask.id.hashCode,
+          title: updatedTask.title,
+          body: 'Failed: No working mirrors',
+          progress: -1,
+        );
+        return;
+      }
+
+      // Try to download from each mirror until successful
+      bool downloadSuccessful = false;
+      int mirrorIndex = orderedMirrors.indexOf(workingMirror);
+      
+      // Create a single cancel token for the entire mirror retry sequence
+      CancelToken cancelToken = CancelToken();
+      _activeDownloads[updatedTask.id] =
+          _activeDownloads[updatedTask.id]!.copyWith(cancelToken: cancelToken);
+      
+      while (mirrorIndex < orderedMirrors.length && !downloadSuccessful) {
+        final currentMirror = orderedMirrors[mirrorIndex];
+        
+        try {
+          _updateTaskStatus(updatedTask.id, DownloadStatus.downloading);
+
+          await dio.download(
+            currentMirror,
+            path,
+            options: Options(headers: {
+              'Connection': 'Keep-Alive',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
+            }),
+            onReceiveProgress: (rcv, total) {
+              if (!(rcv.isNaN || rcv.isInfinite) &&
+                  !(total.isNaN || total.isInfinite)) {
+                double progress = rcv / total;
+                _updateTaskProgress(updatedTask.id, progress, rcv, total);
+
+                _notificationService.showDownloadNotification(
+                  id: updatedTask.id.hashCode,
+                  title: updatedTask.title,
+                  body: 'Downloading...',
+                  progress: (progress * 100).toInt(),
+                );
+              }
+            },
+            deleteOnError: true,
+            cancelToken: cancelToken,
+          );
+
+          // Download completed successfully
+          downloadSuccessful = true;
+          
+        } on DioException catch (e) {
+          if (e.type == DioExceptionType.cancel) {
+            _updateTaskStatus(updatedTask.id, DownloadStatus.cancelled);
+            await _notificationService.cancelNotification(updatedTask.id.hashCode);
+            return;
+          }
+          
+          // Try next mirror if available
+          mirrorIndex++;
+          if (mirrorIndex < orderedMirrors.length) {
+            _updateTaskStatus(updatedTask.id, DownloadStatus.downloadingMirrors);
+            await _notificationService.showDownloadNotification(
+              id: updatedTask.id.hashCode,
+              title: updatedTask.title,
+              body: 'Retrying with alternate mirror...',
+              progress: 0,
+            );
+            
+            // Wait up to 2 seconds before retrying, but check for cancellation
+            const totalDelay = Duration(seconds: 2);
+            const stepDelay = Duration(milliseconds: 100);
+            var elapsed = Duration.zero;
+            while (elapsed < totalDelay) {
+              await Future.delayed(stepDelay);
+              elapsed += stepDelay;
+
+              // Check if task was cancelled during the delay
+              if (!_activeDownloads.containsKey(updatedTask.id) || 
+                  _activeDownloads[updatedTask.id]?.cancelToken?.isCancelled == true) {
+                _updateTaskStatus(updatedTask.id, DownloadStatus.cancelled);
+                await _notificationService.cancelNotification(updatedTask.id.hashCode);
+                return;
+              }
+            }
+          } else {
+            // No more mirrors to try; mark task as failed before re-throwing
+            _updateTaskStatus(updatedTask.id, DownloadStatus.failed,
+                errorMessage: 'All mirrors failed!');
+            await _notificationService.showDownloadNotification(
+              id: updatedTask.id.hashCode,
+              title: updatedTask.title,
+              body: 'Download failed: All mirrors exhausted',
+              progress: -1,
+            );
+            rethrow;
+          }
+        }
+      }
+
+      if (!_activeDownloads.containsKey(updatedTask.id)) {
+        return;
+      }
+
+      _updateTaskStatus(updatedTask.id, DownloadStatus.verifying);
+      await _notificationService.showDownloadNotification(
+        id: updatedTask.id.hashCode,
+        title: updatedTask.title,
+        body: 'Verifying file...',
+        progress: 100,
+      );
+
+      bool checkSumValid =
+          await _verifyFileCheckSum(md5Hash: updatedTask.md5, format: updatedTask.format);
+
+      await _database.insert(MyBook(
+        id: updatedTask.md5,
+        title: updatedTask.title,
+        author: updatedTask.author,
+        thumbnail: updatedTask.thumbnail,
+        link: updatedTask.link,
+        publisher: updatedTask.publisher,
+        info: updatedTask.info,
+        format: updatedTask.format,
+        description: updatedTask.description,
+      ));
+
+      _updateTaskStatus(updatedTask.id, DownloadStatus.completed);
+
+      await _notificationService.showDownloadNotification(
+        id: updatedTask.id.hashCode,
+        title: updatedTask.title,
+        body: checkSumValid
+            ? 'Download completed!'
+            : 'Download completed (checksum failed)',
+        progress: -1,
+      );
+
+      await Future.delayed(const Duration(seconds: 3));
+      removeDownload(updatedTask.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         _updateTaskStatus(task.id, DownloadStatus.cancelled);
