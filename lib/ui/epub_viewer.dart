@@ -140,7 +140,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
   void _navigateToPreviousChapter() {
     final currentValue = _epubReaderController.currentValue;
     if (currentValue != null && currentValue.chapterNumber > 0) {
-      _epubReaderController.jumpToChapter(currentValue.chapterNumber - 1);
+      _epubReaderController.jumpTo(index: currentValue.chapterNumber - 1);
     }
   }
 
@@ -148,7 +148,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
     final currentValue = _epubReaderController.currentValue;
     if (currentValue != null) {
       // Try to go to next chapter (will fail silently if at last chapter)
-      _epubReaderController.jumpToChapter(currentValue.chapterNumber + 1);
+      _epubReaderController.jumpTo(index: currentValue.chapterNumber + 1);
     }
   }
 
