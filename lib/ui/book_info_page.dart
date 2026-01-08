@@ -38,6 +38,7 @@ import 'package:openlib/state/state.dart'
         checkSumState,
         checkIdExists,
         myLibraryProvider,
+        showManualDownloadButtonProvider,
         downloadManagerProvider;
 
 class BookInfoPage extends ConsumerWidget {
@@ -206,6 +207,8 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
             },
           );
         } else {
+          final showManualButton = ref.watch(showManualDownloadButtonProvider);
+          
           return Padding(
             padding: const EdgeInsets.only(top: 21, bottom: 21),
             child: Wrap(
@@ -262,50 +265,51 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                   },
                   child: const Text('Add To My Library'),
                 ),
-                // Button for "Manual Download" (opens webview for captcha)
-                TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.tertiary.withOpacity(0.2),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    textStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
+                // Button for "Manual Download" (opens webview for captcha) - only shown if setting is enabled
+                if (showManualButton)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.tertiary.withOpacity(0.2),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  ),
-                  onPressed: () async {
-                    if (widget.data.mirror != null &&
-                        widget.data.mirror != '') {
-                      // Navigate to webview page
-                      final List<String>? mirrors = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (BuildContext context) =>
-                              Webview(url: widget.data.mirror!),
-                        ),
-                      );
-                      
-                      if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
-                        // Start download with fetched mirrors
-                        await downloadFileWidget(
-                          ref,
+                    onPressed: () async {
+                      if (widget.data.mirror != null &&
+                          widget.data.mirror != '') {
+                        // Navigate to webview page
+                        final List<String>? mirrors = await Navigator.push(
                           context,
-                          widget.data,
-                          mirrors,
+                          MaterialPageRoute(
+                            builder: (BuildContext context) =>
+                                Webview(url: widget.data.mirror!),
+                          ),
                         );
+                        
+                        if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
+                          // Start download with fetched mirrors
+                          await downloadFileWidget(
+                            ref,
+                            context,
+                            widget.data,
+                            mirrors,
+                          );
+                        }
+                      } else {
+                        showSnackBar(
+                            context: context, message: 'No mirrors available!');
                       }
-                    } else {
-                      showSnackBar(
-                          context: context, message: 'No mirrors available!');
-                    }
-                  },
-                  child: Text(
-                    'Manual Download',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.tertiary,
+                    },
+                    child: Text(
+                      'Manual Download',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
                     ),
-                  ),
-                )
+                  )
               ],
             ),
           );

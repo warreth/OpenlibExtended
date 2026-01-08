@@ -15,6 +15,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/dns_resolver.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
@@ -24,6 +25,8 @@ import 'package:openlib/state/state.dart'
         themeModeProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
+        showManualDownloadButtonProvider,
+        selectedDnsProviderIndexProvider,
         instanceManagerProvider,
         currentInstanceProvider,
         archiveInstancesProvider;
@@ -181,6 +184,131 @@ class SettingsPage extends ConsumerWidget {
                   },
                 )
               ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
+              child: Text(
+                "Download Settings",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            _PaddedContainer(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Show Manual Download Button",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.tertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Enable if background download doesn't work",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: ref.watch(showManualDownloadButtonProvider),
+                  activeThumbColor: Colors.red,
+                  onChanged: (bool value) {
+                    ref.read(showManualDownloadButtonProvider.notifier).state =
+                        value;
+                    dataBase.savePreference('showManualDownloadButton', value);
+                  },
+                )
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
+              child: Text(
+                "Network Settings",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            _PaddedContainer(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "DNS Provider",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.tertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Prevents ISP blocking via DNS-over-HTTPS",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                DropdownButton<int>(
+                  value: ref.watch(selectedDnsProviderIndexProvider),
+                  underline: Container(),
+                  items: DnsProviders.builtIn.asMap().entries.map((entry) {
+                    return DropdownMenuItem<int>(
+                      value: entry.key,
+                      child: Text(
+                        entry.value.name,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (int? newValue) async {
+                    if (newValue != null) {
+                      ref.read(selectedDnsProviderIndexProvider.notifier).state = newValue;
+                      await dataBase.savePreference('selectedDnsProviderIndex', newValue);
+                      
+                      // Update DNS resolver
+                      final dnsResolver = DnsResolverService();
+                      dnsResolver.setProvider(DnsProviders.builtIn[newValue]);
+                      
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('DNS provider changed to ${DnsProviders.builtIn[newValue].name}'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
+              child: Text(
+                "Storage & Files",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             _PaddedContainer(
                 onClick: () async {

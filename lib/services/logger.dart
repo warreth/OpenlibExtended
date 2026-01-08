@@ -1,11 +1,13 @@
 // Dart imports:
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/foundation.dart';
 
 // Package imports:
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -17,6 +19,7 @@ class LogEntry {
   final String? tag;
   final dynamic error;
   final StackTrace? stackTrace;
+  final Map<String, dynamic>? metadata;
 
   LogEntry({
     required this.timestamp,
@@ -25,24 +28,48 @@ class LogEntry {
     this.tag,
     this.error,
     this.stackTrace,
+    this.metadata,
   });
 
   @override
   String toString() {
     final buffer = StringBuffer();
-    buffer.write('[${timestamp.toIso8601String()}] ');
-    buffer.write('[$level] ');
+    buffer.write('[${_formatTimestamp(timestamp)}] ');
+    buffer.write('[${level.padRight(7)}] ');
     if (tag != null) {
-      buffer.write('[$tag] ');
+      buffer.write('[${tag!.padRight(20)}] ');
     }
     buffer.write(message);
+    
+    if (metadata != null && metadata!.isNotEmpty) {
+      buffer.write('\n  Metadata: ${_formatJson(metadata!)}');
+    }
+    
     if (error != null) {
-      buffer.write('\nError: $error');
+      buffer.write('\n  Error: $error');
     }
+    
     if (stackTrace != null) {
-      buffer.write('\nStack trace:\n$stackTrace');
+      final stackLines = stackTrace.toString().split('\n').take(5).join('\n  ');
+      buffer.write('\n  Stack trace:\n  $stackLines');
     }
+    
     return buffer.toString();
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    return '${dt.hour.toString().padLeft(2, '0')}:'
+           '${dt.minute.toString().padLeft(2, '0')}:'
+           '${dt.second.toString().padLeft(2, '0')}.'
+           '${dt.millisecond.toString().padLeft(3, '0')}';
+  }
+
+  String _formatJson(Map<String, dynamic> json) {
+    try {
+      return JsonEncoder.withIndent('  ').convert(json);
+    } catch (_) {
+      return json.toString();
+    }
   }
 }
 
@@ -58,7 +85,7 @@ class AppLogger {
   static const int _maxLogEntries = 1000; // Limit to prevent memory issues
 
   /// Add a log entry
-  void _addLog(String level, String message, {String? tag, dynamic error, StackTrace? stackTrace}) {
+  void _addLog(String level, String message, {String? tag, dynamic error, StackTrace? stackTrace, Map<String, dynamic>? metadata}) {
     final entry = LogEntry(
       timestamp: DateTime.now(),
       level: level,
@@ -66,6 +93,7 @@ class AppLogger {
       tag: tag,
       error: error,
       stackTrace: stackTrace,
+      metadata: metadata,
     );
 
     _logs.addLast(entry);
@@ -93,23 +121,92 @@ class AppLogger {
   }
 
   /// Log debug message
-  void debug(String message, {String? tag}) {
-    _addLog('DEBUG', message, tag: tag);
+  void debug(String message, {String? tag, Map<String, dynamic>? metadata}) {
+    _addLog('DEBUG', message, tag: tag, metadata: metadata);
   }
 
   /// Log info message
-  void info(String message, {String? tag}) {
-    _addLog('INFO', message, tag: tag);
+  void info(String message, {String? tag, Map<String, dynamic>? metadata}) {
+    _addLog('INFO', message, tag: tag, metadata: metadata);
   }
 
   /// Log warning message
-  void warning(String message, {String? tag, dynamic error}) {
-    _addLog('WARNING', message, tag: tag, error: error);
+  void warning(String message, {String? tag, dynamic error, Map<String, dynamic>? metadata}) {
+    _addLog('WARNING', message, tag: tag, error: error, metadata: metadata);
   }
 
   /// Log error message
-  void error(String message, {String? tag, dynamic error, StackTrace? stackTrace}) {
-    _addLog('ERROR', message, tag: tag, error: error, stackTrace: stackTrace);
+  void error(String message, {String? tag, dynamic error, StackTrace? stackTrace, Map<String, dynamic>? metadata}) {
+    _addLog('ERROR', message, tag: tag, error: error, stackTrace: stackTrace, metadata: metadata);
+  }
+
+  /// Log network request
+  void networkRequest(String method, String url, {Map<String, dynamic>? headers, dynamic data}) {
+    final metadata = <String, dynamic>{
+      'method': method,
+      'url': url,
+    };
+    
+    if (headers != null && headers.isNotEmpty) {
+      // Filter sensitive headers
+      final safeHeaders = Map<String, dynamic>.from(headers);
+      safeHeaders.removeWhere((key, value) => 
+        key.toLowerCase().contains('authorization') || 
+        key.toLowerCase().contains('cookie') ||
+        key.toLowerCase().contains('token')
+      );
+      if (safeHeaders.isNotEmpty) {
+        metadata['headers'] = safeHeaders;
+      }
+    }
+    
+    if (data != null) {
+      metadata['body'] = _truncateData(data);
+    }
+    
+    _addLog('NETWORK', 'Request: $method $url', tag: 'HTTP', metadata: metadata);
+  }
+
+  /// Log network response
+  void networkResponse(String method, String url, int statusCode, {dynamic data, Duration? duration}) {
+    final metadata = <String, dynamic>{
+      'method': method,
+      'url': url,
+      'status': statusCode,
+    };
+    
+    if (duration != null) {
+      metadata['duration'] = '${duration.inMilliseconds}ms';
+    }
+    
+    if (data != null) {
+      metadata['response'] = _truncateData(data);
+    }
+    
+    final level = statusCode >= 400 ? 'WARNING' : 'NETWORK';
+    _addLog(level, 'Response: $method $url [$statusCode]', tag: 'HTTP', metadata: metadata);
+  }
+
+  /// Log network error
+  void networkError(String method, String url, dynamic error, {StackTrace? stackTrace}) {
+    final metadata = <String, dynamic>{
+      'method': method,
+      'url': url,
+    };
+    
+    _addLog('ERROR', 'Network Error: $method $url', tag: 'HTTP', error: error, stackTrace: stackTrace, metadata: metadata);
+  }
+
+  /// Truncate large data for logging
+  dynamic _truncateData(dynamic data, {int maxLength = 500}) {
+    if (data == null) return null;
+    
+    final dataStr = data.toString();
+    if (dataStr.length <= maxLength) {
+      return data;
+    }
+    
+    return '${dataStr.substring(0, maxLength)}... (truncated, ${dataStr.length} chars total)';
   }
 
   /// Get all logs as a formatted string
@@ -117,21 +214,33 @@ class AppLogger {
     _cleanOldLogs();
     
     final buffer = StringBuffer();
-    buffer.writeln('=== Openlib App Logs ===');
+    buffer.writeln('╔═══════════════════════════════════════════════════════════════╗');
+    buffer.writeln('║              Openlib App Diagnostic Logs                     ║');
+    buffer.writeln('╚═══════════════════════════════════════════════════════════════╝');
+    buffer.writeln('');
     buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
     buffer.writeln('Log retention: Last ${_logRetentionDuration.inMinutes} minutes');
     buffer.writeln('Total entries: ${_logs.length}');
     buffer.writeln('');
-    buffer.writeln('=== System Information ===');
+    buffer.writeln('─────────────────────────────────────────────────────────────────');
+    buffer.writeln('System Information');
+    buffer.writeln('─────────────────────────────────────────────────────────────────');
     buffer.writeln('Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}');
     buffer.writeln('Dart version: ${Platform.version}');
     buffer.writeln('');
-    buffer.writeln('=== Log Entries ===');
+    buffer.writeln('─────────────────────────────────────────────────────────────────');
+    buffer.writeln('Log Entries');
+    buffer.writeln('─────────────────────────────────────────────────────────────────');
+    buffer.writeln('');
     
     for (final log in _logs) {
       buffer.writeln(log.toString());
       buffer.writeln('');
     }
+    
+    buffer.writeln('─────────────────────────────────────────────────────────────────');
+    buffer.writeln('End of Logs');
+    buffer.writeln('─────────────────────────────────────────────────────────────────');
     
     return buffer.toString();
   }
@@ -174,4 +283,63 @@ class AppLogger {
     _cleanOldLogs();
     return _logs.length;
   }
+}
+
+/// Dio interceptor for automatic network request/response logging
+class LoggingInterceptor extends Interceptor {
+  final AppLogger _logger = AppLogger();
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    _logger.networkRequest(
+      options.method,
+      options.uri.toString(),
+      headers: options.headers,
+      data: options.data,
+    );
+    super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final duration = DateTime.now().difference(
+      response.requestOptions.extra['request_time'] ?? DateTime.now(),
+    );
+    
+    _logger.networkResponse(
+      response.requestOptions.method,
+      response.requestOptions.uri.toString(),
+      response.statusCode ?? 0,
+      data: response.data,
+      duration: duration,
+    );
+    super.onResponse(response, handler);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _logger.networkError(
+      err.requestOptions.method,
+      err.requestOptions.uri.toString(),
+      err.message ?? err.error,
+      stackTrace: err.stackTrace,
+    );
+    super.onError(err, handler);
+  }
+}
+
+/// Helper to create a Dio instance with logging enabled
+Dio createDioWithLogging({BaseOptions? options}) {
+  final dio = Dio(options);
+  dio.interceptors.add(LoggingInterceptor());
+  
+  // Add request time tracking
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) {
+      options.extra['request_time'] = DateTime.now();
+      handler.next(options);
+    },
+  ));
+  
+  return dio;
 }

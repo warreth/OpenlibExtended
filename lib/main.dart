@@ -13,6 +13,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb;
+import 'package:openlib/services/dns_resolver.dart';
 import 'package:openlib/ui/mylibrary_page.dart';
 import 'package:openlib/ui/search_page.dart';
 import 'package:openlib/ui/settings_page.dart';
@@ -28,6 +29,8 @@ import 'package:openlib/state/state.dart'
         themeModeProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
+        showManualDownloadButtonProvider,
+        selectedDnsProviderIndexProvider,
         userAgentProvider,
         cookieProvider;
 
@@ -59,6 +62,24 @@ void main() async {
       ? false
       : true;
 
+  bool showManualDownloadButton = await dataBase
+              .getPreference('showManualDownloadButton')
+              .catchError((e) => null) ==
+          0
+      ? false
+      : true;
+
+  int selectedDnsProviderIndex = await dataBase
+      .getPreference('selectedDnsProviderIndex')
+      .catchError((e) => 0);
+
+  // Initialize DNS resolver with saved preference
+  final dnsResolver = DnsResolverService();
+  if (selectedDnsProviderIndex >= 0 && 
+      selectedDnsProviderIndex < DnsProviders.builtIn.length) {
+    dnsResolver.setProvider(DnsProviders.builtIn[selectedDnsProviderIndex]);
+  }
+
   String browserUserAgent = await dataBase.getBrowserOptions('userAgent');
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
@@ -79,6 +100,10 @@ void main() async {
             .overrideWith((ref) => openPdfwithExternalapp),
         openEpubWithExternalAppProvider
             .overrideWith((ref) => openEpubwithExternalapp),
+        showManualDownloadButtonProvider
+            .overrideWith((ref) => showManualDownloadButton),
+        selectedDnsProviderIndexProvider
+            .overrideWith((ref) => selectedDnsProviderIndex),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
       ],
