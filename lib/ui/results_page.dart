@@ -51,8 +51,8 @@ class ResultPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: CustomScrollView(
                 slivers: <Widget>[
-                  SliverToBoxAdapter(
-                    child: const Padding(
+                  const SliverToBoxAdapter(
+                    child: Padding(
                       padding: EdgeInsets.only(bottom: 10),
                       // FIX 1: Changed PageTitleWidget back to TitleText
                       child: TitleText("Results"), 
