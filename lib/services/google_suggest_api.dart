@@ -35,11 +35,11 @@ class GoogleSuggestApi {
         }
         return [];
       } else {
-        print('Google Suggest Error: Status ${response.statusCode}');
+        // Google Suggest Error: Status ${response.statusCode}
         return ['Suggestion Error'];
       }
     } catch (e) {
-      print('Network Error: $e');
+      // Network Error: $e
       return ['Network Error'];
     }
   }

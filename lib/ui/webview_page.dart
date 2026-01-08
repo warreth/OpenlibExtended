@@ -76,7 +76,7 @@ class _WebviewState extends ConsumerState<Webview> {
             // Loading overlay to hide countdown
             Positioned.fill(
               child: Container(
-                color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -106,7 +106,7 @@ class _WebviewState extends ConsumerState<Webview> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Theme.of(context).colorScheme.tertiary.withOpacity(0.67),
+                            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.67),
                           ),
                         ),
                       ),

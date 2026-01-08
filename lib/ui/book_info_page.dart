@@ -376,6 +376,7 @@ class _ShowDialog extends ConsumerWidget {
         (checkSumVerifyState == CheckSumProcessState.failed ||
             checkSumVerifyState == CheckSumProcessState.success)) {
       Future.delayed(const Duration(seconds: 1), () {
+        if (!context.mounted) return;
         Navigator.of(context).pop();
         if (checkSumVerifyState == CheckSumProcessState.failed) {
           _showWarningFileDialog(context);

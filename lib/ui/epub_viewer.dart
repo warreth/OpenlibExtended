@@ -26,7 +26,6 @@ Future<void> launchEpubViewer({
   required WidgetRef ref,
 }) async {
   if (Platform.isAndroid || Platform.isIOS) {
-    MyLibraryDb dataBase = MyLibraryDb.instance;
     String path = await getFilePath(fileName);
     bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
 
@@ -108,7 +107,7 @@ class EpubViewer extends ConsumerStatefulWidget {
   final String fileName;
 
   @override
-  _EpubViewerState createState() => _EpubViewerState();
+  State<EpubViewer> createState() => _EpubViewerState();
 }
 
 class _EpubViewerState extends ConsumerState<EpubViewer> {

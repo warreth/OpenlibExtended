@@ -93,8 +93,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 // Refresh the instances list
                 ref.invalidate(archiveInstancesProvider);
 
-                if (mounted && Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
+                if (mounted) {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Instance added successfully')),
                   );
@@ -125,21 +127,19 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 final manager = ref.read(instanceManagerProvider);
                 final success = await manager.removeInstance(instance.id);
                 
+                if (!mounted) return;
+                
                 if (success) {
                   ref.invalidate(archiveInstancesProvider);
-                  if (mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Instance deleted')),
-                    );
-                  }
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Instance deleted')),
+                  );
                 } else {
-                  if (mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cannot delete default instances')),
-                    );
-                  }
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Cannot delete default instances')),
+                  );
                 }
               },
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -169,11 +169,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
               final manager = ref.read(instanceManagerProvider);
               await manager.resetToDefaults();
               ref.invalidate(archiveInstancesProvider);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Reset to default instances')),
-                );
-              }
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Reset to default instances')),
+              );
             },
             tooltip: 'Reset to Defaults',
           ),
@@ -254,7 +253,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.2),
+                                    color: Colors.blue.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Text(
@@ -273,7 +272,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                             children: [
                               Switch(
                                 value: instance.enabled,
-                                activeColor: Colors.green,
+                                activeThumbColor: Colors.green,
                                 onChanged: (value) async {
                                   final manager = ref.read(instanceManagerProvider);
                                   await manager.toggleInstance(instance.id, value);

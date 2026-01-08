@@ -1,3 +1,6 @@
+// Dart imports:
+import 'dart:typed_data';
+
 // Flutter imports:
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,7 +33,7 @@ void main() {
         // Create a controller to verify the API exists
         // Using a dummy data source since we're just checking the API
         controller = EpubController(
-          document: EpubDocument.openData(Future.value(<int>[])),
+          document: EpubDocument.openData(Uint8List.fromList(<int>[])),
         );
         
         // Verify that jumpTo method exists and can be called

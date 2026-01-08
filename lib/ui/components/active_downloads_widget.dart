@@ -60,7 +60,7 @@ class ActiveDownloadsWidget extends ConsumerWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -72,7 +72,7 @@ class ActiveDownloadsWidget extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(14.0),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
@@ -125,7 +125,7 @@ class ActiveDownloadsWidget extends ConsumerWidget {
                   separatorBuilder: (context, index) => Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                   ),
                   itemBuilder: (context, index) {
                     final task = downloads.values.elementAt(index);
@@ -175,7 +175,7 @@ class _DownloadItem extends ConsumerWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(task.status, context).withOpacity(0.15),
+                  color: _getStatusColor(task.status, context).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
@@ -307,10 +307,10 @@ class _DownloadItem extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: Colors.red.withOpacity(0.3),
+                  color: Colors.red.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),

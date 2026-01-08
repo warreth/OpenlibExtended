@@ -1,11 +1,7 @@
-// Flutter imports:
-import 'package:flutter/material.dart';
-
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart' as dom;
-import 'dart:convert';
 
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
@@ -93,18 +89,18 @@ class AnnasArchieve {
           // Log the failure
           final attemptInfo = '${instance.name} (${instance.baseUrl}) - Attempt ${attempt + 1}/$maxRetries: ${e.toString()}';
           failedInstances.add(attemptInfo);
-          print('Instance failed: $attemptInfo');
+          // Instance failed: $attemptInfo
           
           // If this is not the last attempt for this instance, wait before retrying
           if (attempt < maxRetries - 1) {
-            await Future.delayed(Duration(milliseconds: retryDelayMs));
+            await Future.delayed(const Duration(milliseconds: retryDelayMs));
           }
         }
       }
     }
     
     // If all instances failed, throw the last exception with context
-    print('All instances failed. Attempted: ${failedInstances.join(", ")}');
+    // All instances failed. Attempted: ${failedInstances.join(", ")}
     throw lastException ?? Exception('All instances failed');
   }
 
@@ -124,18 +120,6 @@ class AnnasArchieve {
       return "cbz";
     }
     return "epub";
-  }
-
-  // Helper function to safely parse potential NaN/Infinity to prevent crash
-  // This is a generic safeguard for the third type of error you received.
-  dynamic _safeParse(dynamic value) {
-    if (value is String) {
-      if (value.toLowerCase() == 'nan' || value.toLowerCase() == 'infinity') {
-        return null; // Return null or 0 instead of throwing an error
-      }
-      return value;
-    }
-    return value;
   }
   
   // --------------------------------------------------------------------

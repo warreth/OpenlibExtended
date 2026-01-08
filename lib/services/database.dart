@@ -217,10 +217,10 @@ class MyLibraryDb {
 
   Future<void> savePreference(String name, dynamic value) async {
     switch (value.runtimeType) {
-      case bool:
+      case bool _:
         value = value ? 1 : 0;
         break;
-      case int || String:
+      case int _ || String _:
         break;
       default:
         throw 'Invalid type';

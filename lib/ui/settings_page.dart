@@ -14,7 +14,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
-import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
@@ -53,7 +52,7 @@ Future<void> requestStoragePermission() async {
       permissionGranted = false;
     }
   }
-  print("Storage permission status: $permissionGranted");
+  // Storage permission status: $permissionGranted
 }
 
 class SettingsPage extends ConsumerWidget {
@@ -81,7 +80,7 @@ class SettingsPage extends ConsumerWidget {
                 ),
               ),
             ),
-            _InstanceSelectorWidget(),
+            const _InstanceSelectorWidget(),
             _PaddedContainer(
               onClick: () {
                 Navigator.push(context,
@@ -98,7 +97,7 @@ class SettingsPage extends ConsumerWidget {
                     color: Theme.of(context).colorScheme.tertiary,
                   ),
                 ),
-                Icon(Icons.settings),
+                const Icon(Icons.settings),
               ],
             ),
             const Padding(
@@ -124,7 +123,7 @@ class SettingsPage extends ConsumerWidget {
                 Switch(
                   // This bool value toggles the switch.
                   value: ref.watch(themeModeProvider) == ThemeMode.dark,
-                  activeColor: Colors.red,
+                  activeThumbColor: Colors.red,
                   onChanged: (bool value) {
                     ref.read(themeModeProvider.notifier).state =
                         value == true ? ThemeMode.dark : ThemeMode.light;
@@ -151,7 +150,7 @@ class SettingsPage extends ConsumerWidget {
                 Switch(
                   // This bool value toggles the switch.
                   value: ref.watch(openPdfWithExternalAppProvider),
-                  activeColor: Colors.red,
+                  activeThumbColor: Colors.red,
                   onChanged: (bool value) {
                     ref.read(openPdfWithExternalAppProvider.notifier).state =
                         value;
@@ -175,7 +174,7 @@ class SettingsPage extends ConsumerWidget {
                   value: ref.watch(
                     openEpubWithExternalAppProvider,
                   ),
-                  activeColor: Colors.red,
+                  activeThumbColor: Colors.red,
                   onChanged: (bool value) {
                     ref.read(openEpubWithExternalAppProvider.notifier).state =
                         value;
@@ -208,7 +207,7 @@ class SettingsPage extends ConsumerWidget {
                       color: Theme.of(context).colorScheme.tertiary,
                     ),
                   ),
-                  Icon(Icons.folder),
+                  const Icon(Icons.folder),
                 ]),
             _PaddedContainer(
               onClick: () {
@@ -373,14 +372,13 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                               await manager.setSelectedInstanceId(newValue);
                               ref.invalidate(currentInstanceProvider);
                               
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Instance changed successfully'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Instance changed successfully'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
                             }
                           },
                         ),

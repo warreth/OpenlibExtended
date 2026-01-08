@@ -47,14 +47,14 @@ void main() async {
       await dataBase.getPreference('darkMode') == 0 ? false : true;
   bool openPdfwithExternalapp = await dataBase
               .getPreference('openPdfwithExternalApp')
-              .catchError((e) => print(e)) ==
+              .catchError((e) => null) ==
           0
       ? false
       : true;
 
   bool openEpubwithExternalapp = await dataBase
               .getPreference('openEpubwithExternalApp')
-              .catchError((e) => print(e)) ==
+              .catchError((e) => null) ==
           0
       ? false
       : true;
@@ -171,7 +171,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             'Openlib needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
             style: TextStyle(
               fontSize: 13,
-              color: Theme.of(context).colorScheme.tertiary.withOpacity(0.78),
+              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.78),
             ),
           ),
           actions: [
@@ -183,7 +183,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               child: Text(
                 'Maybe Later',
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.tertiary.withOpacity(0.67),
+                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.67),
                 ),
               ),
             ),
