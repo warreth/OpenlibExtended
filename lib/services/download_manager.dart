@@ -112,6 +112,10 @@ class DownloadManager {
   final StreamController<Map<String, DownloadTask>> _downloadsController =
       StreamController<Map<String, DownloadTask>>.broadcast();
 
+  // Constants for download completion timing
+  static const Duration _notificationClearDelay = Duration(seconds: 3);
+  static const Duration _taskRemovalDelay = Duration(seconds: 27);
+
   Stream<Map<String, DownloadTask>> get downloadsStream =>
       _downloadsController.stream;
 
@@ -412,12 +416,12 @@ class DownloadManager {
         progress: -1,
       );
 
-      // Clear notification after 3 seconds
-      await Future.delayed(const Duration(seconds: 3));
+      // Clear notification after configured delay
+      await Future.delayed(_notificationClearDelay);
       await _notificationService.cancelNotification(task.id.hashCode);
 
-      // Auto-remove from download list after 30 seconds
-      await Future.delayed(const Duration(seconds: 27));
+      // Auto-remove from download list after configured delay
+      await Future.delayed(_taskRemovalDelay);
       removeDownload(task.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -489,8 +493,8 @@ class DownloadManager {
           progress: -1,
         );
         
-        // Clear notification after 3 seconds but keep task in UI for manual retry
-        await Future.delayed(const Duration(seconds: 3));
+        // Clear notification after configured delay but keep task in UI for manual retry
+        await Future.delayed(_notificationClearDelay);
         await _notificationService.cancelNotification(task.id.hashCode);
         
         return;
@@ -661,12 +665,12 @@ class DownloadManager {
         progress: -1,
       );
 
-      // Clear notification after 3 seconds
-      await Future.delayed(const Duration(seconds: 3));
+      // Clear notification after configured delay
+      await Future.delayed(_notificationClearDelay);
       await _notificationService.cancelNotification(updatedTask.id.hashCode);
 
-      // Auto-remove from download list after 30 seconds
-      await Future.delayed(const Duration(seconds: 27));
+      // Auto-remove from download list after configured delay
+      await Future.delayed(_taskRemovalDelay);
       removeDownload(updatedTask.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
