@@ -65,20 +65,40 @@ class DnsProviders {
 class DnsResolverService {
   static final DnsResolverService _instance = DnsResolverService._internal();
   factory DnsResolverService() => _instance;
-  DnsResolverService._internal();
+  DnsResolverService._internal() {
+    // Configure the internal Dio instance to NOT use DoH (to avoid circular dependency)
+    // This Dio instance is only used to query DoH servers and should use system DNS
+    _dio.options.receiveTimeout = const Duration(seconds: 5);
+    _dio.options.sendTimeout = const Duration(seconds: 5);
+    _dio.options.connectTimeout = const Duration(seconds: 5);
+  }
 
   final AppLogger _logger = AppLogger();
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(); // This Dio MUST use system DNS to reach DoH servers
   
   DnsProvider _currentProvider = DnsProviders.defaultProvider;
   int _currentProviderIndex = 0;
   final List<DnsProvider> _availableProviders = List.from(DnsProviders.builtIn);
+  bool _dohEnabled = true; // Flag to track if DoH should be used
+  
+  // Track consecutive failures to disable DoH if all providers fail
+  int _consecutiveFailures = 0;
+  static const int _maxConsecutiveFailures = 10; // Disable DoH after this many failures
 
   /// Get current DNS provider
   DnsProvider get currentProvider => _currentProvider;
 
   /// Get all available providers (built-in + custom)
   List<DnsProvider> get availableProviders => List.unmodifiable(_availableProviders);
+
+  /// Check if DoH is currently enabled
+  bool get isDohEnabled => _dohEnabled;
+
+  /// Enable or disable DoH
+  void setDohEnabled(bool enabled) {
+    _dohEnabled = enabled;
+    _logger.info('DoH ${enabled ? "enabled" : "disabled"}', tag: 'DnsResolver');
+  }
 
   /// Set current DNS provider
   void setProvider(DnsProvider provider) {
@@ -120,16 +140,36 @@ class DnsResolverService {
   }
 
   /// Cycle to the next DNS provider (useful for fallback)
-  void cycleToNextProvider() {
+  void cycleToNextProvider({bool countAsFailure = true}) {
     _currentProviderIndex = (_currentProviderIndex + 1) % _availableProviders.length;
     _currentProvider = _availableProviders[_currentProviderIndex];
+    
+    if (countAsFailure) {
+      _consecutiveFailures++;
+    }
+    
     _logger.info('Cycled to next DNS provider', tag: 'DnsResolver', metadata: {
       'provider': _currentProvider.name,
+      'consecutiveFailures': _consecutiveFailures,
     });
+    
+    // If we've cycled through all providers multiple times, disable DoH
+    if (_consecutiveFailures >= _maxConsecutiveFailures) {
+      _logger.warning('Too many consecutive DoH failures, disabling DoH', tag: 'DnsResolver', metadata: {
+        'failures': _consecutiveFailures,
+      });
+      _dohEnabled = false;
+      _consecutiveFailures = 0; // Reset counter
+    }
   }
 
   /// Resolve domain using DNS-over-HTTPS
   Future<List<String>> resolveDomain(String domain) async {
+    // If DoH is disabled, return empty to force system DNS fallback
+    if (!_dohEnabled) {
+      return [];
+    }
+
     _logger.debug('Resolving domain', tag: 'DnsResolver', metadata: {
       'domain': domain,
       'provider': _currentProvider.name,
@@ -148,6 +188,10 @@ class DnsResolverService {
           },
           receiveTimeout: const Duration(seconds: 5),
           sendTimeout: const Duration(seconds: 5),
+          validateStatus: (status) {
+            // Accept all 2xx status codes as successful responses
+            return status != null && status >= 200 && status < 300;
+          },
         ),
       );
 
@@ -165,6 +209,9 @@ class DnsResolverService {
             'provider': _currentProvider.name,
           });
 
+          // Reset consecutive failures on success
+          _consecutiveFailures = 0;
+
           return ipAddresses;
         }
       }
@@ -174,12 +221,32 @@ class DnsResolverService {
       });
       return [];
     } catch (e, stackTrace) {
-      _logger.error('DNS resolution failed', tag: 'DnsResolver', error: e, stackTrace: stackTrace, metadata: {
-        'domain': domain,
-        'provider': _currentProvider.name,
-      });
+      // Handle both DioException and other exceptions
+      if (e is DioException) {
+        // Log the specific error type for DioException
+        if (e.response?.statusCode == 400) {
+          _logger.warning('DoH provider returned 400 Bad Request - provider may not support the request format', 
+            tag: 'DnsResolver', metadata: {
+            'domain': domain,
+            'provider': _currentProvider.name,
+            'statusCode': e.response?.statusCode,
+          });
+        } else {
+          _logger.error('DNS resolution failed', tag: 'DnsResolver', error: e, stackTrace: stackTrace, metadata: {
+            'domain': domain,
+            'provider': _currentProvider.name,
+            'errorType': e.type.toString(),
+          });
+        }
+      } else {
+        // Log unexpected errors
+        _logger.error('Unexpected DNS resolution error', tag: 'DnsResolver', error: e, stackTrace: stackTrace, metadata: {
+          'domain': domain,
+          'provider': _currentProvider.name,
+        });
+      }
       
-      // Try cycling to next provider on failure
+      // Try cycling to next provider on any failure
       cycleToNextProvider();
       return [];
     }
@@ -193,15 +260,28 @@ class DnsResolverService {
       adapter.createHttpClient = () {
         final client = HttpClient();
         
-        // Disable system DNS and use custom resolution
+        // Only use custom DNS resolution if DoH is enabled
         client.connectionFactory = (Uri uri, String? proxyHost, int? proxyPort) async {
+          // Skip DoH for localhost and IP addresses
+          if (uri.host == 'localhost' || 
+              uri.host == '127.0.0.1' ||
+              RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(uri.host)) {
+            return Socket.startConnect(uri.host, uri.port);
+          }
+          
           final addresses = await resolveDomain(uri.host);
           
           if (addresses.isEmpty) {
-            // Fallback to system DNS if DoH fails
-            _logger.warning('DoH failed, falling back to system DNS', tag: 'DnsResolver', metadata: {
-              'host': uri.host,
-            });
+            // Fallback to system DNS if DoH fails or is disabled
+            if (!_dohEnabled) {
+              _logger.debug('DoH disabled, using system DNS', tag: 'DnsResolver', metadata: {
+                'host': uri.host,
+              });
+            } else {
+              _logger.warning('DoH failed, falling back to system DNS', tag: 'DnsResolver', metadata: {
+                'host': uri.host,
+              });
+            }
             return Socket.startConnect(uri.host, uri.port);
           }
           
@@ -227,8 +307,11 @@ class DnsResolverService {
             }
           }
           
-          // If all resolved IPs fail, throw error
-          throw SocketException('Failed to connect to any resolved IP addresses for ${uri.host}');
+          // If all resolved IPs fail, fallback to system DNS as last resort
+          _logger.warning('All resolved IPs failed, trying system DNS', tag: 'DnsResolver', metadata: {
+            'host': uri.host,
+          });
+          return Socket.startConnect(uri.host, uri.port);
         };
         
         return client;
@@ -236,6 +319,7 @@ class DnsResolverService {
       
       _logger.info('Dio configured with DNS-over-HTTPS', tag: 'DnsResolver', metadata: {
         'provider': _currentProvider.name,
+        'enabled': _dohEnabled,
       });
     }
   }
