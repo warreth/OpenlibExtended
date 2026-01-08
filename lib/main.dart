@@ -28,6 +28,7 @@ import 'package:openlib/state/state.dart'
         themeModeProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
+        showManualDownloadButtonProvider,
         userAgentProvider,
         cookieProvider;
 
@@ -59,6 +60,13 @@ void main() async {
       ? false
       : true;
 
+  bool showManualDownloadButton = await dataBase
+              .getPreference('showManualDownloadButton')
+              .catchError((e) => null) ==
+          0
+      ? false
+      : true;
+
   String browserUserAgent = await dataBase.getBrowserOptions('userAgent');
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
@@ -79,6 +87,8 @@ void main() async {
             .overrideWith((ref) => openPdfwithExternalapp),
         openEpubWithExternalAppProvider
             .overrideWith((ref) => openEpubwithExternalapp),
+        showManualDownloadButtonProvider
+            .overrideWith((ref) => showManualDownloadButton),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
       ],
