@@ -11,7 +11,6 @@ import 'package:openlib/services/database.dart' show MyLibraryDb, MyBook;
 import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/mirror_fetcher.dart';
-import 'package:openlib/services/dns_resolver.dart';
 
 enum DownloadStatus {
   queued,
@@ -104,7 +103,6 @@ class DownloadManager {
   final DownloadNotificationService _notificationService =
       DownloadNotificationService();
   final AppLogger _logger = AppLogger();
-  final DnsResolverService _dnsResolver = DnsResolverService();
 
   final Map<String, DownloadTask> _activeDownloads = {};
   final StreamController<Map<String, DownloadTask>> _downloadsController =
@@ -238,8 +236,6 @@ class DownloadManager {
       }
 
       dio = Dio();
-      // Configure DNS-over-HTTPS for this download
-      _dnsResolver.configureDio(dio);
       
       String path = await _getFilePath('${task.md5}.${task.format}');
       List<String> orderedMirrors = _reorderMirrors(task.mirrors);
@@ -496,8 +492,6 @@ class DownloadManager {
 
       // Now proceed with the regular download flow
       dio = Dio();
-      // Configure DNS-over-HTTPS for this download
-      _dnsResolver.configureDio(dio);
       
       String path = await _getFilePath('${updatedTask.md5}.${updatedTask.format}');
       List<String> orderedMirrors = _reorderMirrors(updatedTask.mirrors);
