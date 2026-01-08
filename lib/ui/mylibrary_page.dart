@@ -38,6 +38,9 @@ class MyLibraryPage extends ConsumerWidget {
                 physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                 slivers: <Widget>[
                   const SliverToBoxAdapter(
+                    child: SizedBox(height: 8),
+                  ),
+                  const SliverToBoxAdapter(
                     child: ActiveDownloadsWidget(),
                   ),
                   const SliverToBoxAdapter(

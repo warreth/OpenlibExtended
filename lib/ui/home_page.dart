@@ -25,9 +25,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Scaffold(
       body: Column(
         children: [
+          const SizedBox(height: 8),
           const ActiveDownloadsWidget(),
           Padding(
-            padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+            padding: const EdgeInsets.only(left: 5, right: 5, top: 10, bottom: 5),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
