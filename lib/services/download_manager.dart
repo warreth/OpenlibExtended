@@ -385,7 +385,8 @@ class DownloadManager {
         progress: -1,
       );
 
-      await Future.delayed(const Duration(seconds: 3));
+      // Auto-remove from download list after 30 seconds
+      await Future.delayed(const Duration(seconds: 30));
       removeDownload(task.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -400,6 +401,9 @@ class DownloadManager {
           body: 'Download failed',
           progress: -1,
         );
+        // Auto-remove failed downloads after 60 seconds
+        await Future.delayed(const Duration(seconds: 60));
+        removeDownload(task.id);
       }
     } catch (e) {
       _updateTaskStatus(task.id, DownloadStatus.failed,
@@ -410,6 +414,9 @@ class DownloadManager {
         body: 'Download failed',
         progress: -1,
       );
+      // Auto-remove failed downloads after 60 seconds
+      await Future.delayed(const Duration(seconds: 60));
+      removeDownload(task.id);
     } finally {
       // Always close the Dio instance to prevent resource leaks
       dio?.close();
@@ -450,6 +457,10 @@ class DownloadManager {
           body: 'Manual verification needed',
           progress: -1,
         );
+        
+        // Auto-remove failed downloads after 60 seconds
+        await Future.delayed(const Duration(seconds: 60));
+        removeDownload(task.id);
         return;
       }
 
@@ -617,7 +628,8 @@ class DownloadManager {
         progress: -1,
       );
 
-      await Future.delayed(const Duration(seconds: 3));
+      // Auto-remove from download list after 30 seconds
+      await Future.delayed(const Duration(seconds: 30));
       removeDownload(updatedTask.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -632,6 +644,9 @@ class DownloadManager {
           body: 'Download failed',
           progress: -1,
         );
+        // Auto-remove failed downloads after 60 seconds
+        await Future.delayed(const Duration(seconds: 60));
+        removeDownload(task.id);
       }
     } catch (e) {
       _updateTaskStatus(task.id, DownloadStatus.failed,
@@ -642,6 +657,9 @@ class DownloadManager {
         body: 'Download failed',
         progress: -1,
       );
+      // Auto-remove failed downloads after 60 seconds
+      await Future.delayed(const Duration(seconds: 60));
+      removeDownload(task.id);
     } finally {
       // Always close the Dio instance to prevent resource leaks
       dio?.close();

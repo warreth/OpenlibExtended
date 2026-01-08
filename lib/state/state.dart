@@ -98,6 +98,9 @@ final totalPdfPage = StateProvider.autoDispose<int>((ref) => 0);
 final openPdfWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
 
+// Download Settings
+final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
+
 // Instance Management States
 final instanceManagerProvider = Provider<InstanceManager>((ref) => InstanceManager());
 

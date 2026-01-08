@@ -24,6 +24,7 @@ import 'package:openlib/state/state.dart'
         themeModeProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
+        showManualDownloadButtonProvider,
         instanceManagerProvider,
         currentInstanceProvider,
         archiveInstancesProvider;
@@ -181,6 +182,62 @@ class SettingsPage extends ConsumerWidget {
                   },
                 )
               ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
+              child: Text(
+                "Download Settings",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            _PaddedContainer(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Show Manual Download Button",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.tertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Enable if background download doesn't work",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: ref.watch(showManualDownloadButtonProvider),
+                  activeThumbColor: Colors.red,
+                  onChanged: (bool value) {
+                    ref.read(showManualDownloadButtonProvider.notifier).state =
+                        value;
+                    dataBase.savePreference('showManualDownloadButton', value);
+                  },
+                )
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
+              child: Text(
+                "Storage & Files",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             _PaddedContainer(
                 onClick: () async {
