@@ -24,16 +24,22 @@ void main() {
       // that we're using in the epub_viewer.dart file
       // If the method doesn't exist, this test will fail at compile time
       
-      // Create a mock controller to verify the API exists
-      final controller = EpubController(
-        document: Future.value(EpubBook()),
-      );
+      EpubController? controller;
       
-      // Verify that jumpTo method exists and can be called
-      // This will fail at compile time if the method doesn't exist
-      expect(controller.jumpTo, isNotNull);
-      
-      controller.dispose();
+      try {
+        // Create a controller to verify the API exists
+        // Using a dummy data source since we're just checking the API
+        controller = EpubController(
+          document: EpubDocument.openData(Future.value(<int>[])),
+        );
+        
+        // Verify that jumpTo method exists and can be called
+        // This will fail at compile time if the method doesn't exist
+        expect(controller.jumpTo, isNotNull);
+      } finally {
+        // Ensure proper cleanup even if test fails
+        controller?.dispose();
+      }
     });
   });
 
