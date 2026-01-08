@@ -259,37 +259,30 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
   }
 
   Widget _buildTapNavigationWrapper(Widget child) {
-    return Stack(
-      children: [
-        child,
-        Positioned.fill(
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) => _activePointers.add(event.pointer),
-            onPointerUp: (event) {
-              _activePointers.remove(event.pointer);
-              
-              // Only handle navigation on single-finger taps
-              if (_activePointers.isEmpty) {
-                final screenWidth = MediaQuery.of(context).size.width;
-                final tapPosition = event.position.dx;
-                
-                // Divide screen into three zones: left (30%), center (40%), right (30%)
-                if (tapPosition < screenWidth * 0.3) {
-                  // Left zone - previous page
-                  _goToPreviousPage();
-                } else if (tapPosition > screenWidth * 0.7) {
-                  // Right zone - next page
-                  _goToNextPage();
-                }
-                // Center zone (30-70%) - no action, allows zooming and other interactions
-              }
-            },
-            onPointerCancel: (event) => _activePointers.remove(event.pointer),
-            child: Container(color: Colors.transparent),
-          ),
-        ),
-      ],
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) => _activePointers.add(event.pointer),
+      onPointerUp: (event) {
+        _activePointers.remove(event.pointer);
+        
+        // Only handle navigation on single-finger taps
+        if (_activePointers.isEmpty) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final tapPosition = event.position.dx;
+          
+          // Divide screen into three zones: left (30%), center (40%), right (30%)
+          if (tapPosition < screenWidth * 0.3) {
+            // Left zone - previous page
+            _goToPreviousPage();
+          } else if (tapPosition > screenWidth * 0.7) {
+            // Right zone - next page
+            _goToNextPage();
+          }
+          // Center zone (30-70%) - no action, allows zooming and other interactions
+        }
+      },
+      onPointerCancel: (event) => _activePointers.remove(event.pointer),
+      child: child, // Direct child, no overlay
     );
   }
 }
