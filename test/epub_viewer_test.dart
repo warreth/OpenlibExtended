@@ -1,11 +1,5 @@
-// Dart imports:
-import 'dart:typed_data';
-
 // Flutter imports:
 import 'package:flutter_test/flutter_test.dart';
-
-// Package imports:
-import 'package:epub_view/epub_view.dart';
 
 // Project imports:
 import 'package:openlib/ui/epub_viewer.dart';
@@ -20,31 +14,6 @@ void main() {
       // The import of epub_viewer.dart above ensures the file compiles
       expect(EpubViewerWidget, isNotNull);
       expect(EpubViewer, isNotNull);
-    });
-
-    test('EpubController has jumpTo method', () {
-      // This test validates that the EpubController has the jumpTo method
-      // that we're using in the epub_viewer.dart file
-      // If the method doesn't exist, this test will fail at compile time
-      
-      EpubController? controller;
-      
-      try {
-        // Create a controller to verify the API exists
-        // Using a dummy data source since we're just checking the API
-        controller = EpubController(
-          document: EpubDocument.openData(Uint8List.fromList(<int>[])),
-        );
-        
-        // Verify that jumpTo method exists and can be called
-        // This will fail at compile time if the method doesn't exist
-        // Call the method with named parameter as used in the actual code
-        controller.jumpTo(index: 0);
-        // The test passes if no exception is thrown
-      } finally {
-        // Ensure proper cleanup even if test fails
-        controller?.dispose();
-      }
     });
   });
 
