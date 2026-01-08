@@ -135,6 +135,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 8),
             const ActiveDownloadsWidget(),
             const TitleText("Search"),
             // Search Input Field
