@@ -5,6 +5,8 @@ import 'package:html/dom.dart' as dom;
 
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
+import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/dns_resolver.dart';
 
 // ====================================================================
 // DATA MODELS
@@ -56,8 +58,15 @@ class AnnasArchieve {
 
   final Dio dio = Dio();
   final InstanceManager _instanceManager = InstanceManager();
+  final AppLogger _logger = AppLogger();
+  final DnsResolverService _dnsResolver = DnsResolverService();
   static const int maxRetries = 2; // Check each server 2x as per requirements
   static const int retryDelayMs = 500; // Delay between retries in milliseconds
+
+  AnnasArchieve() {
+    // Configure Dio to use DNS-over-HTTPS
+    _dnsResolver.configureDio(dio);
+  }
 
   Map<String, dynamic> defaultDioHeaders = {
     "user-agent":
@@ -284,8 +293,16 @@ class AnnasArchieve {
       String sort = "",
       String fileType = "",
       bool enableFilters = true}) async {
+    _logger.info('Searching books', tag: 'AnnasArchive', metadata: {
+      'query': searchQuery,
+      'content': content,
+      'sort': sort,
+      'fileType': fileType,
+      'filtersEnabled': enableFilters,
+    });
+    
     try {
-      return await _requestWithRetry<List<BookData>>((currentBaseUrl) async {
+      final books = await _requestWithRetry<List<BookData>>((currentBaseUrl) async {
         final String encodedURL = urlEncoder(
             searchQuery: searchQuery,
             content: content,
@@ -294,11 +311,16 @@ class AnnasArchieve {
             enableFilters: enableFilters,
             currentBaseUrl: currentBaseUrl);
 
+        _logger.debug('Fetching search results', tag: 'AnnasArchive', metadata: {'url': encodedURL});
         final response = await dio.get(encodedURL,
             options: Options(headers: defaultDioHeaders));
         return _parser(response.data, fileType, currentBaseUrl);
       });
+      
+      _logger.info('Search completed', tag: 'AnnasArchive', metadata: {'results': books.length});
+      return books;
     } on DioException catch (e) {
+        _logger.error('Search failed', tag: 'AnnasArchive', error: e.message ?? e.error);
         if (e.type == DioExceptionType.unknown) {
             throw "socketException";
         }
@@ -307,8 +329,10 @@ class AnnasArchieve {
   }
 
   Future<BookInfoData> bookInfo({required String url}) async {
+    _logger.info('Fetching book info', tag: 'AnnasArchive', metadata: {'url': url});
+    
     try {
-      return await _requestWithRetry<BookInfoData>((currentBaseUrl) async {
+      final data = await _requestWithRetry<BookInfoData>((currentBaseUrl) async {
         // Replace the base URL in the url parameter if it contains a different one
         String adjustedUrl = url;
         final urlParsed = Uri.parse(url);
@@ -319,6 +343,7 @@ class AnnasArchieve {
           adjustedUrl = '$currentBaseUrl${urlParsed.path}${urlParsed.query.isNotEmpty ? "?${urlParsed.query}" : ""}';
         }
         
+        _logger.debug('Fetching book details', tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
         final response = await dio.get(adjustedUrl, 
             options: Options(headers: defaultDioHeaders));
         BookInfoData? data = await _bookInfoParser(response.data, adjustedUrl, currentBaseUrl);
@@ -328,7 +353,15 @@ class AnnasArchieve {
           throw 'unable to get data';
         }
       });
+      
+      _logger.info('Book info retrieved successfully', tag: 'AnnasArchive', metadata: {
+        'title': data.title,
+        'format': data.format,
+        'hasMirror': data.mirror != null,
+      });
+      return data;
     } on DioException catch (e) {
+      _logger.error('Failed to fetch book info', tag: 'AnnasArchive', error: e.message ?? e.error);
       if (e.type == DioExceptionType.unknown) {
         throw "socketException";
       }

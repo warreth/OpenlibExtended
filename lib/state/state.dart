@@ -98,6 +98,12 @@ final totalPdfPage = StateProvider.autoDispose<int>((ref) => 0);
 final openPdfWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
 
+// Download Settings
+final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
+
+// DNS Settings
+final selectedDnsProviderIndexProvider = StateProvider<int>((ref) => 0); // Default to Cloudflare
+
 // Instance Management States
 final instanceManagerProvider = Provider<InstanceManager>((ref) => InstanceManager());
 

@@ -11,6 +11,7 @@ import 'package:openlib/services/database.dart' show MyLibraryDb, MyBook;
 import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/mirror_fetcher.dart';
+import 'package:openlib/services/dns_resolver.dart';
 
 enum DownloadStatus {
   queued,
@@ -103,6 +104,7 @@ class DownloadManager {
   final DownloadNotificationService _notificationService =
       DownloadNotificationService();
   final AppLogger _logger = AppLogger();
+  final DnsResolverService _dnsResolver = DnsResolverService();
 
   final Map<String, DownloadTask> _activeDownloads = {};
   final StreamController<Map<String, DownloadTask>> _downloadsController =
@@ -222,15 +224,30 @@ class DownloadManager {
   Future<void> _startDownload(DownloadTask task) async {
     Dio? dio;
     try {
+      _logger.info('Starting download for: ${task.title} (${task.format})', tag: 'DownloadManager', metadata: {
+        'taskId': task.id,
+        'md5': task.md5,
+        'mirrors': task.mirrors.length,
+      });
+      
       if (task.mirrors.isEmpty) {
+        _logger.warning('No mirrors available for: ${task.title}', tag: 'DownloadManager');
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'No mirrors available!');
         return;
       }
 
       dio = Dio();
+      // Configure DNS-over-HTTPS for this download
+      _dnsResolver.configureDio(dio);
+      
       String path = await _getFilePath('${task.md5}.${task.format}');
       List<String> orderedMirrors = _reorderMirrors(task.mirrors);
+      
+      _logger.debug('Reordered mirrors for: ${task.title}', tag: 'DownloadManager', metadata: {
+        'ipfs_count': orderedMirrors.where((m) => m.contains('ipfs')).length,
+        'https_count': orderedMirrors.where((m) => !m.contains('ipfs')).length,
+      });
 
       _updateTaskStatus(task.id, DownloadStatus.downloadingMirrors);
       await _notificationService.showDownloadNotification(
@@ -243,6 +260,9 @@ class DownloadManager {
       String? workingMirror = await _getAliveMirror(orderedMirrors);
 
       if (workingMirror == null) {
+        _logger.error('No working mirrors found for: ${task.title}', tag: 'DownloadManager', metadata: {
+          'checked_mirrors': orderedMirrors.length,
+        });
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'No working mirrors available!');
         await _notificationService.showDownloadNotification(
@@ -253,6 +273,10 @@ class DownloadManager {
         );
         return;
       }
+      
+      _logger.info('Found working mirror for: ${task.title}', tag: 'DownloadManager', metadata: {
+        'mirror': workingMirror,
+      });
 
       // Try to download from each mirror until successful
       bool downloadSuccessful = false;
@@ -385,7 +409,8 @@ class DownloadManager {
         progress: -1,
       );
 
-      await Future.delayed(const Duration(seconds: 3));
+      // Auto-remove from download list after 30 seconds
+      await Future.delayed(const Duration(seconds: 30));
       removeDownload(task.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -400,6 +425,9 @@ class DownloadManager {
           body: 'Download failed',
           progress: -1,
         );
+        // Auto-remove failed downloads after 60 seconds
+        await Future.delayed(const Duration(seconds: 60));
+        removeDownload(task.id);
       }
     } catch (e) {
       _updateTaskStatus(task.id, DownloadStatus.failed,
@@ -410,6 +438,9 @@ class DownloadManager {
         body: 'Download failed',
         progress: -1,
       );
+      // Auto-remove failed downloads after 60 seconds
+      await Future.delayed(const Duration(seconds: 60));
+      removeDownload(task.id);
     } finally {
       // Always close the Dio instance to prevent resource leaks
       dio?.close();
@@ -450,6 +481,10 @@ class DownloadManager {
           body: 'Manual verification needed',
           progress: -1,
         );
+        
+        // Auto-remove failed downloads after 60 seconds
+        await Future.delayed(const Duration(seconds: 60));
+        removeDownload(task.id);
         return;
       }
 
@@ -461,6 +496,9 @@ class DownloadManager {
 
       // Now proceed with the regular download flow
       dio = Dio();
+      // Configure DNS-over-HTTPS for this download
+      _dnsResolver.configureDio(dio);
+      
       String path = await _getFilePath('${updatedTask.md5}.${updatedTask.format}');
       List<String> orderedMirrors = _reorderMirrors(updatedTask.mirrors);
 
@@ -617,7 +655,8 @@ class DownloadManager {
         progress: -1,
       );
 
-      await Future.delayed(const Duration(seconds: 3));
+      // Auto-remove from download list after 30 seconds
+      await Future.delayed(const Duration(seconds: 30));
       removeDownload(updatedTask.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -632,6 +671,9 @@ class DownloadManager {
           body: 'Download failed',
           progress: -1,
         );
+        // Auto-remove failed downloads after 60 seconds
+        await Future.delayed(const Duration(seconds: 60));
+        removeDownload(task.id);
       }
     } catch (e) {
       _updateTaskStatus(task.id, DownloadStatus.failed,
@@ -642,6 +684,9 @@ class DownloadManager {
         body: 'Download failed',
         progress: -1,
       );
+      // Auto-remove failed downloads after 60 seconds
+      await Future.delayed(const Duration(seconds: 60));
+      removeDownload(task.id);
     } finally {
       // Always close the Dio instance to prevent resource leaks
       dio?.close();

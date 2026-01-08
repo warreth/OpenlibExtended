@@ -77,7 +77,7 @@ class _AboutPageState extends State<AboutPage> {
               const Padding(
                 padding: EdgeInsets.only(left: 7, right: 7, top: 5),
                 child: Text(
-                  "Original app by DHR-Store.",
+                  "Original app by dstark5 (https://github.com/dstark5/Openlib).",
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Colors.grey),
                 ),
               ),
@@ -112,8 +112,8 @@ class _AboutPageState extends State<AboutPage> {
                   text: 'Report An Issue',
                   url: 'https://github.com/warreth/OpenlibExtended/issues'),
               const _UrlText(
-                  text: 'Original Project (by DHR-Store)',
-                  url: 'https://github.com/DHR-Store/Openlib'),
+                  text: 'Original Project (by dstark5)',
+                  url: 'https://github.com/dstark5/Openlib'),
               const Padding(
                 padding: EdgeInsets.only(left: 7, right: 7, top: 15),
                 child: Text(
