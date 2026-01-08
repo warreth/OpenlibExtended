@@ -243,6 +243,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                         description: widget.data.description,
                         link: widget.data.link,
                         mirrors: [], // Will be fetched in background
+                        mirrorUrl: widget.data.mirror, // Store mirror URL for retry
                       );
                       
                       await downloadManager.addDownloadWithMirrorUrl(

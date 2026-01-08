@@ -35,6 +35,7 @@ class DownloadTask {
   final String? description;
   final String link;
   final List<String> mirrors;
+  final String? mirrorUrl; // URL to fetch mirrors from (for retry)
 
   DownloadStatus status;
   double progress;
@@ -55,6 +56,7 @@ class DownloadTask {
     this.info,
     this.description,
     required this.link,
+    this.mirrorUrl,
     this.status = DownloadStatus.queued,
     this.progress = 0.0,
     this.downloadedBytes = 0,
@@ -71,6 +73,7 @@ class DownloadTask {
     String? errorMessage,
     CancelToken? cancelToken,
     List<String>? mirrors,
+    String? mirrorUrl,
   }) {
     return DownloadTask(
       id: id,
@@ -84,6 +87,7 @@ class DownloadTask {
       info: info,
       description: description,
       link: link,
+      mirrorUrl: mirrorUrl ?? this.mirrorUrl,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       downloadedBytes: downloadedBytes ?? this.downloadedBytes,
@@ -197,7 +201,7 @@ class DownloadManager {
       progress: 0,
     );
 
-    _startDownload(task);
+    await _startDownload(task);
   }
 
   Future<void> addDownloadWithMirrorUrl(DownloadTask task, String mirrorUrl) async {
@@ -207,7 +211,10 @@ class DownloadManager {
     }
 
     _logger.info('Adding download with mirror URL: ${task.title} (${task.format})', tag: 'DownloadManager');
-    _activeDownloads[task.id] = task;
+    
+    // Store the mirror URL in the task for potential retry
+    final taskWithMirrorUrl = task.copyWith(mirrorUrl: mirrorUrl);
+    _activeDownloads[task.id] = taskWithMirrorUrl;
     _notifyListeners();
 
     await _notificationService.showDownloadNotification(
@@ -216,7 +223,7 @@ class DownloadManager {
       progress: 0,
     );
 
-    _startDownloadWithMirrorUrl(task, mirrorUrl);
+    await _startDownloadWithMirrorUrl(taskWithMirrorUrl, mirrorUrl);
   }
 
   Future<void> _startDownload(DownloadTask task) async {
@@ -405,8 +412,12 @@ class DownloadManager {
         progress: -1,
       );
 
+      // Clear notification after 3 seconds
+      await Future.delayed(const Duration(seconds: 3));
+      await _notificationService.cancelNotification(task.id.hashCode);
+
       // Auto-remove from download list after 30 seconds
-      await Future.delayed(const Duration(seconds: 30));
+      await Future.delayed(const Duration(seconds: 27));
       removeDownload(task.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -468,9 +479,9 @@ class DownloadManager {
 
       if (fetchedMirrors.isEmpty) {
         _logger.error('Background mirror fetching failed for: ${task.title}', tag: 'DownloadManager');
-        // Background fetching failed - store the mirror URL for fallback
+        // Background fetching failed - keep task for manual retry
         _updateTaskStatus(task.id, DownloadStatus.failed,
-            errorMessage: 'Manual verification required - please use "Download" button to open captcha page');
+            errorMessage: 'Manual verification required');
         await _notificationService.showDownloadNotification(
           id: task.id.hashCode,
           title: task.title,
@@ -478,9 +489,10 @@ class DownloadManager {
           progress: -1,
         );
         
-        // Auto-remove failed downloads after 60 seconds
-        await Future.delayed(const Duration(seconds: 60));
-        removeDownload(task.id);
+        // Clear notification after 3 seconds but keep task in UI for manual retry
+        await Future.delayed(const Duration(seconds: 3));
+        await _notificationService.cancelNotification(task.id.hashCode);
+        
         return;
       }
 
@@ -649,8 +661,12 @@ class DownloadManager {
         progress: -1,
       );
 
+      // Clear notification after 3 seconds
+      await Future.delayed(const Duration(seconds: 3));
+      await _notificationService.cancelNotification(updatedTask.id.hashCode);
+
       // Auto-remove from download list after 30 seconds
-      await Future.delayed(const Duration(seconds: 30));
+      await Future.delayed(const Duration(seconds: 27));
       removeDownload(updatedTask.id);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
@@ -715,6 +731,22 @@ class DownloadManager {
       _activeDownloads[taskId]?.cancelToken?.cancel();
       removeDownload(taskId);
     }
+  }
+
+  Future<void> retryManualDownload(String taskId) async {
+    final task = _activeDownloads[taskId];
+    if (task == null || task.mirrorUrl == null) {
+      _logger.warning('Cannot retry: task not found or no mirror URL', tag: 'DownloadManager');
+      return;
+    }
+
+    _logger.info('Retrying manual download for: ${task.title}', tag: 'DownloadManager');
+    
+    // Reset task status to queued
+    _updateTaskStatus(taskId, DownloadStatus.queued, errorMessage: null);
+    
+    // Restart download process
+    await _startDownloadWithMirrorUrl(task, task.mirrorUrl!);
   }
 
   void removeDownload(String taskId) {
