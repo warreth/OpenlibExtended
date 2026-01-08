@@ -291,13 +291,30 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                         );
                         
                         if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
-                          // Start download with fetched mirrors
-                          await downloadFileWidget(
-                            ref,
-                            context,
-                            widget.data,
-                            mirrors,
+                          // Start download in background with fetched mirrors
+                          final downloadManager = ref.read(downloadManagerProvider);
+                          final task = DownloadTask(
+                            id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
+                            md5: widget.data.md5,
+                            title: widget.data.title,
+                            author: widget.data.author,
+                            thumbnail: widget.data.thumbnail,
+                            publisher: widget.data.publisher,
+                            info: widget.data.info,
+                            format: widget.data.format!,
+                            description: widget.data.description,
+                            link: widget.data.link,
+                            mirrors: mirrors, // Use manually fetched mirrors
                           );
+                          
+                          await downloadManager.addDownload(task);
+                          
+                          showSnackBar(
+                            context: context,
+                            message: 'Download started in background',
+                          );
+                          // ignore: unused_result
+                          ref.refresh(myLibraryProvider);
                         }
                       } else {
                         showSnackBar(
