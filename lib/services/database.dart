@@ -116,6 +116,8 @@ class MyLibraryDb {
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('bookStorageDirectory', '$bookStorageDefaultDirectory')");
         await db.execute(
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('showManualDownloadButton', 0)");
+        await db.execute(
+            "INSERT OR IGNORE INTO preferences (name, value) VALUES ('selectedDnsProviderIndex', 0)");
       },
     );
   }
