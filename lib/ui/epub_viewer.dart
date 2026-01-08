@@ -112,6 +112,7 @@ class EpubViewer extends ConsumerStatefulWidget {
 class _EpubViewerState extends ConsumerState<EpubViewer> {
   late EpubController _epubReaderController;
   String? epubConf;
+  int _pointerCount = 0;
 
   @override
   void initState() {
@@ -218,22 +219,29 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
       children: [
         child,
         Positioned.fill(
-          child: GestureDetector(
+          child: Listener(
             behavior: HitTestBehavior.translucent,
-            onTapUp: (details) {
-              final screenWidth = MediaQuery.of(context).size.width;
-              final tapPosition = details.globalPosition.dx;
+            onPointerDown: (event) => _pointerCount++,
+            onPointerUp: (event) {
+              _pointerCount--;
               
-              // Divide screen into three zones: left (30%), center (40%), right (30%)
-              if (tapPosition < screenWidth * 0.3) {
-                // Left zone - previous chapter
-                _navigateToPreviousChapter();
-              } else if (tapPosition > screenWidth * 0.7) {
-                // Right zone - next chapter
-                _navigateToNextChapter();
+              // Only handle navigation on single-finger taps
+              if (_pointerCount == 0) {
+                final screenWidth = MediaQuery.of(context).size.width;
+                final tapPosition = event.position.dx;
+                
+                // Divide screen into three zones: left (30%), center (40%), right (30%)
+                if (tapPosition < screenWidth * 0.3) {
+                  // Left zone - previous chapter
+                  _navigateToPreviousChapter();
+                } else if (tapPosition > screenWidth * 0.7) {
+                  // Right zone - next chapter
+                  _navigateToNextChapter();
+                }
+                // Center zone (30-70%) - no action, allows text selection
               }
-              // Center zone (30-70%) - no action, allows text selection
             },
+            onPointerCancel: (event) => _pointerCount--,
             child: Container(color: Colors.transparent),
           ),
         ),

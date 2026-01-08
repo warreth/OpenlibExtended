@@ -95,6 +95,7 @@ class PdfViewer extends ConsumerStatefulWidget {
 
 class _PdfViewerState extends ConsumerState<PdfViewer> {
   late PDFViewController controller;
+  int _pointerCount = 0;
 
   @override
   void initState() {
@@ -262,23 +263,29 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
       children: [
         child,
         Positioned.fill(
-          child: GestureDetector(
+          child: Listener(
             behavior: HitTestBehavior.translucent,
-            onTapUp: (details) {
-              final screenWidth = MediaQuery.of(context).size.width;
-              final tapPosition = details.globalPosition.dx;
+            onPointerDown: (event) => _pointerCount++,
+            onPointerUp: (event) {
+              _pointerCount--;
               
-              // Divide screen into three zones: left (30%), center (40%), right (30%)
-              if (tapPosition < screenWidth * 0.3) {
-                // Left zone - previous page
-                _goToPreviousPage();
-              } else if (tapPosition > screenWidth * 0.7) {
-                // Right zone - next page
-                _goToNextPage();
+              // Only handle navigation on single-finger taps
+              if (_pointerCount == 0) {
+                final screenWidth = MediaQuery.of(context).size.width;
+                final tapPosition = event.position.dx;
+                
+                // Divide screen into three zones: left (30%), center (40%), right (30%)
+                if (tapPosition < screenWidth * 0.3) {
+                  // Left zone - previous page
+                  _goToPreviousPage();
+                } else if (tapPosition > screenWidth * 0.7) {
+                  // Right zone - next page
+                  _goToNextPage();
+                }
+                // Center zone (30-70%) - no action, allows zooming and other interactions
               }
-              // Center zone (30-70%) - no action, allows zooming and other interactions
             },
-            // This child is transparent to allow underlying PDF gestures (like zoom) to work
+            onPointerCancel: (event) => _pointerCount--,
             child: Container(color: Colors.transparent),
           ),
         ),
