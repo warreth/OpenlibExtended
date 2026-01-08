@@ -25,6 +25,8 @@ jobs:
         with:
           channel: 'stable'
           cache: true
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+          cache-path: '${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:'
       
       - name: Decode and install Keystore
         # This step now runs always, but the script inside is conditional.
@@ -52,6 +54,24 @@ jobs:
 
       - name: Get Flutter dependencies
         run: flutter pub get
+
+      - name: Verify dependencies
+        run: |
+          echo "Verifying Flutter dependencies..."
+          flutter pub get --dry-run
+          echo "Dependencies verified successfully!"
+
+      - name: Run Flutter analyze
+        run: |
+          echo "Running Flutter analyze to catch compilation errors early..."
+          flutter analyze --fatal-infos
+          echo "Analysis completed successfully!"
+
+      - name: Run tests
+        run: |
+          echo "Running Flutter tests..."
+          flutter test
+          echo "Tests completed successfully!"
 
       - name: Update pubspec version
         run: |
