@@ -17,7 +17,7 @@ An Open source app to download and read books from shadow library ([Anna’s Arc
 
 [<img src="github_releases.png"
      alt="Get it on GitHub"
-     height="60">](https://github.com/warreth/OpenlibExtended/releases)
+     height="110">](https://github.com/warreth/OpenlibExtended/releases)
 </div>
 
 ## Note 📝
