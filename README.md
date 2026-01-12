@@ -71,7 +71,9 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
 ## Roadmap 🎯
 
 - Adding More Book Format supports (cbz,cbr,azw3,etc...)
-- Add Booklore support
+- Add Booklore support (syncing to and from booklore server)
+- Make Linux/Desktop version
+- Make web version
 
 ## Screen Layout
 
