@@ -4,25 +4,20 @@
 
 # OpenlibExtended
 > I made this fork to keep using the app. It’s intended for personal use; I’ll keep it updated, but don’t expect weekly releases.
+> 
+> See [here](https://github.com/warreth/OpenlibExtended/?tab=readme-ov-file#features-) to view all the features that i've added to the original version.
+
 
 An Open source app to download and read books from shadow library ([Anna’s Archive](https://annas-archive.org/))
 
 [![made-with-flutter](https://img.shields.io/badge/Made%20with-Flutter-4361ee.svg?style=for-the-badge)](https://flutter.dev/)
 [![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-e63946.svg?style=for-the-badge)](https://opensource.org/licenses/)
 [![Latest release](https://img.shields.io/github/release/warreth/OpenlibExtended.svg?style=for-the-badge)](https://github.com/warreth/OpenlibExtended/releases)
+[![Downloads](https://img.shields.io/github/downloads/warreth/OpenlibExtended/total.svg?style=for-the-badge)](https://github.com/warreth/OpenlibExtended/releases)
 
 [<img src="github_releases.png"
      alt="Get it on GitHub"
      height="60">](https://github.com/warreth/OpenlibExtended/releases)
-[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png"
-     alt="Get it on IzzyOnDroid"
-     height="60">](https://android.izzysoft.de/repo/apk/com.app.openlib)
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-     alt="Get it on F-Droid"
-     height="60">](https://f-droid.org/en/packages/com.app.openlib/)
-[<img src="https://www.openapk.net/images/openapk-badge.png" 
-     alt="Get it on Openapk" 
-     height="60">](https://www.openapk.net/openlib/com.app.openlib/)
 </div>
 
 ## Note 📝
@@ -56,14 +51,16 @@ As [Anna’s Archive](https://annas-archive.org/) Doesn't Have An API. The App W
   - Drag-to-reorder priority
   - Enable/disable instances
   - Automatic retry (2x per instance) with seamless fallback
+    
 - **Background Downloads** - Download books in the background with progress notifications
   - Queue multiple books for simultaneous download
   - Progress notifications with real-time updates
   - Downloads continue even when app is in background
   - Visual download queue in Home, Search, and My Library pages
+    
 - **Built-In Reader** - Read books with intuitive navigation
   - Supports Epub And Pdf Formats
-  - Tap navigation: tap left/right sides of screen to navigate pages
+  - **Tap navigation: tap left/right sides of screen to navigate pages**
   - Arrow button navigation and swipe gestures also supported
   - Works great on phones and tablets
 - Trending Books
