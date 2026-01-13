@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
+import 'package:openlib/services/platform_utils.dart';
 
 import 'package:openlib/state/state.dart'
     show
@@ -27,7 +28,9 @@ Future<void> launchPdfViewer(
     required BuildContext context,
     required WidgetRef ref}) async {
   bool openWithExternalApp = ref.watch(openPdfWithExternalAppProvider);
-  if (openWithExternalApp) {
+  
+  // On desktop, always open with external app since flutter_pdfview is mobile-only
+  if (PlatformUtils.isDesktop || openWithExternalApp) {
     String path = await getFilePath(fileName);
     await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");    
   } else {
@@ -104,9 +107,8 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
 
   @override
   void deactivate() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      savePdfState(widget.fileName, ref);
-    }
+    // Save PDF state on all platforms (mobile and desktop)
+    savePdfState(widget.fileName, ref);
     super.deactivate();
   }
 
@@ -158,7 +160,8 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
 
   @override
   Widget build(BuildContext context) {
-    bool isMobile = Platform.isAndroid || Platform.isIOS;
+    // On desktop, use external PDF viewer with a button
+    bool useExternalViewer = PlatformUtils.isDesktop;
     final currentPage = ref.watch(pdfCurrentPage);
     final totalPages = ref.watch(totalPdfPage);
     return Scaffold(
@@ -166,7 +169,7 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         title: const Text("Openlib"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
-        actions: isMobile
+        actions: !useExternalViewer
             ? [
                 IconButton(
                     onPressed: _goToPreviousPage,
@@ -185,7 +188,7 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
               ]
             : [],
       ),
-      body: isMobile
+      body: !useExternalViewer
           ? ref.watch(getBookPosition(widget.fileName)).when(
               data: (data) {
                 return _buildTapNavigationWrapper(

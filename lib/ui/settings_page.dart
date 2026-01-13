@@ -11,6 +11,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/services/update_checker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Project imports:
@@ -30,6 +32,9 @@ import 'package:openlib/state/state.dart'
         archiveInstancesProvider;
 
 Future<void> requestStoragePermission() async {
+  // Desktop platforms don't require runtime storage permissions
+  if (PlatformUtils.isDesktop) return;
+  
   // Check whether the device is running Android 11 or higher
   DeviceInfoPlugin plugin = DeviceInfoPlugin();
   AndroidDeviceInfo android = await plugin.androidInfo;
@@ -128,6 +133,7 @@ class SettingsPage extends ConsumerWidget {
                     ref.read(themeModeProvider.notifier).state =
                         value == true ? ThemeMode.dark : ThemeMode.light;
                     dataBase.savePreference('darkMode', value);
+                    // Only update system UI overlay on Android
                     if (Platform.isAndroid) {
                       SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
                           systemNavigationBarColor:
@@ -310,7 +316,18 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 ),
               ],
-            )
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
+              child: Text(
+                "Updates",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const _UpdateSettingsWidget(),
           ],
         ),
       ),
@@ -532,6 +549,178 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
           ),
         ),
       ),
+    );
+  }
+}
+
+// Update settings widget with prerelease toggle and check button
+class _UpdateSettingsWidget extends StatefulWidget {
+  const _UpdateSettingsWidget();
+
+  @override
+  State<_UpdateSettingsWidget> createState() => _UpdateSettingsWidgetState();
+}
+
+class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
+  final UpdateCheckerService _updateChecker = UpdateCheckerService();
+  bool _includePrereleases = false;
+  bool _isChecking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final value = await _updateChecker.getIncludePrereleases();
+    if (mounted) {
+      setState(() {
+        _includePrereleases = value;
+      });
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    setState(() {
+      _isChecking = true;
+    });
+
+    try {
+      final result = await _updateChecker.checkForUpdates(
+        includePrereleases: _includePrereleases,
+      );
+
+      if (!mounted) return;
+
+      if (result.updateAvailable && result.latestRelease != null) {
+        await _updateChecker.showUpdateDialog(context, result.latestRelease!);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("You're on the latest version (${result.currentVersion})"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to check for updates: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+          child: Container(
+            height: 61,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(5),
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Include Beta Updates",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.tertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Get pre-release versions",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _includePrereleases,
+                    activeThumbColor: Colors.orange,
+                    onChanged: (bool value) async {
+                      setState(() {
+                        _includePrereleases = value;
+                      });
+                      await _updateChecker.setIncludePrereleases(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+          child: InkWell(
+            onTap: _isChecking ? null : _checkForUpdates,
+            child: Container(
+              height: 61,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Check for Updates",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
+                    ),
+                    _isChecking
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                          )
+                        : Icon(
+                            Icons.refresh,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

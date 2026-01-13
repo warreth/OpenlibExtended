@@ -1,0 +1,447 @@
+name: Build and Release
+
+on:
+    release:
+        types: [created]
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version to build (e.g., 1.0.11, leave empty for pubspec.yaml)"
+                required: false
+                default: ""
+            build_android:
+                description: "Build Android APKs"
+                required: false
+                default: true
+                type: boolean
+            build_ios:
+                description: "Build iOS IPA"
+                required: false
+                default: true
+                type: boolean
+            build_windows:
+                description: "Build Windows EXE"
+                required: false
+                default: true
+                type: boolean
+            build_linux:
+                description: "Build Linux (tar.gz + AppImage)"
+                required: false
+                default: true
+                type: boolean
+            build_flatpak:
+                description: "Build Flatpak bundle"
+                required: false
+                default: false
+                type: boolean
+            skip_tests:
+                description: "Skip running tests"
+                required: false
+                default: false
+                type: boolean
+
+env:
+    FLUTTER_VERSION: "3.32.2"
+
+jobs:
+    # Shared setup job to prepare version info
+    prepare:
+        name: Prepare Build
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.version.outputs.version }}
+            build_number: ${{ steps.version.outputs.build_number }}
+            is_release: ${{ github.event_name == 'release' }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Determine version
+              id: version
+              run: |
+                  if [[ "${{ github.event_name }}" == "release" ]]; then
+                    TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+                  elif [[ -n "${{ inputs.version }}" ]]; then
+                    TAG_VERSION="${{ inputs.version }}"
+                  else
+                    TAG_VERSION=$(grep "^version:" pubspec.yaml | sed 's/^version: //' | cut -d'+' -f1)
+                  fi
+
+                  # Ensure semantic version format
+                  if [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+                    TAG_VERSION="${TAG_VERSION}.0"
+                  fi
+
+                  if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Error: Invalid version format: $TAG_VERSION"
+                    exit 1
+                  fi
+
+                  BUILD_NUMBER=${{ github.run_number }}
+                  echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+                  echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+                  echo "Version: $TAG_VERSION+$BUILD_NUMBER"
+
+    # Android Build Job
+    build-android:
+        name: Build Android
+        needs: prepare
+        if: ${{ github.event_name == 'release' || inputs.build_android }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up JDK 17
+              uses: actions/setup-java@v4
+              with:
+                  distribution: "temurin"
+                  java-version: "17"
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: ${{ env.FLUTTER_VERSION }}
+                  channel: "stable"
+                  cache: true
+
+            - name: Cache pub dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.pub-cache
+                      .dart_tool
+                  key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+                  restore-keys: |
+                      pub-${{ runner.os }}-
+
+            - name: Decode Keystore
+              env:
+                  KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+                  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+                  STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+                  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+              run: |
+                  if [ -n "$KEYSTORE_BASE64" ]; then
+                    echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+                    cat > android/key.properties << EOF
+                  storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
+                  keyAlias=$KEY_ALIAS
+                  storePassword=$STORE_PASSWORD
+                  keyPassword=$KEY_PASSWORD
+                  EOF
+                  fi
+
+            - name: Get dependencies
+              run: flutter pub get
+
+            - name: Update version
+              run: |
+                  sed -i "s/^version: .*/version: ${{ needs.prepare.outputs.version }}+${{ needs.prepare.outputs.build_number }}/" pubspec.yaml
+
+            - name: Build APKs
+              run: |
+                  flutter build apk --release
+                  flutter build apk --split-per-abi --release
+
+            - name: Prepare artifacts
+              run: |
+                  mkdir -p artifacts
+                  cp build/app/outputs/flutter-apk/app-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-universal.apk
+                  cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-arm64-v8a.apk
+                  cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-armeabi-v7a.apk
+                  cp build/app/outputs/flutter-apk/app-x86_64-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-x86_64.apk || true
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: android-builds
+                  path: artifacts/*.apk
+                  retention-days: 7
+
+    # iOS Build Job
+    build-ios:
+        name: Build iOS
+        needs: prepare
+        if: ${{ github.event_name == 'release' || inputs.build_ios }}
+        runs-on: macos-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: ${{ env.FLUTTER_VERSION }}
+                  channel: "stable"
+                  cache: true
+
+            - name: Cache pub dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.pub-cache
+                      .dart_tool
+                  key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+                  restore-keys: |
+                      pub-${{ runner.os }}-
+
+            - name: Cache CocoaPods
+              uses: actions/cache@v4
+              with:
+                  path: ios/Pods
+                  key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+                  restore-keys: |
+                      pods-${{ runner.os }}-
+
+            - name: Get dependencies
+              run: flutter pub get
+
+            - name: Update version
+              run: |
+                  sed -i '' "s/^version: .*/version: ${{ needs.prepare.outputs.version }}+${{ needs.prepare.outputs.build_number }}/" pubspec.yaml
+
+            - name: Build iOS (no codesign)
+              run: flutter build ios --release --no-codesign
+
+            - name: Create IPA
+              run: |
+                  mkdir -p Payload
+                  cp -r build/ios/iphoneos/Runner.app Payload/
+                  zip -r artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}.ipa Payload
+                  rm -rf Payload
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ios-builds
+                  path: artifacts/*.ipa
+                  retention-days: 7
+
+    # Windows Build Job
+    build-windows:
+        name: Build Windows
+        needs: prepare
+        if: ${{ github.event_name == 'release' || inputs.build_windows }}
+        runs-on: windows-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: ${{ env.FLUTTER_VERSION }}
+                  channel: "stable"
+                  cache: true
+
+            - name: Cache pub dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~\.pub-cache
+                      .dart_tool
+                  key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+                  restore-keys: |
+                      pub-${{ runner.os }}-
+
+            - name: Get dependencies
+              run: flutter pub get
+
+            - name: Update version
+              run: |
+                  (Get-Content pubspec.yaml) -replace '^version: .*', "version: ${{ needs.prepare.outputs.version }}+${{ needs.prepare.outputs.build_number }}" | Set-Content pubspec.yaml
+
+            - name: Build Windows
+              run: flutter build windows --release
+
+            - name: Create archive
+              run: |
+                  mkdir artifacts
+                  Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "artifacts\OpenLibExtended-${{ needs.prepare.outputs.version }}-windows-x64.zip"
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-builds
+                  path: artifacts/*.zip
+                  retention-days: 7
+
+    # Linux Build Job
+    build-linux:
+        name: Build Linux
+        needs: prepare
+        if: ${{ github.event_name == 'release' || inputs.build_linux }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install Linux dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev webkit2gtk-4.1
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: ${{ env.FLUTTER_VERSION }}
+                  channel: "stable"
+                  cache: true
+
+            - name: Cache pub dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.pub-cache
+                      .dart_tool
+                  key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+                  restore-keys: |
+                      pub-${{ runner.os }}-
+
+            - name: Get dependencies
+              run: flutter pub get
+
+            - name: Update version
+              run: |
+                  sed -i "s/^version: .*/version: ${{ needs.prepare.outputs.version }}+${{ needs.prepare.outputs.build_number }}/" pubspec.yaml
+
+            - name: Build Linux
+              run: flutter build linux --release
+
+            - name: Create tar.gz archive
+              run: |
+                  mkdir -p artifacts
+                  cd build/linux/x64/release/bundle
+                  tar -czvf ${{ github.workspace }}/artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz *
+
+            - name: Create AppImage
+              run: |
+                  # Download appimagetool
+                  wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+                  chmod +x appimagetool-x86_64.AppImage
+
+                  # Create AppDir structure
+                  mkdir -p AppDir/usr/bin
+                  mkdir -p AppDir/usr/lib
+                  mkdir -p AppDir/usr/share/applications
+                  mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+                  # Copy build output
+                  cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
+
+                  # Copy icon
+                  cp assets/icons/appIcon.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
+                  cp assets/icons/appIcon.png AppDir/openlibextended.png
+
+                  # Create desktop file
+                  cat > AppDir/openlibextended.desktop << EOF
+                  [Desktop Entry]
+                  Name=OpenLibExtended
+                  Exec=OpenLibExtended
+                  Icon=openlibextended
+                  Type=Application
+                  Categories=Education;
+                  EOF
+                  cp AppDir/openlibextended.desktop AppDir/usr/share/applications/
+
+                  # Create AppRun
+                  cat > AppDir/AppRun << 'EOF'
+                  #!/bin/bash
+                  SELF=$(readlink -f "$0")
+                  HERE=${SELF%/*}
+                  export PATH="${HERE}/usr/bin/:${PATH}"
+                  export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
+                  exec "${HERE}/usr/bin/OpenLibExtended" "$@"
+                  EOF
+                  chmod +x AppDir/AppRun
+
+                  # Build AppImage
+                  ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x86_64.AppImage
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: linux-builds
+                  path: artifacts/*
+                  retention-days: 7
+
+    # Flatpak Build Job (optional, complex)
+    build-flatpak:
+        name: Build Flatpak
+        needs: prepare
+        if: ${{ inputs.build_flatpak == true }}
+        runs-on: ubuntu-latest
+        container:
+            image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+            options: --privileged
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Create Flatpak manifest
+              run: |
+                  cat > com.app.openlibextended.yml << EOF
+                  app-id: com.app.openlibextended
+                  runtime: org.freedesktop.Platform
+                  runtime-version: '24.08'
+                  sdk: org.freedesktop.Sdk
+                  command: openlibextended
+                  finish-args:
+                    - --share=ipc
+                    - --socket=fallback-x11
+                    - --socket=wayland
+                    - --device=dri
+                    - --share=network
+                    - --filesystem=home
+                  modules:
+                    - name: openlibextended
+                      buildsystem: simple
+                      build-commands:
+                        - cp -r bundle /app/
+                        - ln -s /app/bundle/OpenLibExtended /app/bin/openlibextended
+                      sources:
+                        - type: dir
+                          path: build/linux/x64/release/bundle
+                          dest: bundle
+                  EOF
+
+            - name: Build Flatpak
+              uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+              with:
+                  bundle: OpenLibExtended-${{ needs.prepare.outputs.version }}.flatpak
+                  manifest-path: com.app.openlibextended.yml
+                  cache-key: flatpak-builder-${{ github.sha }}
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: flatpak-builds
+                  path: "*.flatpak"
+                  retention-days: 7
+
+    # Release job - only runs on release events
+    release:
+        name: Upload to Release
+        needs: [prepare, build-android, build-ios, build-windows, build-linux]
+        if: ${{ always() && github.event_name == 'release' }}
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+                  merge-multiple: true
+
+            - name: List artifacts
+              run: ls -la artifacts/ || echo "No artifacts found"
+
+            - name: Upload to Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: |
+                      artifacts/*
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

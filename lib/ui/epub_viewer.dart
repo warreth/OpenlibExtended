@@ -11,6 +11,7 @@ import 'package:open_file/open_file.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
+import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/state/state.dart'
     show
@@ -24,30 +25,23 @@ Future<void> launchEpubViewer({
   required BuildContext context,
   required WidgetRef ref,
 }) async {
-  if (Platform.isAndroid || Platform.isIOS) {
-    String path = await getFilePath(fileName);
-    bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
+  String path = await getFilePath(fileName);
+  bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
 
-    if (openWithExternalApp) {
-      await OpenFile.open(path,
-          linuxByProcess: true, type: "application/epub+zip");
-    } else {
-      try {
-        // Push to internal Epub Viewer
-        // ignore: use_build_context_synchronously
-        Navigator.push(context,
-            MaterialPageRoute(builder: (BuildContext context) {
-          return EpubViewerWidget(fileName: fileName);
-        }));
-      } catch (e) {
-        // ignore: use_build_context_synchronously
-        showSnackBar(context: context, message: 'Unable to open epub!');
-      }
-    }
+  // Check if user wants external app
+  if (openWithExternalApp) {
+    await OpenFile.open(path, linuxByProcess: true, type: "application/epub+zip");
   } else {
-    Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-      return EpubViewerWidget(fileName: fileName);
-    }));
+    try {
+      // Use internal Epub Viewer for all platforms (epub_view supports desktop)
+      // ignore: use_build_context_synchronously
+      Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
+        return EpubViewerWidget(fileName: fileName);
+      }));
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      showSnackBar(context: context, message: "Unable to open epub!");
+    }
   }
 }
 
@@ -125,9 +119,8 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
 
   @override
   void deactivate() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      saveEpubState(widget.fileName, epubConf, ref);
-    }
+    // Save EPUB state on all platforms (mobile and desktop)
+    saveEpubState(widget.fileName, epubConf, ref);
     super.deactivate();
   }
 

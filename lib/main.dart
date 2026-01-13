@@ -10,9 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:openlib/ui/home_page.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:desktop_webview_window/desktop_webview_window.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb;
+import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/services/update_checker.dart';
 import 'package:openlib/ui/mylibrary_page.dart';
 import 'package:openlib/ui/search_page.dart';
 import 'package:openlib/ui/settings_page.dart';
@@ -32,7 +35,12 @@ import 'package:openlib/state/state.dart'
         userAgentProvider,
         cookieProvider;
 
-void main() async {
+void main(List<String> args) async {
+  // Handle desktop webview window title bar BEFORE Flutter bindings (required by desktop_webview_window)
+  if (runWebViewTitleBarWidget(args)) {
+    return;
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -71,7 +79,7 @@ void main() async {
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
   if (Platform.isAndroid) {
-    //[SystemChrome] Also change colors in settings page Theme colors if any change
+    // Android-specific setup for system UI overlay colors
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
         systemNavigationBarColor:
             isDarkMode ? Colors.black : Colors.grey.shade200));
@@ -138,13 +146,35 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
-    // Request notification permission after first frame
+    // Request notification permission after first frame (only on mobile)
+    if (PlatformUtils.isMobile) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndRequestNotificationPermission();
+      });
+    }
+    // Check for updates after the app has loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndRequestNotificationPermission();
+      _checkForUpdatesOnStartup();
     });
   }
 
+  Future<void> _checkForUpdatesOnStartup() async {
+    // Small delay to let the UI settle
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    try {
+      await UpdateCheckerService().checkAndShowUpdateDialog(context);
+    } catch (e) {
+      // Silently fail on startup - user can manually check in settings
+      debugPrint("Update check failed: $e");
+    }
+  }
+
   Future<void> _checkAndRequestNotificationPermission() async {
+    // Skip on desktop platforms
+    if (PlatformUtils.isDesktop) return;
+    
     // Check if we should show the permission dialog
     final prefs = MyLibraryDb.instance;
     final hasAskedBefore = await prefs.getPreference('hasAskedNotificationPermission')

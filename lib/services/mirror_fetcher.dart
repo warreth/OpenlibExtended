@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 // Project imports:
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/platform_utils.dart';
 
 /// Service to fetch mirror links in the background without showing UI
 class MirrorFetcherService {
@@ -19,6 +20,12 @@ class MirrorFetcherService {
   /// Returns a list of mirror download links
   Future<List<String>> fetchMirrors(String url) async {
     _logger.info('Starting background mirror fetch', tag: 'MirrorFetcher', metadata: {'url': url});
+    
+    // On Linux, WebView is not supported - return empty to trigger manual download flow
+    if (PlatformUtils.isLinux) {
+      _logger.warning('WebView not supported on Linux, returning empty mirrors', tag: 'MirrorFetcher');
+      return [];
+    }
     
     final Completer<List<String>> completer = Completer<List<String>>();
     final List<String> bookDownloadLinks = [];

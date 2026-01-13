@@ -6,6 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart';
+import 'package:openlib/services/platform_utils.dart';
 
 class MyBook {
   final String id;
@@ -65,7 +66,6 @@ class MyLibraryDb {
   Future<Database> _initDatabase() async {
     final databasePath = await getDatabasesPath();
     final path = '$databasePath/mylibrary.db';
-    final bool isMobile = Platform.isAndroid || Platform.isIOS;
 
     return await openDatabase(
       path,
@@ -75,13 +75,11 @@ class MyLibraryDb {
             'CREATE TABLE mybooks (id TEXT PRIMARY KEY, title TEXT,author TEXT,thumbnail TEXT,link TEXT,publisher TEXT,info TEXT,format TEXT,description TEXT)');
         await db.execute(
             'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
-        if (isMobile || true) {
-          // TODO: Breaks getBrowserOptions() on Mac
-          await db.execute(
-              'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
-          await db.execute(
-              'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
-        }
+        // Create these tables for all platforms (both mobile and desktop)
+        await db.execute(
+            'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
+        await db.execute(
+            'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         List<dynamic> isTableExist = await db.query('sqlite_master',
@@ -94,11 +92,13 @@ class MyLibraryDb {
           await db.execute(
               'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
         }
-        if (isMobile && isTableExist.isEmpty) {
+        // Create bookposition table on all platforms if not exists
+        if (isTableExist.isEmpty) {
           await db.execute(
               'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
         }
-        if (isMobile && isbrowserOptionsExist.isEmpty) {
+        // Create browserOptions table on all platforms if not exists
+        if (isbrowserOptionsExist.isEmpty) {
           await db.execute(
               'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
         }
