@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+// Project imports:
+import 'package:openlib/services/platform_utils.dart';
+
 class DownloadNotificationService {
   static final DownloadNotificationService _instance =
       DownloadNotificationService._internal();
@@ -20,6 +23,8 @@ class DownloadNotificationService {
   bool _initialized = false;
 
   Future<bool> requestNotificationPermission() async {
+    // Desktop platforms don't need runtime notification permissions
+    if (PlatformUtils.isDesktop) return true;
     if (!Platform.isAndroid) return true;
 
     final status = await Permission.notification.status;
@@ -32,6 +37,8 @@ class DownloadNotificationService {
   }
 
   Future<bool> checkNotificationPermission() async {
+    // Desktop platforms don't need runtime notification permissions
+    if (PlatformUtils.isDesktop) return true;
     if (!Platform.isAndroid) return true;
 
     final status = await Permission.notification.status;
@@ -41,6 +48,7 @@ class DownloadNotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
+    // Only initialize notifications on Android (desktop support is limited)
     if (Platform.isAndroid) {
       const AndroidInitializationSettings androidSettings =
           AndroidInitializationSettings('@mipmap/launcher_icon');
@@ -67,6 +75,7 @@ class DownloadNotificationService {
     String? body,
     required int progress,
   }) async {
+    // Only show notifications on Android (desktop notification support is limited)
     if (!_initialized || !Platform.isAndroid) return;
 
     AndroidNotificationDetails androidDetails;

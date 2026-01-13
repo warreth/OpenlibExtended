@@ -71,6 +71,7 @@ class ResultPage extends ConsumerWidget {
                           thumbnail: i.thumbnail ?? '',
                           info: i.info ?? '',
                           link: i.link,
+                          md5: i.md5,
                           onClick: () {
                             Navigator.push(
                               context,

@@ -1,11 +1,11 @@
 {
-    "name": "libgen",
-    "short_name": "libgen",
+    "name": "OpenLibExtended",
+    "short_name": "OpenLibExtended",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A Flutter app for library genesis.",
+    "description": "An open source app to download and read books.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

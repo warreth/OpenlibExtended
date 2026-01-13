@@ -24,30 +24,29 @@ Future<void> launchEpubViewer({
   required BuildContext context,
   required WidgetRef ref,
 }) async {
-  if (Platform.isAndroid || Platform.isIOS) {
+  try {
     String path = await getFilePath(fileName);
     bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
 
+    // Check if user wants external app
     if (openWithExternalApp) {
-      await OpenFile.open(path,
-          linuxByProcess: true, type: "application/epub+zip");
+      await OpenFile.open(path, linuxByProcess: true, type: "application/epub+zip");
     } else {
       try {
-        // Push to internal Epub Viewer
+        // Use internal Epub Viewer for all platforms (epub_view supports desktop)
         // ignore: use_build_context_synchronously
-        Navigator.push(context,
-            MaterialPageRoute(builder: (BuildContext context) {
+        Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
           return EpubViewerWidget(fileName: fileName);
         }));
       } catch (e) {
         // ignore: use_build_context_synchronously
-        showSnackBar(context: context, message: 'Unable to open epub!');
+        showSnackBar(context: context, message: "Unable to open epub!");
       }
     }
-  } else {
-    Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-      return EpubViewerWidget(fileName: fileName);
-    }));
+  } catch (e) {
+    // File doesn't exist or can't be accessed
+    // ignore: use_build_context_synchronously
+    showSnackBar(context: context, message: "File not found. The download may have failed.");
   }
 }
 
@@ -125,9 +124,8 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
 
   @override
   void deactivate() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      saveEpubState(widget.fileName, epubConf, ref);
-    }
+    // Save EPUB state on all platforms (mobile and desktop)
+    saveEpubState(widget.fileName, epubConf, ref);
     super.deactivate();
   }
 
