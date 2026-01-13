@@ -206,6 +206,7 @@ jobs:
 
             - name: Create IPA
               run: |
+                  mkdir -p artifacts
                   mkdir -p Payload
                   cp -r build/ios/iphoneos/Runner.app Payload/
                   zip -r artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}.ipa Payload
@@ -357,7 +358,7 @@ jobs:
                   chmod +x AppDir/AppRun
 
                   # Build AppImage
-                  ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x86_64.AppImage
+                  ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x86_64.AppImage
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
@@ -369,8 +370,8 @@ jobs:
     # Flatpak Build Job (optional, complex)
     build-flatpak:
         name: Build Flatpak
-        needs: prepare
-        if: ${{ inputs.build_flatpak == true }}
+        needs: [prepare, build-linux]
+        if: ${{ inputs.build_flatpak == true && inputs.build_linux == true }}
         runs-on: ubuntu-latest
         container:
             image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
@@ -378,6 +379,17 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+
+            - name: Download Linux build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: linux-builds
+                  path: linux-artifacts
+
+            - name: Extract Linux bundle
+              run: |
+                  mkdir -p build/linux/x64/release/bundle
+                  tar -xzf linux-artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz -C build/linux/x64/release/bundle
 
             - name: Create Flatpak manifest
               run: |
