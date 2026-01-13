@@ -94,3 +94,75 @@ Future<void> deleteFileWithDbData(
     rethrow;
   }
 }
+
+// Syncs the library database with actual files on disk
+// Removes entries for files that no longer exist and adds new files found
+// Returns the number of changes made
+Future<int> syncLibraryWithDisk() async {
+  int changes = 0;
+  try {
+    final bookStorageDirectory =
+        await dataBase.getPreference('bookStorageDirectory');
+    final directory = Directory(bookStorageDirectory.toString());
+    
+    if (!await directory.exists()) {
+      return 0;
+    }
+    
+    // Get all books from database
+    final booksInDb = await dataBase.getAll();
+    
+    // Get all book files on disk
+    final filesOnDisk = <String>{};
+    final files = directory.listSync(recursive: false);
+    for (var entity in files) {
+      if (entity is File) {
+        final fileName = entity.path.split('/').last;
+        final extension = fileName.split('.').last.toLowerCase();
+        if (extension == 'epub' || extension == 'pdf' || extension == 'cbr' || extension == 'cbz') {
+          filesOnDisk.add(fileName);
+        }
+      }
+    }
+    
+    // Remove database entries for files that no longer exist
+    for (var book in booksInDb) {
+      final fileName = "${book.id}.${book.format}";
+      if (!filesOnDisk.contains(fileName)) {
+        await dataBase.delete(book.id);
+        await dataBase.deleteBookState(fileName);
+        changes++;
+      }
+    }
+    
+    // Add new files that are not in database
+    final idsInDb = booksInDb.map((b) => b.id).toSet();
+    for (var fileName in filesOnDisk) {
+      final parts = fileName.split('.');
+      if (parts.length >= 2) {
+        final extension = parts.last.toLowerCase();
+        final md5 = parts.sublist(0, parts.length - 1).join('.');
+        
+        if (!idsInDb.contains(md5)) {
+          // Create a minimal book entry for the new file
+          final book = MyBook(
+            id: md5,
+            title: md5,
+            author: "Unknown",
+            thumbnail: "",
+            link: "",
+            publisher: "",
+            info: "",
+            description: "",
+            format: extension,
+          );
+          await dataBase.insert(book);
+          changes++;
+        }
+      }
+    }
+  } catch (e) {
+    // Silently fail
+  }
+  return changes;
+}

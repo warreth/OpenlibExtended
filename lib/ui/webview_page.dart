@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:desktop_webview_window/desktop_webview_window.dart';
+import 'package:desktop_webview_window/desktop_webview_window.dart' as desktop_webview;
 import 'package:path_provider/path_provider.dart';
 
 // Project imports:
@@ -28,11 +28,11 @@ class _WebviewState extends ConsumerState<Webview> {
   final AppLogger _logger = AppLogger();
 
   InAppWebViewController? webViewController;
-  Webview? _desktopWebview;
   bool _isDesktopWebviewOpen = false;
-  List<String> _capturedDownloadLinks = [];
-
-  final urlController = TextEditingController();
+  bool _linksFound = false;
+  final List<String> _capturedDownloadLinks = [];
+  Timer? _pollingTimer;
+  desktop_webview.Webview? _desktopWebview;
 
   @override
   void initState() {
@@ -56,8 +56,8 @@ class _WebviewState extends ConsumerState<Webview> {
         await webviewDataDir.create(recursive: true);
       }
 
-      final webview = await WebviewWindow.create(
-        configuration: CreateConfiguration(
+      _desktopWebview = await desktop_webview.WebviewWindow.create(
+        configuration: desktop_webview.CreateConfiguration(
           windowHeight: 720,
           windowWidth: 1280,
           title: "Verify Access - OpenLibExtended",
@@ -69,95 +69,26 @@ class _WebviewState extends ConsumerState<Webview> {
         _isDesktopWebviewOpen = true;
       });
 
-      // Set up message handler for JavaScript communication
-      webview.addOnUrlRequestCallback((url) {
-        _logger.debug("URL request callback", tag: "WebView", metadata: {"url": url});
-        // Check if this is a download link
-        if (_isDownloadUrl(url)) {
-          _capturedDownloadLinks.add(url);
-          _logger.info("Captured download URL", tag: "WebView", metadata: {"url": url});
-        }
-      });
-
-      // Handle page navigation to extract mirror links
-      webview.setOnHistoryChangedCallback((canGoBack, canGoForward) async {
-        // Wait for page to load
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // Try to extract download links via JavaScript
-        try {
-          final currentUrl = await webview.evaluateJavaScript("window.location.href");
-          _logger.debug("Page navigated", tag: "WebView", metadata: {"url": currentUrl});
-          
-          if (currentUrl != null) {
-            if (currentUrl.toString().contains("slow_download")) {
-              // Extract slow_download link
-              final result = await webview.evaluateJavaScript(
-                """(function() {
-                  var paragraphTag = document.querySelector('p[class="mb-4 text-xl font-bold"]');
-                  if (paragraphTag) {
-                    var anchor = paragraphTag.querySelector('a');
-                    if (anchor) return anchor.href;
-                  }
-                  return null;
-                })()"""
-              );
-              if (result != null && result.toString() != "null") {
-                _capturedDownloadLinks.add(result.toString());
-                _logger.info("Extracted slow_download link", tag: "WebView");
-                // Close webview and return links
-                webview.close();
-              }
-            } else {
-              // Extract IPFS links
-              final result = await webview.evaluateJavaScript(
-                """(function() {
-                  var linkTags = document.querySelectorAll('ul>li>a');
-                  var links = [];
-                  linkTags.forEach(function(e) { links.push(e.href); });
-                  return JSON.stringify(links);
-                })()"""
-              );
-              if (result != null && result.toString() != "null" && result.toString() != "[]") {
-                try {
-                  final links = (result as String).replaceAll('"', '').replaceAll('[', '').replaceAll(']', '').split(',');
-                  for (final link in links) {
-                    if (link.trim().isNotEmpty) {
-                      _capturedDownloadLinks.add(link.trim());
-                    }
-                  }
-                  if (_capturedDownloadLinks.isNotEmpty) {
-                    _logger.info("Extracted mirror links", tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
-                    // Close webview and return links
-                    webview.close();
-                  }
-                } catch (e) {
-                  _logger.error("Failed to parse mirror links", tag: "WebView", error: e);
-                }
-              }
+      // Handle webview close
+      _desktopWebview!.onClose.then((_) {
+        _logger.info("Desktop webview closed by user", tag: "WebView", metadata: {"links_captured": _capturedDownloadLinks.length});
+        _pollingTimer?.cancel();
+        // Return whatever links we found
+        if (mounted && !_linksFound) {
+          Future.microtask(() {
+            if (mounted) {
+              Navigator.pop(context, _capturedDownloadLinks);
             }
-          }
-        } catch (e) {
-          _logger.error("JavaScript evaluation error", tag: "WebView", error: e);
+          });
         }
-      });
-
-      // Handle webview close - using onClose Future
-      webview.onClose.then((_) {
-        _logger.info("Desktop webview closed", tag: "WebView", metadata: {"links_captured": _capturedDownloadLinks.length});
-        // Use post frame callback to ensure we're in a valid state
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _isDesktopWebviewOpen = false;
-            });
-            Navigator.pop(context, _capturedDownloadLinks);
-          }
-        });
       });
 
       // Launch the URL
-      webview.launch(widget.url);
+      _desktopWebview!.launch(widget.url);
+      
+      // Start polling for download links after page loads
+      await Future.delayed(const Duration(seconds: 2));
+      _startPolling();
       
     } catch (e, stackTrace) {
       _logger.error("Failed to open desktop webview", tag: "WebView", error: e, stackTrace: stackTrace);
@@ -167,25 +98,110 @@ class _WebviewState extends ConsumerState<Webview> {
     }
   }
 
-  bool _isDownloadUrl(String url) {
-    // Check if URL looks like a book download link
-    final downloadPatterns = [
-      "ipfs.io",
-      "cloudflare-ipfs.com",
-      "dweb.link",
-      "gateway.ipfs",
-      ".epub",
-      ".pdf",
-      ".mobi",
-      ".azw",
-      "download",
-    ];
-    final lowerUrl = url.toLowerCase();
-    return downloadPatterns.any((pattern) => lowerUrl.contains(pattern));
+  void _startPolling() {
+    // Poll every 2 seconds for download links
+    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      if (_linksFound || _desktopWebview == null) {
+        timer.cancel();
+        return;
+      }
+      
+      try {
+        // Check current URL
+        final currentUrl = await _desktopWebview!.evaluateJavaScript("window.location.href");
+        if (currentUrl == null) return;
+        
+        final urlStr = currentUrl.toString().replaceAll('"', '');
+        
+        if (urlStr.contains("slow_download")) {
+          // Extract slow_download link
+          final result = await _desktopWebview!.evaluateJavaScript(
+            """(function() {
+              var paragraphTag = document.querySelector('p[class="mb-4 text-xl font-bold"]');
+              if (paragraphTag) {
+                var anchor = paragraphTag.querySelector('a');
+                if (anchor && anchor.href) return anchor.href;
+              }
+              return null;
+            })()"""
+          );
+          
+          if (result != null && result.toString() != "null" && result.toString().isNotEmpty) {
+            final link = result.toString().replaceAll('"', '');
+            if (link.startsWith("http") && !_capturedDownloadLinks.contains(link)) {
+              _capturedDownloadLinks.add(link);
+              _logger.info("Extracted slow_download link", tag: "WebView", metadata: {"link": link});
+              _returnLinksAndClose();
+            }
+          }
+        } else {
+          // Extract IPFS links
+          final result = await _desktopWebview!.evaluateJavaScript(
+            """(function() {
+              var linkTags = document.querySelectorAll('ul>li>a');
+              var links = [];
+              linkTags.forEach(function(e) { 
+                if (e.href && e.href.startsWith('http')) {
+                  links.push(e.href); 
+                }
+              });
+              return JSON.stringify(links);
+            })()"""
+          );
+          
+          if (result != null && result.toString() != "null" && result.toString() != "[]") {
+            try {
+              final linksStr = result.toString();
+              final cleanStr = linksStr.replaceAll('[', '').replaceAll(']', '').replaceAll('"', '');
+              final links = cleanStr.split(',').where((l) => l.trim().isNotEmpty && l.trim().startsWith('http')).toList();
+              
+              for (final link in links) {
+                final cleanLink = link.trim();
+                if (cleanLink.isNotEmpty && !_capturedDownloadLinks.contains(cleanLink)) {
+                  _capturedDownloadLinks.add(cleanLink);
+                }
+              }
+              if (_capturedDownloadLinks.isNotEmpty) {
+                _logger.info("Extracted mirror links", tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
+                _returnLinksAndClose();
+              }
+            } catch (e) {
+              _logger.error("Failed to parse mirror links", tag: "WebView", error: e);
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore errors during polling, webview might be closed
+      }
+    });
+  }
+
+  void _returnLinksAndClose() async {
+    if (_capturedDownloadLinks.isNotEmpty && !_linksFound && mounted) {
+      _linksFound = true;
+      _pollingTimer?.cancel();
+      _logger.info("Returning download links", tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
+      
+      // Save links before any operations
+      final links = List<String>.from(_capturedDownloadLinks);
+      
+      // DON'T close the webview programmatically - causes OpenGL crash on Linux
+      // Instead, just clear reference and let user close it manually
+      // The onClose handler will fire when user closes the window
+      _desktopWebview = null;
+      
+      // Return the links immediately
+      if (mounted) {
+        Navigator.pop(context, links);
+      }
+    }
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
+    // Don't close the webview - let it remain open to avoid OpenGL crash
+    // The user will close it manually
     super.dispose();
   }
 
@@ -252,6 +268,7 @@ class _WebviewState extends ConsumerState<Webview> {
       );
     }
     
+    // Mobile/Windows: Use InAppWebView
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,

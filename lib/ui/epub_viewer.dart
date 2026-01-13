@@ -11,7 +11,6 @@ import 'package:open_file/open_file.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
-import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/state/state.dart'
     show
@@ -25,23 +24,29 @@ Future<void> launchEpubViewer({
   required BuildContext context,
   required WidgetRef ref,
 }) async {
-  String path = await getFilePath(fileName);
-  bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
+  try {
+    String path = await getFilePath(fileName);
+    bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
 
-  // Check if user wants external app
-  if (openWithExternalApp) {
-    await OpenFile.open(path, linuxByProcess: true, type: "application/epub+zip");
-  } else {
-    try {
-      // Use internal Epub Viewer for all platforms (epub_view supports desktop)
-      // ignore: use_build_context_synchronously
-      Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-        return EpubViewerWidget(fileName: fileName);
-      }));
-    } catch (e) {
-      // ignore: use_build_context_synchronously
-      showSnackBar(context: context, message: "Unable to open epub!");
+    // Check if user wants external app
+    if (openWithExternalApp) {
+      await OpenFile.open(path, linuxByProcess: true, type: "application/epub+zip");
+    } else {
+      try {
+        // Use internal Epub Viewer for all platforms (epub_view supports desktop)
+        // ignore: use_build_context_synchronously
+        Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
+          return EpubViewerWidget(fileName: fileName);
+        }));
+      } catch (e) {
+        // ignore: use_build_context_synchronously
+        showSnackBar(context: context, message: "Unable to open epub!");
+      }
     }
+  } catch (e) {
+    // File doesn't exist or can't be accessed
+    // ignore: use_build_context_synchronously
+    showSnackBar(context: context, message: "File not found. The download may have failed.");
   }
 }
 

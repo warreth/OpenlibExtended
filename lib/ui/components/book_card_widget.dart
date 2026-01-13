@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import 'package:openlib/state/state.dart' show checkIdExists;
 import 'package:openlib/ui/extensions.dart';
 
 String? getFileType(String? info) {
@@ -19,16 +21,18 @@ String? getFileType(String? info) {
   return null;
 }
 
-class BookInfoCard extends StatelessWidget {
-  const BookInfoCard(
-      {super.key,
-      required this.title,
-      required this.author,
-      required this.publisher,
-      required this.thumbnail,
-      required this.info,
-      required this.link,
-      required this.onClick});
+class BookInfoCard extends ConsumerWidget {
+  const BookInfoCard({
+    super.key,
+    required this.title,
+    required this.author,
+    required this.publisher,
+    required this.thumbnail,
+    required this.info,
+    required this.link,
+    required this.onClick,
+    this.md5,
+  });
 
   final String title;
   final String author;
@@ -37,10 +41,16 @@ class BookInfoCard extends StatelessWidget {
   final String? info;
   final String link;
   final VoidCallback onClick;
+  final String? md5;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     String? fileType = getFileType(info);
+    
+    // Check if book is downloaded (only if md5 is provided)
+    final isDownloaded = md5 != null 
+        ? ref.watch(checkIdExists(md5!))
+        : const AsyncValue<bool>.data(false);
 
     return InkWell(
       onTap: onClick,
@@ -55,40 +65,63 @@ class BookInfoCard extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            CachedNetworkImage(
-              height: 120,
-              width: 90,
-              imageUrl: thumbnail ?? "",
-              imageBuilder: (context, imageProvider) => Container(
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.all(Radius.circular(5)),
-                  image: DecorationImage(
-                    image: imageProvider,
-                    fit: BoxFit.fill,
-                  ),
-                ),
-              ),
-              placeholder: (context, url) => Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(5),
-                  color: "#F8C0C8".toColor(),
-                ),
-                height: 120,
-                width: 90,
-              ),
-              errorWidget: (context, url, error) {
-                return Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(5),
-                    color: "#F8C0C8".toColor(),
-                  ),
+            // Book thumbnail with download indicator
+            Stack(
+              children: [
+                CachedNetworkImage(
                   height: 120,
                   width: 90,
-                  child: const Center(
-                    child: Icon(Icons.image_rounded),
+                  imageUrl: thumbnail ?? "",
+                  imageBuilder: (context, imageProvider) => Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.all(Radius.circular(5)),
+                      image: DecorationImage(
+                        image: imageProvider,
+                        fit: BoxFit.fill,
+                      ),
+                    ),
                   ),
-                );
-              },
+                  placeholder: (context, url) => Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(5),
+                      color: "#F8C0C8".toColor(),
+                    ),
+                    height: 120,
+                    width: 90,
+                  ),
+                  errorWidget: (context, url, error) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(5),
+                        color: "#F8C0C8".toColor(),
+                      ),
+                      height: 120,
+                      width: 90,
+                      child: const Center(
+                        child: Icon(Icons.image_rounded),
+                      ),
+                    );
+                  },
+                ),
+                // Downloaded checkmark indicator
+                if (isDownloaded.valueOrNull == true)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             Expanded(
                 child: Padding(

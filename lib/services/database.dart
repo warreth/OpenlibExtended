@@ -1,12 +1,8 @@
-// Dart imports:
-import 'dart:io';
-
 // Package imports:
 import 'package:sqflite/sqflite.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart';
-import 'package:openlib/services/platform_utils.dart';
 
 class MyBook {
   final String id;

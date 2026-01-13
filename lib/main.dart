@@ -36,11 +36,12 @@ import 'package:openlib/state/state.dart'
         cookieProvider;
 
 void main(List<String> args) async {
-  // Handle desktop webview window title bar BEFORE Flutter bindings (required by desktop_webview_window)
-  if (runWebViewTitleBarWidget(args)) {
-    return;
+  // Required for desktop_webview_window on Linux - must be called before ensureInitialized
+  if (Platform.isLinux || Platform.isWindows) {
+    if (runWebViewTitleBarWidget(args)) {
+      return;
+    }
   }
-
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {

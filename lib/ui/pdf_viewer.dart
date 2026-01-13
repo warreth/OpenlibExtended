@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:io' show Platform;
-
 // Flutter imports:
 import 'package:flutter/material.dart';
 
@@ -13,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
 import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/ui/components/snack_bar_widget.dart';
 
 import 'package:openlib/state/state.dart'
     show
@@ -31,8 +29,14 @@ Future<void> launchPdfViewer(
   
   // On desktop, always open with external app since flutter_pdfview is mobile-only
   if (PlatformUtils.isDesktop || openWithExternalApp) {
-    String path = await getFilePath(fileName);
-    await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");    
+    try {
+      String path = await getFilePath(fileName);
+      await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");
+    } catch (e) {
+      // File doesn't exist or can't be accessed
+      // ignore: use_build_context_synchronously
+      showSnackBar(context: context, message: "File not found. The download may have failed.");
+    }
   } else {
     Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
       return PdfView(

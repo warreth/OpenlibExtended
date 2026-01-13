@@ -29,7 +29,62 @@ import 'package:openlib/state/state.dart'
         showManualDownloadButtonProvider,
         instanceManagerProvider,
         currentInstanceProvider,
-        archiveInstancesProvider;
+        archiveInstancesProvider,
+        myLibraryProvider;
+
+// Scans a directory for book files (epub, pdf) and imports them to the library database
+Future<void> scanAndImportBooks(String directoryPath, MyLibraryDb database, WidgetRef ref) async {
+  try {
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) return;
+    
+    final files = directory.listSync(recursive: false);
+    int importedCount = 0;
+    
+    for (var entity in files) {
+      if (entity is File) {
+        final fileName = entity.path.split('/').last;
+        final extension = fileName.split('.').last.toLowerCase();
+        
+        // Only process epub and pdf files
+        if (extension == 'epub' || extension == 'pdf') {
+          // Extract the md5 hash from the filename (the part before the extension)
+          final parts = fileName.split('.');
+          if (parts.length >= 2) {
+            final md5 = parts.sublist(0, parts.length - 1).join('.');
+            
+            // Check if this book already exists in the database
+            final exists = await database.checkIdExists(md5);
+            if (!exists) {
+              // Create a minimal book entry for the imported file
+              final book = MyBook(
+                id: md5,
+                title: md5, // Use filename as title since we don't have metadata
+                author: "Unknown",
+                thumbnail: "",
+                link: "",
+                publisher: "",
+                info: "",
+                description: "",
+                format: extension,
+              );
+              await database.insert(book);
+              importedCount++;
+            }
+          }
+        }
+      }
+    }
+    
+    // Refresh the library provider to show new books
+    if (importedCount > 0) {
+      // ignore: unused_result
+      ref.refresh(myLibraryProvider);
+    }
+  } catch (e) {
+    // Silently fail - don't interrupt user flow
+  }
+}
 
 Future<void> requestStoragePermission() async {
   // Desktop platforms don't require runtime storage permissions
@@ -249,16 +304,25 @@ class SettingsPage extends ConsumerWidget {
                 onClick: () async {
                   final currentDirectory =
                       await dataBase.getPreference('bookStorageDirectory');
+                  final internalDirectory = await getBookStorageDefaultDirectory;
                   String? pickedDirectory =
                       await FilePicker.platform.getDirectoryPath();
                   if (pickedDirectory == null) {
                     return;
                   }
                   await requestStoragePermission();
-                  // Attempt moving existing books to the new directory
-                  moveFolderContents(currentDirectory, pickedDirectory);
-                  dataBase.savePreference(
-                      'bookStorageDirectory', pickedDirectory);
+                  
+                  // Only move books if current directory is the internal default
+                  // Don't move if already using an external directory
+                  if (currentDirectory == internalDirectory) {
+                    await moveFolderContents(currentDirectory, pickedDirectory);
+                  }
+                  
+                  // Save the new directory preference
+                  await dataBase.savePreference('bookStorageDirectory', pickedDirectory);
+                  
+                  // Scan the new directory for existing books and add them to library
+                  await scanAndImportBooks(pickedDirectory, dataBase, ref);
                 },
                 children: [
                   Text(

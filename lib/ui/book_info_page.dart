@@ -1,27 +1,22 @@
-// Dart imports:
-// import 'dart:convert';
-
 // Flutter imports:
 import 'package:flutter/material.dart';
-// import 'package:flutter/scheduler.dart';
 
 // Package imports:
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:openlib/services/share_book.dart';
-// import 'package:flutter_svg/svg.dart';
 
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart' show BookInfoData;
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/download_file.dart';
 import 'package:openlib/services/download_manager.dart';
+import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/services/share_book.dart';
 import 'package:openlib/ui/components/book_info_widget.dart';
 import 'package:openlib/ui/components/error_widget.dart';
 import 'package:openlib/ui/components/file_buttons_widget.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/ui/webview_page.dart';
-
 import 'package:openlib/state/state.dart'
     show
         bookInfoProvider,
@@ -78,91 +73,13 @@ class BookInfoPage extends ConsumerWidget {
               data: data, child: ActionButtonWidget(data: data));
         },
         error: (err, _) {
-          // if (err.toString().contains("403")) {
-          //   var errJson = jsonDecode(err.toString());
-
-          //   if (SchedulerBinding.instance.schedulerPhase ==
-          //       SchedulerPhase.persistentCallbacks) {
-          //     SchedulerBinding.instance.addPostFrameCallback((_) {
-          //       Future.delayed(
-          //           const Duration(seconds: 3),
-          //           () => Navigator.pushReplacement(context,
-          //                   MaterialPageRoute(builder: (BuildContext context) {
-          //                 return Webview(url: errJson["url"]);
-          //               })));
-          //     });
-          //   }
-
-          //   return Column(
-          //     mainAxisAlignment: MainAxisAlignment.center,
-          //     crossAxisAlignment: CrossAxisAlignment.stretch,
-          //     children: [
-          //       SizedBox(
-          //         width: 210,
-          //         child: SvgPicture.asset(
-          //           'assets/captcha.svg',
-          //           width: 210,
-          //         ),
-          //       ),
-          //       const SizedBox(
-          //         height: 30,
-          //       ),
-          //       Text(
-          //         "Captcha required",
-          //         textAlign: TextAlign.center,
-          //         style: TextStyle(
-          //           fontSize: 18,
-          //           fontWeight: FontWeight.bold,
-          //           color: Theme.of(context).textTheme.headlineMedium?.color,
-          //           overflow: TextOverflow.ellipsis,
-          //         ),
-          //       ),
-          //       Padding(
-          //         padding: const EdgeInsets.all(8.0),
-          //         child: Text(
-          //           "you will be redirected to solve captcha",
-          //           textAlign: TextAlign.center,
-          //           style: TextStyle(
-          //             fontSize: 13,
-          //             fontWeight: FontWeight.bold,
-          //             color: Theme.of(context).textTheme.headlineSmall?.color,
-          //             overflow: TextOverflow.ellipsis,
-          //           ),
-          //         ),
-          //       ),
-          //       Padding(
-          //         padding: const EdgeInsets.fromLTRB(30, 15, 30, 10),
-          //         child: Container(
-          //           width: double.infinity,
-          //           decoration: BoxDecoration(
-          //               color: const Color.fromARGB(255, 255, 186, 186),
-          //               borderRadius: BorderRadius.circular(5)),
-          //           child: const Padding(
-          //             padding: EdgeInsets.all(10.0),
-          //             child: Text(
-          //               "If you have solved the captcha then you will be automatically redirected to the results page . In case you seeing this page even after completing try using a VPN .",
-          //               textAlign: TextAlign.start,
-          //               style: TextStyle(
-          //                 fontSize: 13,
-          //                 fontWeight: FontWeight.bold,
-          //                 color: Colors.black,
-          //               ),
-          //             ),
-          //           ),
-          //         ),
-          //       )
-          //     ],
-          //   );
-          // } else {
           return CustomErrorWidget(
             error: err,
             stackTrace: _,
             onRefresh: () {
-              // ignore: unused_result
-              ref.refresh(bookInfoProvider(url));
+              ref.invalidate(bookInfoProvider(url));
             },
           );
-          // }
         },
         loading: () {
           return Center(
@@ -230,33 +147,74 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                   onPressed: () async {
                     if (widget.data.mirror != null &&
                         widget.data.mirror != '') {
-                      final downloadManager = ref.read(downloadManagerProvider);
-                      final task = DownloadTask(
-                        id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
-                        md5: widget.data.md5,
-                        title: widget.data.title,
-                        author: widget.data.author,
-                        thumbnail: widget.data.thumbnail,
-                        publisher: widget.data.publisher,
-                        info: widget.data.info,
-                        format: widget.data.format!,
-                        description: widget.data.description,
-                        link: widget.data.link,
-                        mirrors: [], // Will be fetched in background
-                        mirrorUrl: widget.data.mirror, // Store mirror URL for retry
-                      );
-                      
-                      await downloadManager.addDownloadWithMirrorUrl(
-                        task,
-                        widget.data.mirror!,
-                      );
-                      
-                      if (context.mounted) {
-                        showSnackBar(
-                          context: context,
-                          message: 'Download started in background',
+                      // On Linux, use WebView UI flow since headless webview is not supported
+                      if (PlatformUtils.isLinux) {
+                        // Navigate to webview page to get mirrors
+                        final List<String>? mirrors = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (BuildContext context) =>
+                                Webview(url: widget.data.mirror!),
+                          ),
                         );
-                        ref.invalidate(myLibraryProvider);
+                        
+                        if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
+                          // Start download with fetched mirrors
+                          final downloadManager = ref.read(downloadManagerProvider);
+                          final task = DownloadTask(
+                            id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
+                            md5: widget.data.md5,
+                            title: widget.data.title,
+                            author: widget.data.author,
+                            thumbnail: widget.data.thumbnail,
+                            publisher: widget.data.publisher,
+                            info: widget.data.info,
+                            format: widget.data.format!,
+                            description: widget.data.description,
+                            link: widget.data.link,
+                            mirrors: mirrors,
+                          );
+                          
+                          await downloadManager.addDownload(task);
+                          
+                          if (context.mounted) {
+                            showSnackBar(
+                              context: context,
+                              message: 'Download started in background',
+                            );
+                          }
+                          ref.invalidate(myLibraryProvider);
+                        }
+                      } else {
+                        // Other platforms: use background mirror fetcher
+                        final downloadManager = ref.read(downloadManagerProvider);
+                        final task = DownloadTask(
+                          id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
+                          md5: widget.data.md5,
+                          title: widget.data.title,
+                          author: widget.data.author,
+                          thumbnail: widget.data.thumbnail,
+                          publisher: widget.data.publisher,
+                          info: widget.data.info,
+                          format: widget.data.format!,
+                          description: widget.data.description,
+                          link: widget.data.link,
+                          mirrors: [], // Will be fetched in background
+                          mirrorUrl: widget.data.mirror, // Store mirror URL for retry
+                        );
+                        
+                        await downloadManager.addDownloadWithMirrorUrl(
+                          task,
+                          widget.data.mirror!,
+                        );
+                        
+                        if (context.mounted) {
+                          showSnackBar(
+                            context: context,
+                            message: 'Download started in background',
+                          );
+                          ref.invalidate(myLibraryProvider);
+                        }
                       }
                     } else {
                       showSnackBar(

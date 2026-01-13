@@ -13,7 +13,6 @@ import 'package:url_launcher/url_launcher.dart';
 // Project imports:
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/logger.dart';
-import 'package:openlib/services/platform_utils.dart';
 
 // Release information from GitHub
 class ReleaseInfo {
@@ -201,8 +200,12 @@ class UpdateCheckerService {
       final latestParts = latest.split(".").map(int.parse).toList();
 
       // Pad with zeros if needed
-      while (currentParts.length < 3) currentParts.add(0);
-      while (latestParts.length < 3) latestParts.add(0);
+      while (currentParts.length < 3) {
+        currentParts.add(0);
+      }
+      while (latestParts.length < 3) {
+        latestParts.add(0);
+      }
 
       for (int i = 0; i < 3; i++) {
         if (latestParts[i] > currentParts[i]) return true;
