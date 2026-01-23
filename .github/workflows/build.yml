@@ -105,16 +105,6 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Cache pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            .dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -157,10 +147,11 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-universal.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-arm64-v8a.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-armeabi-v7a.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-x86_64.apk || true
+          # Naming convention: contains "android" and architecture keywords for update_checker detection
+          cp build/app/outputs/flutter-apk/app-release.apk artifacts/openlib-android-universal-${{ needs.prepare.outputs.version }}.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk artifacts/openlib-android-arm64-${{ needs.prepare.outputs.version }}.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/openlib-android-armeabi-v7a-${{ needs.prepare.outputs.version }}.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk artifacts/openlib-android-x86_64-${{ needs.prepare.outputs.version }}.apk || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -186,16 +177,6 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Cache pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            .dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
@@ -219,7 +200,7 @@ jobs:
           mkdir -p artifacts
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}.ipa Payload
+          zip -r artifacts/openlib-ios-${{ needs.prepare.outputs.version }}.ipa Payload
           rm -rf Payload
 
       - name: Upload artifacts
@@ -246,16 +227,6 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Cache pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\.pub-cache
-            .dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
       - name: Get dependencies
         run: flutter pub get
 
@@ -266,16 +237,44 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Create archive
+      - name: Create installer with Inno Setup
         run: |
+          # Download Inno Setup
+          choco install innosetup -y
+
+          # Create Inno Setup script
+          @"
+          [Setup]
+          AppName=OpenLibExtended
+          AppVersion=${{ needs.prepare.outputs.version }}
+          AppPublisher=warreth
+          DefaultDirName={autopf}\OpenLibExtended
+          DefaultGroupName=OpenLibExtended
+          OutputDir=artifacts
+          OutputBaseFilename=openlib-windows-x64-${{ needs.prepare.outputs.version }}
+          Compression=lzma
+          SolidCompression=yes
+          ArchitecturesInstallIn64BitMode=x64compatible
+
+          [Files]
+          Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+
+          [Icons]
+          Name: "{group}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
+          Name: "{commondesktop}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
+
+          [Run]
+          Filename: "{app}\OpenLibExtended.exe"; Description: "Launch OpenLibExtended"; Flags: nowait postinstall skipifsilent
+          "@ | Out-File -FilePath "installer.iss" -Encoding UTF8
+
           mkdir artifacts
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "artifacts\OpenLibExtended-${{ needs.prepare.outputs.version }}-windows-x64.zip"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-builds
-          path: artifacts/*.zip
+          path: artifacts/*.exe
           retention-days: 7
 
   # Linux Build Job
@@ -288,19 +287,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-          key: apt-${{ runner.os }}-linux-deps
-          restore-keys: |
-            apt-${{ runner.os }}-
-
-      - name: Install Linux dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev webkit2gtk-4.1
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libfuse2
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -309,68 +299,36 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Cache pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            .dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
-      - name: Cache Flutter build
-        uses: actions/cache@v4
-        with:
-          path: |
-            build/linux
-          key: flutter-build-linux-${{ runner.os }}-${{ hashFiles('lib/**/*.dart', 'pubspec.lock') }}
-          restore-keys: |
-            flutter-build-linux-${{ runner.os }}-
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Update version
-        run: |
-          sed -i "s/^version: .*/version: ${{ needs.prepare.outputs.version }}+${{ needs.prepare.outputs.build_number }}/" pubspec.yaml
-
       - name: Build Linux
-        run: flutter build linux --release
-
-      - name: Create tar.gz archive
         run: |
-          mkdir -p artifacts
-          cd build/linux/x64/release/bundle
-          tar -czvf ${{ github.workspace }}/artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz *
+          flutter pub get
+          sed -i "s/^version: .*/version: ${{ needs.prepare.outputs.version }}+${{ needs.prepare.outputs.build_number }}/" pubspec.yaml
+          flutter build linux --release
 
       - name: Create AppImage
         run: |
+          mkdir -p artifacts
+
           # Download appimagetool
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
 
           # Create AppDir structure
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/lib
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-
-          # Copy build output
+          mkdir -p AppDir/usr/{bin,lib,share/applications,share/icons/hicolor/256x256/apps}
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
-
-          # Copy icon
           cp assets/icons/appIcon.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
           cp assets/icons/appIcon.png AppDir/openlibextended.png
 
-          # Create desktop file
-          cat > AppDir/openlibextended.desktop << EOF
+          # Create desktop entry
+          cat > AppDir/openlibextended.desktop << 'EOF'
           [Desktop Entry]
           Name=OpenLibExtended
+          Comment=Download and read books from shadow library
           Exec=OpenLibExtended
           Icon=openlibextended
           Type=Application
-          Categories=Education;
+          Categories=Education;Literature;
+          Keywords=books;library;epub;pdf;reader;
           EOF
           cp AppDir/openlibextended.desktop AppDir/usr/share/applications/
 
@@ -386,7 +344,12 @@ jobs:
           chmod +x AppDir/AppRun
 
           # Build AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/openlib-linux-x64-${{ needs.prepare.outputs.version }}.AppImage
+
+      - name: Create tar.gz archive
+        run: |
+          cd build/linux/x64/release/bundle
+          tar -czvf ${{ github.workspace }}/artifacts/openlib-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz *
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -417,7 +380,7 @@ jobs:
       - name: Extract Linux bundle
         run: |
           mkdir -p build/linux/x64/release/bundle
-          tar -xzf linux-artifacts/OpenLibExtended-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz -C build/linux/x64/release/bundle
+          tar -xzf linux-artifacts/openlib-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz -C build/linux/x64/release/bundle
 
       - name: Create Flatpak manifest
         run: |
@@ -449,7 +412,7 @@ jobs:
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: OpenLibExtended-${{ needs.prepare.outputs.version }}.flatpak
+          bundle: openlib-linux-${{ needs.prepare.outputs.version }}.flatpak
           manifest-path: com.app.openlibextended.yml
           cache-key: flatpak-builder-${{ github.sha }}
 
@@ -460,7 +423,7 @@ jobs:
           path: "*.flatpak"
           retention-days: 7
 
-  # Release job - only runs on release events
+  # Release job - uploads artifacts to GitHub release
   release:
     name: Upload to Release
     needs: [prepare, build-android, build-ios, build-windows, build-linux]
