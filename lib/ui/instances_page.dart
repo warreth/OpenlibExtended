@@ -19,12 +19,59 @@ class InstancesPage extends ConsumerStatefulWidget {
 class _InstancesPageState extends ConsumerState<InstancesPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
+  Map<String, int?> _responseTimes = {};
+  bool _isTesting = false;
 
   @override
   void dispose() {
     _nameController.dispose();
     _urlController.dispose();
     super.dispose();
+  }
+
+  Future<void> _testAllInstances() async {
+    if (_isTesting) return;
+
+    setState(() {
+      _isTesting = true;
+      _responseTimes = {};
+    });
+
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      final manager = ref.read(instanceManagerProvider);
+      final results = await manager.rankInstancesBySpeed();
+
+      if (mounted) {
+        setState(() {
+          _responseTimes = results;
+          _isTesting = false;
+        });
+
+        // Refresh the list to show new order
+        ref.invalidate(archiveInstancesProvider);
+
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Instances tested and ranked by speed'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isTesting = false;
+        });
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Testing failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showAddInstanceDialog() {
@@ -169,6 +216,20 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
         title: const Text('Manage Instances'),
         actions: [
           IconButton(
+            icon: _isTesting
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.speed),
+            onPressed: _isTesting ? null : _testAllInstances,
+            tooltip: 'Test & Rank All Instances',
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
             onPressed: _showAddInstanceDialog,
             tooltip: 'Add Custom Instance',
@@ -233,6 +294,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                     },
                     itemBuilder: (context, index) {
                       final instance = instances[index];
+                      final responseTime = _responseTimes[instance.id];
+
                       return Card(
                         key: ValueKey(instance.id),
                         margin: const EdgeInsets.symmetric(
@@ -264,6 +327,42 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                                       fontWeight: FontWeight.bold),
                                 ),
                               ),
+                              // Show response time badge if available
+                              if (_responseTimes.containsKey(instance.id))
+                                Container(
+                                  margin: const EdgeInsets.only(right: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: responseTime != null
+                                        ? (responseTime < 500
+                                            ? Colors.green
+                                                .withValues(alpha: 0.2)
+                                            : responseTime < 1500
+                                                ? Colors.orange
+                                                    .withValues(alpha: 0.2)
+                                                : Colors.red
+                                                    .withValues(alpha: 0.2))
+                                        : Colors.grey.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    responseTime != null
+                                        ? '${responseTime}ms'
+                                        : 'offline',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: responseTime != null
+                                          ? (responseTime < 500
+                                              ? Colors.green
+                                              : responseTime < 1500
+                                                  ? Colors.orange
+                                                  : Colors.red)
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                ),
                               if (instance.isCustom)
                                 Container(
                                   padding: const EdgeInsets.symmetric(

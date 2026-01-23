@@ -26,6 +26,7 @@ import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
 import 'package:openlib/services/download_manager.dart';
 import 'package:openlib/services/download_notification.dart';
+import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/state/state.dart'
     show
         selectedIndexProvider,
@@ -33,6 +34,7 @@ import 'package:openlib/state/state.dart'
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
+        autoRankInstancesProvider,
         userAgentProvider,
         cookieProvider;
 
@@ -161,6 +163,29 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdatesOnStartup();
     });
+    // Auto-rank instances on startup if enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoRankInstancesOnStartup();
+    });
+  }
+
+  Future<void> _autoRankInstancesOnStartup() async {
+    // Small delay to let the UI settle first
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
+
+    try {
+      final instanceManager = InstanceManager();
+      final didRank = await instanceManager.rankOnStartupIfNeeded();
+      if (didRank) {
+        debugPrint("Instances auto-ranked on startup");
+        // Update the provider state
+        ref.read(autoRankInstancesProvider.notifier).state = true;
+      }
+    } catch (e) {
+      // Silently fail - don't interrupt user flow
+      debugPrint("Auto-ranking failed: $e");
+    }
   }
 
   Future<void> _checkForUpdatesOnStartup() async {

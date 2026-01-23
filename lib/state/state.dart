@@ -105,6 +105,9 @@ final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
 // Download Settings
 final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
 
+// Instance Auto-Ranking Setting (default: enabled)
+final autoRankInstancesProvider = StateProvider<bool>((ref) => true);
+
 // Instance Management States
 final instanceManagerProvider =
     Provider<InstanceManager>((ref) => InstanceManager());
