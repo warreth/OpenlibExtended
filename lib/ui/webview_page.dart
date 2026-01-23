@@ -8,7 +8,8 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:desktop_webview_window/desktop_webview_window.dart' as desktop_webview;
+import 'package:desktop_webview_window/desktop_webview_window.dart'
+    as desktop_webview;
 import 'package:path_provider/path_provider.dart';
 
 // Project imports:
@@ -16,8 +17,16 @@ import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/logger.dart';
 
 class Webview extends ConsumerStatefulWidget {
-  const Webview({super.key, required this.url});
+  const Webview({
+    super.key,
+    required this.url,
+    this.showOverlay = true,
+  });
+
   final String url;
+  // When false, shows the full page for manual verification with CAPTCHA
+  final bool showOverlay;
+
   @override
   // ignore: library_private_types_in_public_api
   _WebviewState createState() => _WebviewState();
@@ -47,8 +56,9 @@ class _WebviewState extends ConsumerState<Webview> {
 
   Future<void> _openDesktopWebview() async {
     try {
-      _logger.info("Opening desktop webview for Linux", tag: "WebView", metadata: {"url": widget.url});
-      
+      _logger.info("Opening desktop webview for Linux",
+          tag: "WebView", metadata: {"url": widget.url});
+
       // Get app documents directory for webview data
       final appDir = await getApplicationSupportDirectory();
       final webviewDataDir = Directory("${appDir.path}/webview_data");
@@ -71,7 +81,9 @@ class _WebviewState extends ConsumerState<Webview> {
 
       // Handle webview close
       _desktopWebview!.onClose.then((_) {
-        _logger.info("Desktop webview closed by user", tag: "WebView", metadata: {"links_captured": _capturedDownloadLinks.length});
+        _logger.info("Desktop webview closed by user",
+            tag: "WebView",
+            metadata: {"links_captured": _capturedDownloadLinks.length});
         _pollingTimer?.cancel();
         // Return whatever links we found
         if (mounted && !_linksFound) {
@@ -85,13 +97,13 @@ class _WebviewState extends ConsumerState<Webview> {
 
       // Launch the URL
       _desktopWebview!.launch(widget.url);
-      
+
       // Start polling for download links after page loads
       await Future.delayed(const Duration(seconds: 2));
       _startPolling();
-      
     } catch (e, stackTrace) {
-      _logger.error("Failed to open desktop webview", tag: "WebView", error: e, stackTrace: stackTrace);
+      _logger.error("Failed to open desktop webview",
+          tag: "WebView", error: e, stackTrace: stackTrace);
       if (mounted) {
         Navigator.pop(context, <String>[]);
       }
@@ -105,39 +117,43 @@ class _WebviewState extends ConsumerState<Webview> {
         timer.cancel();
         return;
       }
-      
+
       try {
         // Check current URL
-        final currentUrl = await _desktopWebview!.evaluateJavaScript("window.location.href");
+        final currentUrl =
+            await _desktopWebview!.evaluateJavaScript("window.location.href");
         if (currentUrl == null) return;
-        
+
         final urlStr = currentUrl.toString().replaceAll('"', '');
-        
+
         if (urlStr.contains("slow_download")) {
           // Extract slow_download link
-          final result = await _desktopWebview!.evaluateJavaScript(
-            """(function() {
+          final result =
+              await _desktopWebview!.evaluateJavaScript("""(function() {
               var paragraphTag = document.querySelector('p[class="mb-4 text-xl font-bold"]');
               if (paragraphTag) {
                 var anchor = paragraphTag.querySelector('a');
                 if (anchor && anchor.href) return anchor.href;
               }
               return null;
-            })()"""
-          );
-          
-          if (result != null && result.toString() != "null" && result.toString().isNotEmpty) {
+            })()""");
+
+          if (result != null &&
+              result.toString() != "null" &&
+              result.toString().isNotEmpty) {
             final link = result.toString().replaceAll('"', '');
-            if (link.startsWith("http") && !_capturedDownloadLinks.contains(link)) {
+            if (link.startsWith("http") &&
+                !_capturedDownloadLinks.contains(link)) {
               _capturedDownloadLinks.add(link);
-              _logger.info("Extracted slow_download link", tag: "WebView", metadata: {"link": link});
+              _logger.info("Extracted slow_download link",
+                  tag: "WebView", metadata: {"link": link});
               _returnLinksAndClose();
             }
           }
         } else {
           // Extract IPFS links
-          final result = await _desktopWebview!.evaluateJavaScript(
-            """(function() {
+          final result =
+              await _desktopWebview!.evaluateJavaScript("""(function() {
               var linkTags = document.querySelectorAll('ul>li>a');
               var links = [];
               linkTags.forEach(function(e) { 
@@ -146,27 +162,39 @@ class _WebviewState extends ConsumerState<Webview> {
                 }
               });
               return JSON.stringify(links);
-            })()"""
-          );
-          
-          if (result != null && result.toString() != "null" && result.toString() != "[]") {
+            })()""");
+
+          if (result != null &&
+              result.toString() != "null" &&
+              result.toString() != "[]") {
             try {
               final linksStr = result.toString();
-              final cleanStr = linksStr.replaceAll('[', '').replaceAll(']', '').replaceAll('"', '');
-              final links = cleanStr.split(',').where((l) => l.trim().isNotEmpty && l.trim().startsWith('http')).toList();
-              
+              final cleanStr = linksStr
+                  .replaceAll('[', '')
+                  .replaceAll(']', '')
+                  .replaceAll('"', '');
+              final links = cleanStr
+                  .split(',')
+                  .where(
+                      (l) => l.trim().isNotEmpty && l.trim().startsWith('http'))
+                  .toList();
+
               for (final link in links) {
                 final cleanLink = link.trim();
-                if (cleanLink.isNotEmpty && !_capturedDownloadLinks.contains(cleanLink)) {
+                if (cleanLink.isNotEmpty &&
+                    !_capturedDownloadLinks.contains(cleanLink)) {
                   _capturedDownloadLinks.add(cleanLink);
                 }
               }
               if (_capturedDownloadLinks.isNotEmpty) {
-                _logger.info("Extracted mirror links", tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
+                _logger.info("Extracted mirror links",
+                    tag: "WebView",
+                    metadata: {"count": _capturedDownloadLinks.length});
                 _returnLinksAndClose();
               }
             } catch (e) {
-              _logger.error("Failed to parse mirror links", tag: "WebView", error: e);
+              _logger.error("Failed to parse mirror links",
+                  tag: "WebView", error: e);
             }
           }
         }
@@ -180,16 +208,17 @@ class _WebviewState extends ConsumerState<Webview> {
     if (_capturedDownloadLinks.isNotEmpty && !_linksFound && mounted) {
       _linksFound = true;
       _pollingTimer?.cancel();
-      _logger.info("Returning download links", tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
-      
+      _logger.info("Returning download links",
+          tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
+
       // Save links before any operations
       final links = List<String>.from(_capturedDownloadLinks);
-      
+
       // DON'T close the webview programmatically - causes OpenGL crash on Linux
       // Instead, just clear reference and let user close it manually
       // The onClose handler will fire when user closes the window
       _desktopWebview = null;
-      
+
       // Return the links immediately
       if (mounted) {
         Navigator.pop(context, links);
@@ -238,7 +267,10 @@ class _WebviewState extends ConsumerState<Webview> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.7),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.7),
                 ),
               ),
               if (_capturedDownloadLinks.isNotEmpty) ...[
@@ -267,7 +299,7 @@ class _WebviewState extends ConsumerState<Webview> {
         ),
       );
     }
-    
+
     // Mobile/Windows: Use InAppWebView
     return Scaffold(
       appBar: AppBar(
@@ -310,48 +342,55 @@ class _WebviewState extends ConsumerState<Webview> {
                 }
               },
             ),
-            // Loading overlay to hide countdown
-            Positioned.fill(
-              child: Container(
-                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                          color: Theme.of(context).colorScheme.secondary,
-                          strokeWidth: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Preparing download...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.tertiary,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40),
-                        child: Text(
-                          'Please wait while we verify access and fetch download links',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.67),
+            // Loading overlay to hide countdown - only shown when showOverlay is true
+            if (widget.showOverlay)
+              Positioned.fill(
+                child: Container(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surface
+                      .withValues(alpha: 0.9),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(
+                            color: Theme.of(context).colorScheme.secondary,
+                            strokeWidth: 3,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                        Text(
+                          'Preparing download...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.tertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            'Please wait while we verify access and fetch download links',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .tertiary
+                                  .withValues(alpha: 0.67),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

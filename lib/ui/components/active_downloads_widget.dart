@@ -62,12 +62,16 @@ class ActiveDownloadsWidget extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
+                color: Theme.of(context)
+                    .colorScheme
+                    .shadow
+                    .withValues(alpha: 0.08),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -79,7 +83,10 @@ class ActiveDownloadsWidget extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(14.0),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .secondary
+                      .withValues(alpha: 0.1),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
@@ -103,7 +110,8 @@ class ActiveDownloadsWidget extends ConsumerWidget {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.secondary,
                         borderRadius: BorderRadius.circular(12),
@@ -132,7 +140,10 @@ class ActiveDownloadsWidget extends ConsumerWidget {
                   separatorBuilder: (context, index) => Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.2),
                   ),
                   itemBuilder: (context, index) {
                     final task = downloads.values.elementAt(index);
@@ -154,7 +165,7 @@ class ActiveDownloadsWidget extends ConsumerWidget {
   }
 }
 
-class _DownloadItem extends ConsumerWidget {
+class _DownloadItem extends ConsumerStatefulWidget {
   final DownloadTask task;
   final String Function(int) bytesToFileSize;
   final String Function(DownloadStatus) getStatusText;
@@ -166,8 +177,76 @@ class _DownloadItem extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DownloadItem> createState() => _DownloadItemState();
+}
+
+class _DownloadItemState extends ConsumerState<_DownloadItem> {
+  // Track if auto-verification has been triggered
+  bool _autoVerificationTriggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-trigger verification if manual verification is required
+    _checkAndTriggerAutoVerification();
+  }
+
+  @override
+  void didUpdateWidget(_DownloadItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Check again if task status changed
+    if (oldWidget.task.status != widget.task.status) {
+      _checkAndTriggerAutoVerification();
+    }
+  }
+
+  // Automatically trigger verification when manual verification is required
+  void _checkAndTriggerAutoVerification() {
+    if (_autoVerificationTriggered) return;
+
+    final task = widget.task;
+    if (task.status == DownloadStatus.failed &&
+        task.errorMessage?.contains('Manual verification required') == true &&
+        task.mirrorUrl != null) {
+      _autoVerificationTriggered = true;
+      // Use post-frame callback to ensure context is ready
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _triggerVerification();
+        }
+      });
+    }
+  }
+
+  // Open webview for manual verification with visible countdown/CAPTCHA
+  Future<void> _triggerVerification() async {
+    final task = widget.task;
+    if (task.mirrorUrl == null) return;
+
     final downloadManager = ref.read(downloadManagerProvider);
+
+    final List<String>? mirrors = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (BuildContext context) => Webview(
+          url: task.mirrorUrl!,
+          showOverlay: false, // Show full page for CAPTCHA interaction
+        ),
+      ),
+    );
+
+    if (mirrors != null && mirrors.isNotEmpty && mounted) {
+      // Update task with fetched mirrors and restart download
+      final updatedTask = task.copyWith(mirrors: mirrors);
+      downloadManager.removeDownload(task.id);
+      await downloadManager.addDownload(updatedTask);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final downloadManager = ref.read(downloadManagerProvider);
+    final task = widget.task;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
@@ -182,7 +261,8 @@ class _DownloadItem extends ConsumerWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(task.status, context).withValues(alpha: 0.15),
+                  color: _getStatusColor(task.status, context)
+                      .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
@@ -208,7 +288,7 @@ class _DownloadItem extends ConsumerWidget {
                     Row(
                       children: [
                         Text(
-                          getStatusText(task.status),
+                          widget.getStatusText(task.status),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
@@ -254,7 +334,8 @@ class _DownloadItem extends ConsumerWidget {
                   icon: Icon(
                     Icons.close_rounded,
                     size: 20,
-                    color: Theme.of(context).colorScheme.tertiary.withAlpha(170),
+                    color:
+                        Theme.of(context).colorScheme.tertiary.withAlpha(170),
                   ),
                   onPressed: () {
                     downloadManager.cancelDownload(task.id);
@@ -290,11 +371,12 @@ class _DownloadItem extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  '${bytesToFileSize(task.downloadedBytes)} / ${bytesToFileSize(task.totalBytes)}',
+                  '${widget.bytesToFileSize(task.downloadedBytes)} / ${widget.bytesToFileSize(task.totalBytes)}',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                    color:
+                        Theme.of(context).colorScheme.tertiary.withAlpha(140),
                   ),
                 ),
               ],
@@ -313,10 +395,12 @@ class _DownloadItem extends ConsumerWidget {
               ),
             ),
           ] else if (task.status == DownloadStatus.failed) ...[
-            if (task.errorMessage?.contains('Manual verification required') == true) ...[
+            if (task.errorMessage?.contains('Manual verification required') ==
+                true) ...[
               // Show "Verify" button for manual verification required error
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
@@ -346,17 +430,22 @@ class _DownloadItem extends ConsumerWidget {
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () async {
-                        // Open webview for manual verification
+                        // Open webview for manual verification with full page visibility
                         if (task.mirrorUrl != null) {
                           final List<String>? mirrors = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (BuildContext context) =>
-                                  Webview(url: task.mirrorUrl!),
+                              builder: (BuildContext context) => Webview(
+                                url: task.mirrorUrl!,
+                                showOverlay:
+                                    false, // Show full page for CAPTCHA
+                              ),
                             ),
                           );
-                          
-                          if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
+
+                          if (mirrors != null &&
+                              mirrors.isNotEmpty &&
+                              context.mounted) {
                             // Update task with fetched mirrors and restart download
                             final updatedTask = task.copyWith(mirrors: mirrors);
                             downloadManager.removeDownload(task.id);
@@ -366,7 +455,8 @@ class _DownloadItem extends ConsumerWidget {
                       },
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.orange,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -385,7 +475,8 @@ class _DownloadItem extends ConsumerWidget {
             ] else ...[
               // Show regular error for other failures
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
