@@ -25,26 +25,51 @@ String? getFileType(String? info) {
 // Info format typically: "[en], pdf, 5.2MB" or "English, pdf, 5.2MB"
 String? getLanguage(String? info) {
   if (info == null || info.isEmpty) return null;
-  
+
   // Language code mapping for display
   const languageNames = {
-    'en': 'EN', 'es': 'ES', 'fr': 'FR', 'de': 'DE', 'it': 'IT',
-    'pt': 'PT', 'ru': 'RU', 'zh': 'ZH', 'ja': 'JA', 'ko': 'KO',
-    'ar': 'AR', 'hi': 'HI', 'nl': 'NL', 'pl': 'PL', 'tr': 'TR',
-    'sv': 'SV', 'id': 'ID', 'vi': 'VI', 'cs': 'CS', 'el': 'EL',
-    'ro': 'RO', 'hu': 'HU', 'uk': 'UK', 'he': 'HE', 'th': 'TH',
-    'fa': 'FA', 'bn': 'BN', 'fi': 'FI', 'no': 'NO', 'da': 'DA',
+    'en': 'EN',
+    'es': 'ES',
+    'fr': 'FR',
+    'de': 'DE',
+    'it': 'IT',
+    'pt': 'PT',
+    'ru': 'RU',
+    'zh': 'ZH',
+    'ja': 'JA',
+    'ko': 'KO',
+    'ar': 'AR',
+    'hi': 'HI',
+    'nl': 'NL',
+    'pl': 'PL',
+    'tr': 'TR',
+    'sv': 'SV',
+    'id': 'ID',
+    'vi': 'VI',
+    'cs': 'CS',
+    'el': 'EL',
+    'ro': 'RO',
+    'hu': 'HU',
+    'uk': 'UK',
+    'he': 'HE',
+    'th': 'TH',
+    'fa': 'FA',
+    'bn': 'BN',
+    'fi': 'FI',
+    'no': 'NO',
+    'da': 'DA',
   };
-  
+
   // Try to match [xx] pattern for language code
-  final bracketMatch = RegExp(r'\[([a-z]{2})\]', caseSensitive: false).firstMatch(info);
+  final bracketMatch =
+      RegExp(r'\[([a-z]{2})\]', caseSensitive: false).firstMatch(info);
   if (bracketMatch != null) {
     final code = bracketMatch.group(1)?.toLowerCase();
     if (code != null && languageNames.containsKey(code)) {
       return languageNames[code];
     }
   }
-  
+
   // Try to find language code at start of info (common format: "en, pdf, ...")
   final parts = info.split(',');
   if (parts.isNotEmpty) {
@@ -53,7 +78,7 @@ String? getLanguage(String? info) {
       return languageNames[firstPart];
     }
   }
-  
+
   return null;
 }
 
@@ -83,9 +108,9 @@ class BookInfoCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     String? fileType = getFileType(info);
     String? language = getLanguage(info);
-    
+
     // Check if book is downloaded (only if md5 is provided)
-    final isDownloaded = md5 != null 
+    final isDownloaded = md5 != null
         ? ref.watch(checkIdExists(md5!))
         : const AsyncValue<bool>.data(false);
 

@@ -320,23 +320,23 @@ class AnnasArchieve {
     // Build URL with parameters in correct order for Anna's Archive
     // Working format: /search?index=&sort=&lang=nl&display=&q=query
     String url = '$currentBaseUrl/search?index=&sort=$sort';
-    
+
     // Add language filter if specified (must be before q=)
     if (language.isNotEmpty) {
       url += '&lang=$language';
     }
-    
+
     // Add display parameter
     url += '&display=';
-    
+
     // Add search query
     url += '&q=$searchQuery';
-    
+
     // Add content filter only if specified
     if (content.isNotEmpty) {
       url += '&content=$content';
     }
-    
+
     // Add extension filter only if specified
     if (fileType.isNotEmpty) {
       url += '&ext=$fileType';
