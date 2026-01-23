@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 // Flutter imports:
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart'; // <-- REQUIRED
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,6 +56,16 @@ void main(List<String> args) async {
   
   bool isDarkMode =
       await dataBase.getPreference('darkMode') == 0 ? false : true;
+
+  bool openPdfwithExternalapp =
+      await dataBase.getPreference('openPdfwithExternalApp') == 0
+          ? false
+          : true;
+
+  bool openEpubwithExternalapp =
+      await dataBase.getPreference('openEpubwithExternalApp') == 0
+          ? false
+          : true;
   bool openPdfwithExternalapp = await dataBase
               .getPreference('openPdfwithExternalApp')
               .catchError((e) => null) ==
@@ -108,14 +119,14 @@ void main(List<String> args) async {
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      builder: (BuildContext context, Widget? child) {
+      builder: (context, child) {
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: const TextScaler.linear(1.0),
-          ),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(1.0)),
           child: child!,
         );
       },
@@ -141,8 +152,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     HomePage(),
     SearchPage(),
     MyLibraryPage(),
-    SettingsPage()
+    SettingsPage(),
   ];
+
+  bool _showExpandedHeader = true; // <-- ONLY new state
 
   @override
   void initState() {
@@ -253,19 +266,42 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     final selectedIndex = ref.watch(selectedIndexProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text("Openlib"),
-        titleTextStyle: Theme.of(context).textTheme.displayLarge,
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (notification) {
+          if (notification.direction == ScrollDirection.reverse &&
+              _showExpandedHeader) {
+            setState(() => _showExpandedHeader = false);
+          } else if (notification.direction == ScrollDirection.forward &&
+              !_showExpandedHeader) {
+            setState(() => _showExpandedHeader = true);
+          }
+          return false;
+        },
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: _showExpandedHeader ? kToolbarHeight : 0,
+              child: AppBar(
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                title: const Text("Openlib"),
+                titleTextStyle:
+                    Theme.of(context).textTheme.displayLarge,
+              ),
+            ),
+            Expanded(
+              child: _widgetOptions.elementAt(selectedIndex),
+            ),
+          ],
+        ),
       ),
-      body: _widgetOptions.elementAt(selectedIndex),
       bottomNavigationBar: SafeArea(
         child: GNav(
-          backgroundColor: isDarkMode ? Colors.black : Colors.grey.shade200,
+          backgroundColor:
+              isDarkMode ? Colors.black : Colors.grey.shade200,
           haptic: true,
           tabBorderRadius: 50,
           tabActiveBorder: Border.all(
@@ -275,55 +311,21 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           curve: Curves.fastLinearToSlowEaseIn,
           duration: const Duration(milliseconds: 25),
           gap: 5,
-          color: const Color.fromARGB(255, 255, 255, 255),
-          activeColor: const Color.fromARGB(255, 255, 255, 255),
-          iconSize: 19, // tab button icon size
-          tabBackgroundColor: Theme.of(context).colorScheme.secondary,
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
-          tabs: [
-            GButton(
-              icon: Icons.trending_up,
-              text: 'Home',
-              iconColor: isDarkMode ? Colors.white : Colors.black,
-              textStyle: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                fontSize: 11,
-              ),
-            ),
-            GButton(
-              icon: Icons.search,
-              text: 'Search',
-              iconColor: isDarkMode ? Colors.white : Colors.black,
-              textStyle: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                fontSize: 11,
-              ),
-            ),
-            GButton(
-              icon: Icons.collections_bookmark,
-              text: 'My Library',
-              iconColor: isDarkMode ? Colors.white : Colors.black,
-              textStyle: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                fontSize: 11,
-              ),
-            ),
-            GButton(
-              icon: Icons.build,
-              text: 'Settings',
-              iconColor: isDarkMode ? Colors.white : Colors.black,
-              textStyle: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                fontSize: 11,
-              ),
-            ),
+          color: Colors.white,
+          activeColor: Colors.white,
+          iconSize: 19,
+          tabBackgroundColor:
+              Theme.of(context).colorScheme.secondary,
+          padding:
+              const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
+          tabs: const [
+            GButton(icon: Icons.trending_up, text: 'Home'),
+            GButton(icon: Icons.search, text: 'Search'),
+            GButton(icon: Icons.collections_bookmark, text: 'My Library'),
+            GButton(icon: Icons.build, text: 'Settings'),
           ],
           selectedIndex: selectedIndex,
-          onTabChange: (index) async {
+          onTabChange: (index) {
             ref.read(selectedIndexProvider.notifier).state = index;
           },
         ),
