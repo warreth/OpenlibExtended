@@ -21,6 +21,42 @@ String? getFileType(String? info) {
   return null;
 }
 
+// Extract language code from book info string
+// Info format typically: "[en], pdf, 5.2MB" or "English, pdf, 5.2MB"
+String? getLanguage(String? info) {
+  if (info == null || info.isEmpty) return null;
+  
+  // Language code mapping for display
+  const languageNames = {
+    'en': 'EN', 'es': 'ES', 'fr': 'FR', 'de': 'DE', 'it': 'IT',
+    'pt': 'PT', 'ru': 'RU', 'zh': 'ZH', 'ja': 'JA', 'ko': 'KO',
+    'ar': 'AR', 'hi': 'HI', 'nl': 'NL', 'pl': 'PL', 'tr': 'TR',
+    'sv': 'SV', 'id': 'ID', 'vi': 'VI', 'cs': 'CS', 'el': 'EL',
+    'ro': 'RO', 'hu': 'HU', 'uk': 'UK', 'he': 'HE', 'th': 'TH',
+    'fa': 'FA', 'bn': 'BN', 'fi': 'FI', 'no': 'NO', 'da': 'DA',
+  };
+  
+  // Try to match [xx] pattern for language code
+  final bracketMatch = RegExp(r'\[([a-z]{2})\]', caseSensitive: false).firstMatch(info);
+  if (bracketMatch != null) {
+    final code = bracketMatch.group(1)?.toLowerCase();
+    if (code != null && languageNames.containsKey(code)) {
+      return languageNames[code];
+    }
+  }
+  
+  // Try to find language code at start of info (common format: "en, pdf, ...")
+  final parts = info.split(',');
+  if (parts.isNotEmpty) {
+    final firstPart = parts[0].trim().toLowerCase();
+    if (languageNames.containsKey(firstPart)) {
+      return languageNames[firstPart];
+    }
+  }
+  
+  return null;
+}
+
 class BookInfoCard extends ConsumerWidget {
   const BookInfoCard({
     super.key,
@@ -46,6 +82,7 @@ class BookInfoCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     String? fileType = getFileType(info);
+    String? language = getLanguage(info);
     
     // Check if book is downloaded (only if md5 is provided)
     final isDownloaded = md5 != null 
@@ -178,6 +215,32 @@ class BookInfoCard extends ConsumerWidget {
                             ),
                           ),
                         if (fileType != null)
+                          const SizedBox(
+                            width: 3,
+                          ),
+                        // Language badge
+                        if (language != null)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: "#6b8cce".toColor(),
+                              borderRadius: BorderRadius.circular(2.5),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
+                              child: Text(
+                                language,
+                                style: const TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        if (language != null)
                           const SizedBox(
                             width: 3,
                           ),

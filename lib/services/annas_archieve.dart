@@ -308,13 +308,50 @@ class AnnasArchieve {
       required String content,
       required String sort,
       required String fileType,
+      required String language,
+      required String year,
       required bool enableFilters,
       required String currentBaseUrl}) {
     searchQuery = searchQuery.replaceAll(" ", "+");
     if (!enableFilters) {
       return '$currentBaseUrl/search?q=$searchQuery';
     }
-    return '$currentBaseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort';
+
+    // Build URL with parameters in correct order for Anna's Archive
+    // Working format: /search?index=&sort=&lang=nl&display=&q=query
+    String url = '$currentBaseUrl/search?index=&sort=$sort';
+    
+    // Add language filter if specified (must be before q=)
+    if (language.isNotEmpty) {
+      url += '&lang=$language';
+    }
+    
+    // Add display parameter
+    url += '&display=';
+    
+    // Add search query
+    url += '&q=$searchQuery';
+    
+    // Add content filter only if specified
+    if (content.isNotEmpty) {
+      url += '&content=$content';
+    }
+    
+    // Add extension filter only if specified
+    if (fileType.isNotEmpty) {
+      url += '&ext=$fileType';
+    }
+
+    // Add year filter if specified
+    if (year.isNotEmpty) {
+      if (year == "Before 1980") {
+        url += '&year_end=1979';
+      } else if (!year.contains('-')) {
+        url += '&year=$year';
+      }
+    }
+
+    return url;
   }
 
   Future<List<BookData>> searchBooks(
@@ -322,12 +359,16 @@ class AnnasArchieve {
       String content = "",
       String sort = "",
       String fileType = "",
+      String language = "",
+      String year = "",
       bool enableFilters = true}) async {
     _logger.info('Searching books', tag: 'AnnasArchive', metadata: {
       'query': searchQuery,
       'content': content,
       'sort': sort,
       'fileType': fileType,
+      'language': language,
+      'year': year,
       'filtersEnabled': enableFilters,
     });
 
@@ -339,6 +380,8 @@ class AnnasArchieve {
             content: content,
             sort: sort,
             fileType: fileType,
+            language: language,
+            year: year,
             enableFilters: enableFilters,
             currentBaseUrl: currentBaseUrl);
 

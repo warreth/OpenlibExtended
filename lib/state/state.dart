@@ -48,6 +48,63 @@ Map<String, String> sortValues = {
 
 List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
 
+// Language filter values (code: display name)
+Map<String, String> languageValues = {
+  "All": "",
+  "English": "en",
+  "Spanish": "es",
+  "French": "fr",
+  "German": "de",
+  "Italian": "it",
+  "Portuguese": "pt",
+  "Russian": "ru",
+  "Chinese": "zh",
+  "Japanese": "ja",
+  "Korean": "ko",
+  "Arabic": "ar",
+  "Hindi": "hi",
+  "Dutch": "nl",
+  "Polish": "pl",
+  "Turkish": "tr",
+  "Swedish": "sv",
+  "Indonesian": "id",
+  "Vietnamese": "vi",
+  "Czech": "cs",
+  "Greek": "el",
+  "Romanian": "ro",
+  "Hungarian": "hu",
+  "Ukrainian": "uk",
+  "Hebrew": "he",
+  "Thai": "th",
+  "Persian": "fa",
+  "Bengali": "bn",
+  "Finnish": "fi",
+  "Norwegian": "no",
+  "Danish": "da",
+};
+
+// Year filter values for publishing year range
+List<String> yearValues = [
+  "All",
+  "2025",
+  "2024",
+  "2023",
+  "2022",
+  "2021",
+  "2020",
+  "2019",
+  "2018",
+  "2017",
+  "2016",
+  "2015",
+  "2010-2014",
+  "2005-2009",
+  "2000-2004",
+  "1990-1999",
+  "1980-1989",
+  "Before 1980",
+];
+
 // ====================================================================
 // ENUMS AND DATA CLASSES
 // ====================================================================
@@ -76,6 +133,8 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 final selectedTypeState = StateProvider<String>((ref) => "All");
 final selectedSortState = StateProvider<String>((ref) => "Most Relevant");
 final selectedFileTypeState = StateProvider<String>((ref) => "All");
+final selectedLanguageState = StateProvider<String>((ref) => "All");
+final selectedYearState = StateProvider<String>((ref) => "All");
 final searchQueryProvider = StateProvider<String>((ref) => "");
 final enableFiltersState = StateProvider<bool>((ref) => true);
 
@@ -159,6 +218,16 @@ final getFileTypeValue = Provider.autoDispose<String>((ref) {
   return selectedFile == "All" ? '' : selectedFile.toLowerCase();
 });
 
+final getLanguageValue = Provider.autoDispose<String>((ref) {
+  return languageValues[ref.watch(selectedLanguageState)] ?? '';
+});
+
+final getYearValue = Provider.autoDispose<String>((ref) {
+  return ref.watch(selectedYearState) == "All"
+      ? ''
+      : ref.watch(selectedYearState);
+});
+
 // Helper function to convert bytes to readable file size
 String bytesToFileSize(int bytes) {
   const int decimals = 1;
@@ -232,6 +301,8 @@ final searchProvider = FutureProvider.family
       content: ref.watch(getTypeValue),
       sort: ref.watch(getSortValue),
       fileType: ref.watch(getFileTypeValue),
+      language: ref.watch(getLanguageValue),
+      year: ref.watch(getYearValue),
       enableFilters: ref.watch(enableFiltersState));
   return data;
 });
