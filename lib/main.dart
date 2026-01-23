@@ -36,7 +36,12 @@ import 'package:openlib/state/state.dart'
         showManualDownloadButtonProvider,
         autoRankInstancesProvider,
         userAgentProvider,
-        cookieProvider;
+        cookieProvider,
+        selectedTypeState,
+        selectedSortState,
+        selectedFileTypeState,
+        selectedLanguageState,
+        selectedYearState;
 
 void main(List<String> args) async {
   // Required for desktop_webview_window on Linux - must be called before ensureInitialized
@@ -83,6 +88,28 @@ void main(List<String> args) async {
   String browserUserAgent = await dataBase.getBrowserOptions('userAgent');
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
+  // Load search filter preferences
+  String savedType = await dataBase
+          .getPreference('filterType')
+          .catchError((e) => 'All') as String? ??
+      'All';
+  String savedSort = await dataBase
+          .getPreference('filterSort')
+          .catchError((e) => 'Most Relevant') as String? ??
+      'Most Relevant';
+  String savedFileType = await dataBase
+          .getPreference('filterFileType')
+          .catchError((e) => 'All') as String? ??
+      'All';
+  String savedLanguage = await dataBase
+          .getPreference('filterLanguage')
+          .catchError((e) => 'All') as String? ??
+      'All';
+  String savedYear = await dataBase
+          .getPreference('filterYear')
+          .catchError((e) => 'All') as String? ??
+      'All';
+
   if (Platform.isAndroid) {
     // Android-specific setup for system UI overlay colors
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
@@ -104,6 +131,11 @@ void main(List<String> args) async {
             .overrideWith((ref) => showManualDownloadButton),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
+        selectedTypeState.overrideWith((ref) => savedType),
+        selectedSortState.overrideWith((ref) => savedSort),
+        selectedFileTypeState.overrideWith((ref) => savedFileType),
+        selectedLanguageState.overrideWith((ref) => savedLanguage),
+        selectedYearState.overrideWith((ref) => savedYear),
       ],
       child: const MyApp(),
     ),

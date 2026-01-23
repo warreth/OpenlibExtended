@@ -48,7 +48,7 @@ Map<String, String> sortValues = {
 
 List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
 
-// Language filter values (code: display name)
+// Language filter values (display name: code)
 Map<String, String> languageValues = {
   "All": "",
   "English": "en",
@@ -81,6 +81,40 @@ Map<String, String> languageValues = {
   "Finnish": "fi",
   "Norwegian": "no",
   "Danish": "da",
+};
+
+// Reverse map: language code to uppercase display code
+Map<String, String> languageCodeToDisplay = {
+  "en": "EN",
+  "es": "ES",
+  "fr": "FR",
+  "de": "DE",
+  "it": "IT",
+  "pt": "PT",
+  "ru": "RU",
+  "zh": "ZH",
+  "ja": "JA",
+  "ko": "KO",
+  "ar": "AR",
+  "hi": "HI",
+  "nl": "NL",
+  "pl": "PL",
+  "tr": "TR",
+  "sv": "SV",
+  "id": "ID",
+  "vi": "VI",
+  "cs": "CS",
+  "el": "EL",
+  "ro": "RO",
+  "hu": "HU",
+  "uk": "UK",
+  "he": "HE",
+  "th": "TH",
+  "fa": "FA",
+  "bn": "BN",
+  "fi": "FI",
+  "no": "NO",
+  "da": "DA",
 };
 
 // Year filter values for publishing year range

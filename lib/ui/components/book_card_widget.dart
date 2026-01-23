@@ -6,18 +6,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
-import 'package:openlib/state/state.dart' show checkIdExists;
+import 'package:openlib/state/state.dart'
+    show checkIdExists, languageCodeToDisplay;
 import 'package:openlib/ui/extensions.dart';
 
+// Extract file type from book info string
 String? getFileType(String? info) {
-  if (info != null && info.isNotEmpty) {
-    info = info.toLowerCase();
-    if (info.contains('pdf')) return "PDF";
-    if (info.contains('epub')) return "Epub";
-    if (info.contains('cbr')) return "Cbr";
-    if (info.contains('cbz')) return "Cbz";
-    return null;
-  }
+  if (info == null || info.isEmpty) return null;
+  final infoLower = info.toLowerCase();
+  if (infoLower.contains('pdf')) return "PDF";
+  if (infoLower.contains('epub')) return "Epub";
+  if (infoLower.contains('cbr')) return "Cbr";
+  if (infoLower.contains('cbz')) return "Cbz";
   return null;
 }
 
@@ -26,47 +26,13 @@ String? getFileType(String? info) {
 String? getLanguage(String? info) {
   if (info == null || info.isEmpty) return null;
 
-  // Language code mapping for display
-  const languageNames = {
-    'en': 'EN',
-    'es': 'ES',
-    'fr': 'FR',
-    'de': 'DE',
-    'it': 'IT',
-    'pt': 'PT',
-    'ru': 'RU',
-    'zh': 'ZH',
-    'ja': 'JA',
-    'ko': 'KO',
-    'ar': 'AR',
-    'hi': 'HI',
-    'nl': 'NL',
-    'pl': 'PL',
-    'tr': 'TR',
-    'sv': 'SV',
-    'id': 'ID',
-    'vi': 'VI',
-    'cs': 'CS',
-    'el': 'EL',
-    'ro': 'RO',
-    'hu': 'HU',
-    'uk': 'UK',
-    'he': 'HE',
-    'th': 'TH',
-    'fa': 'FA',
-    'bn': 'BN',
-    'fi': 'FI',
-    'no': 'NO',
-    'da': 'DA',
-  };
-
   // Try to match [xx] pattern for language code
   final bracketMatch =
       RegExp(r'\[([a-z]{2})\]', caseSensitive: false).firstMatch(info);
   if (bracketMatch != null) {
     final code = bracketMatch.group(1)?.toLowerCase();
-    if (code != null && languageNames.containsKey(code)) {
-      return languageNames[code];
+    if (code != null && languageCodeToDisplay.containsKey(code)) {
+      return languageCodeToDisplay[code];
     }
   }
 
@@ -74,8 +40,8 @@ String? getLanguage(String? info) {
   final parts = info.split(',');
   if (parts.isNotEmpty) {
     final firstPart = parts[0].trim().toLowerCase();
-    if (languageNames.containsKey(firstPart)) {
-      return languageNames[firstPart];
+    if (languageCodeToDisplay.containsKey(firstPart)) {
+      return languageCodeToDisplay[firstPart];
     }
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async'; // For Timer/Debounce
 
 // Project imports:
+import 'package:openlib/services/database.dart';
 import 'package:openlib/ui/components/active_downloads_widget.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/results_page.dart';
@@ -294,6 +295,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   }).toList(),
                   onChanged: (String? val) {
                     ref.read(selectedTypeState.notifier).state = val ?? '';
+                    MyLibraryDb.instance
+                        .savePreference('filterType', val ?? 'All');
                   },
                 ),
               ),
@@ -336,6 +339,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   }).toList(),
                   onChanged: (String? val) {
                     ref.read(selectedSortState.notifier).state = val ?? '';
+                    MyLibraryDb.instance
+                        .savePreference('filterSort', val ?? 'Most Relevant');
                   },
                 ),
               ),
@@ -377,6 +382,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   onChanged: (String? val) {
                     ref.read(selectedFileTypeState.notifier).state =
                         val ?? 'All';
+                    MyLibraryDb.instance
+                        .savePreference('filterFileType', val ?? 'All');
                   },
                 ),
               ),
@@ -421,6 +428,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   onChanged: (String? val) {
                     ref.read(selectedLanguageState.notifier).state =
                         val ?? 'All';
+                    MyLibraryDb.instance
+                        .savePreference('filterLanguage', val ?? 'All');
                   },
                 ),
               ),
@@ -463,6 +472,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   }).toList(),
                   onChanged: (String? val) {
                     ref.read(selectedYearState.notifier).state = val ?? 'All';
+                    MyLibraryDb.instance
+                        .savePreference('filterYear', val ?? 'All');
                   },
                 ),
               ),
