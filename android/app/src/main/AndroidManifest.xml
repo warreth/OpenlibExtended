@@ -34,7 +34,7 @@
         </activity><!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data android:name="flutterEmbedding" android:value="2"/><!-- FileProvider for sharing files and APK installation -->
-        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}" android:exported="false" android:grantUriPermissions="true">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true" tools:replace="android:authorities">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/>
         </provider>
     </application>
