@@ -4,15 +4,18 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Package imports:
 import 'package:android_package_installer/android_package_installer.dart';
+import 'package:apk_sideload/install_apk.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
@@ -428,76 +431,381 @@ class UpdateCheckerService {
     }
   }
 
-  // Open/Install the downloaded update file
+  // Open/Install the downloaded update file with fallback mechanisms
   Future<bool> openUpdateFile(String filePath, BuildContext context) async {
-    try {
-      _logger.info("Opening update file", tag: "UpdateChecker", metadata: {
-        "path": filePath,
-      });
+    _logger.info("Opening update file", tag: "UpdateChecker", metadata: {
+      "path": filePath,
+    });
 
-      // Verify file exists and has content
-      final file = File(filePath);
-      if (!await file.exists()) {
-        _logger.error("Update file does not exist", tag: "UpdateChecker");
-        throw Exception("Downloaded file not found");
+    // Verify file exists and has content
+    final file = File(filePath);
+    if (!await file.exists()) {
+      _logger.error("Update file does not exist", tag: "UpdateChecker");
+      if (context.mounted) {
+        _showInstallErrorDialog(context, filePath, "Downloaded file not found");
       }
-
-      final fileSize = await file.length();
-      if (fileSize < 1024) {
-        _logger.error("Update file is too small, likely corrupted",
-            tag: "UpdateChecker", metadata: {"size": fileSize});
-        throw Exception("Downloaded file appears to be corrupted (too small)");
-      }
-
-      _logger.info("File verified", tag: "UpdateChecker", metadata: {
-        "size": fileSize,
-      });
-
-      if (Platform.isAndroid) {
-        // Check and request install permission first
-        final hasPermission = await _checkAndRequestInstallPermission(context);
-        if (!hasPermission) {
-          _logger.warning("Install permission denied", tag: "UpdateChecker");
-          return false;
-        }
-
-        // Use android_package_installer for proper APK installation
-        final statusCode = await AndroidPackageInstaller.installApk(
-          apkFilePath: filePath,
-        );
-
-        if (statusCode != null) {
-          final status = PackageInstallerStatus.byCode(statusCode);
-          _logger.info("APK installation result",
-              tag: "UpdateChecker",
-              metadata: {"status": status.name, "code": statusCode});
-
-          if (status == PackageInstallerStatus.success) {
-            return true;
-          } else {
-            throw Exception("Installation failed: ${status.name}");
-          }
-        }
-        return true;
-      } else if (Platform.isWindows) {
-        // Run the exe installer
-        await Process.start(filePath, [], mode: ProcessStartMode.detached);
-      } else if (Platform.isLinux) {
-        // Run the AppImage
-        await Process.start(filePath, [], mode: ProcessStartMode.detached);
-      } else if (Platform.isMacOS) {
-        // Open the DMG
-        await OpenFile.open(filePath, type: "application/x-apple-diskimage");
-      } else if (Platform.isIOS) {
-        // iOS requires special handling via MDM or TestFlight
-        await OpenFile.open(filePath);
-      }
-      return true;
-    } catch (e, stackTrace) {
-      _logger.error("Failed to open update file",
-          tag: "UpdateChecker", error: e, stackTrace: stackTrace);
-      rethrow;
+      return false;
     }
+
+    final fileSize = await file.length();
+    if (fileSize < 10240) {
+      _logger.error("Update file is too small, likely corrupted",
+          tag: "UpdateChecker", metadata: {"size": fileSize});
+      if (context.mounted) {
+        _showInstallErrorDialog(context, filePath,
+            "Downloaded file appears to be corrupted (only ${_formatBytes(fileSize)})");
+      }
+      return false;
+    }
+
+    _logger.info("File verified", tag: "UpdateChecker", metadata: {
+      "size": fileSize,
+    });
+
+    if (Platform.isAndroid) {
+      return await _installApkWithFallbacks(filePath, context);
+    } else if (Platform.isWindows) {
+      await Process.start(filePath, [], mode: ProcessStartMode.detached);
+      return true;
+    } else if (Platform.isLinux) {
+      await Process.start(filePath, [], mode: ProcessStartMode.detached);
+      return true;
+    } else if (Platform.isMacOS) {
+      await OpenFile.open(filePath, type: "application/x-apple-diskimage");
+      return true;
+    } else if (Platform.isIOS) {
+      await OpenFile.open(filePath);
+      return true;
+    }
+    return false;
+  }
+
+  // Install APK on Android with multiple fallback methods
+  Future<bool> _installApkWithFallbacks(
+      String filePath, BuildContext context) async {
+    // Check and request install permission first
+    final hasPermission = await _checkAndRequestInstallPermission(context);
+    if (!hasPermission) {
+      _logger.warning("Install permission denied", tag: "UpdateChecker");
+      if (context.mounted) {
+        _showInstallErrorDialog(context, filePath,
+            "Permission to install apps was denied. You can still install manually.");
+      }
+      return false;
+    }
+
+    // Method 1: Try apk_sideload (handles FileProvider and permissions well)
+    try {
+      _logger.info("Attempting installation with apk_sideload",
+          tag: "UpdateChecker");
+      await InstallApk().installApk(filePath);
+      _logger.info("apk_sideload installation initiated", tag: "UpdateChecker");
+      return true;
+    } on PlatformException catch (e) {
+      _logger.warning("apk_sideload failed",
+          tag: "UpdateChecker", metadata: {"error": e.message});
+    } catch (e) {
+      _logger.warning("apk_sideload failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // Method 2: Try android_package_installer
+    try {
+      _logger.info("Attempting installation with android_package_installer",
+          tag: "UpdateChecker");
+      final statusCode = await AndroidPackageInstaller.installApk(
+        apkFilePath: filePath,
+      );
+      if (statusCode != null) {
+        final status = PackageInstallerStatus.byCode(statusCode);
+        _logger.info("android_package_installer result",
+            tag: "UpdateChecker",
+            metadata: {"status": status.name, "code": statusCode});
+        if (status == PackageInstallerStatus.success) {
+          return true;
+        }
+      }
+    } catch (e) {
+      _logger.warning("android_package_installer failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // Method 3: Try open_file with MIME type
+    try {
+      _logger.info("Attempting installation with open_file",
+          tag: "UpdateChecker");
+      final result = await OpenFile.open(filePath,
+          type: "application/vnd.android.package-archive");
+      if (result.type == ResultType.done) {
+        _logger.info("open_file installation initiated", tag: "UpdateChecker");
+        return true;
+      }
+      _logger.warning("open_file failed",
+          tag: "UpdateChecker", metadata: {"result": result.type.name});
+    } catch (e) {
+      _logger.warning("open_file failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // All automatic methods failed - show fallback dialog
+    if (context.mounted) {
+      await _showInstallFallbackDialog(context, filePath);
+    }
+    return false;
+  }
+
+  // Show fallback dialog with manual options when automatic installation fails
+  Future<void> _showInstallFallbackDialog(
+      BuildContext context, String filePath) async {
+    final fileName = filePath.split("/").last;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Installation Issue",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "The automatic installer couldn't open the APK. This can happen on some Android versions.\n\n"
+                "You can install manually using one of these options:",
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "File: $fileName",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(dialogContext)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                "Cancel",
+                style: TextStyle(
+                  color: Theme.of(dialogContext)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await _shareApkFile(filePath, context);
+              },
+              child: Text(
+                "Share APK",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await _showApkLocationDialog(filePath, context);
+              },
+              child: Text(
+                "Show Location",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Share APK file using share_plus
+  Future<void> _shareApkFile(String filePath, BuildContext context) async {
+    try {
+      final result = await Share.shareXFiles(
+        [XFile(filePath)],
+        text: "Install Openlib update",
+      );
+      _logger.info("Share result", tag: "UpdateChecker", metadata: {
+        "status": result.status.name,
+      });
+    } catch (e) {
+      _logger.error("Failed to share APK",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to share file: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Show dialog with APK file location for manual installation
+  Future<void> _showApkLocationDialog(
+      String filePath, BuildContext context) async {
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.folder_open,
+                  color: Theme.of(dialogContext).colorScheme.secondary),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "APK Location",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "The APK file has been downloaded to:",
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(dialogContext).colorScheme.tertiaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  filePath,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: "monospace",
+                    color: Theme.of(dialogContext).colorScheme.tertiary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "To install manually:\n"
+                "1. Open a file manager app\n"
+                "2. Navigate to this location\n"
+                "3. Tap on the APK file to install",
+                style: TextStyle(fontSize: 13),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: filePath));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Path copied to clipboard"),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Text(
+                "Copy Path",
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                "OK",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show error dialog with fallback options
+  Future<void> _showInstallErrorDialog(
+      BuildContext context, String filePath, String errorMessage) async {
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 28),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Installation Error",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Text(errorMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                "OK",
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+            if (File(filePath).existsSync())
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await _showInstallFallbackDialog(context, filePath);
+                },
+                child: Text(
+                  "Try Manual Install",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return "$bytes B";
+    if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
+    return "${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB";
   }
 
   // Show update download dialog with progress

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths><!-- Provides access to external storage directory -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android"><!-- Root path for accessing any file (Android 10+) -->
+    <root-path name="root" path="."/><!-- Provides access to external storage directory -->
     <external-path name="external_files" path="."/><!-- Provides access to files in the app's external files directory -->
     <external-files-path name="external_app_files" path="."/><!-- Provides access to cache directory -->
     <cache-path name="cache" path="."/><!-- Provides access to external cache directory -->
