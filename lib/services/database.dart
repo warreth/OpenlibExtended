@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:io';
-
 // Package imports:
 import 'package:sqflite/sqflite.dart';
 
@@ -65,7 +62,6 @@ class MyLibraryDb {
   Future<Database> _initDatabase() async {
     final databasePath = await getDatabasesPath();
     final path = '$databasePath/mylibrary.db';
-    final bool isMobile = Platform.isAndroid || Platform.isIOS;
 
     return await openDatabase(
       path,
@@ -75,13 +71,11 @@ class MyLibraryDb {
             'CREATE TABLE mybooks (id TEXT PRIMARY KEY, title TEXT,author TEXT,thumbnail TEXT,link TEXT,publisher TEXT,info TEXT,format TEXT,description TEXT)');
         await db.execute(
             'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
-        if (isMobile || true) {
-          // TODO: Breaks getBrowserOptions() on Mac
-          await db.execute(
-              'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
-          await db.execute(
-              'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
-        }
+        // Create these tables for all platforms (both mobile and desktop)
+        await db.execute(
+            'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
+        await db.execute(
+            'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         List<dynamic> isTableExist = await db.query('sqlite_master',
@@ -94,11 +88,13 @@ class MyLibraryDb {
           await db.execute(
               'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
         }
-        if (isMobile && isTableExist.isEmpty) {
+        // Create bookposition table on all platforms if not exists
+        if (isTableExist.isEmpty) {
           await db.execute(
               'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
         }
-        if (isMobile && isbrowserOptionsExist.isEmpty) {
+        // Create browserOptions table on all platforms if not exists
+        if (isbrowserOptionsExist.isEmpty) {
           await db.execute(
               'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
         }
@@ -114,6 +110,8 @@ class MyLibraryDb {
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('openEpubwithExternalApp', 0)");
         await db.execute(
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('bookStorageDirectory', '$bookStorageDefaultDirectory')");
+        await db.execute(
+            "INSERT OR IGNORE INTO preferences (name, value) VALUES ('showManualDownloadButton', 0)");
       },
     );
   }
@@ -216,11 +214,11 @@ class MyLibraryDb {
   }
 
   Future<void> savePreference(String name, dynamic value) async {
-    switch (value.runtimeType) {
-      case bool:
+    switch (value) {
+      case bool _:
         value = value ? 1 : 0;
         break;
-      case int || String:
+      case int _ || String _:
         break;
       default:
         throw 'Invalid type';

@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:io' show Platform;
-
 // Flutter imports:
 import 'package:flutter/material.dart';
 
@@ -12,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
+import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/ui/components/snack_bar_widget.dart';
 
 import 'package:openlib/state/state.dart'
     show
@@ -27,9 +26,17 @@ Future<void> launchPdfViewer(
     required BuildContext context,
     required WidgetRef ref}) async {
   bool openWithExternalApp = ref.watch(openPdfWithExternalAppProvider);
-  if (openWithExternalApp) {
-    String path = await getFilePath(fileName);
-    await OpenFile.open(path, linuxByProcess: true);
+  
+  // On desktop, always open with external app since flutter_pdfview is mobile-only
+  if (PlatformUtils.isDesktop || openWithExternalApp) {
+    try {
+      String path = await getFilePath(fileName);
+      await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");
+    } catch (e) {
+      // File doesn't exist or can't be accessed
+      // ignore: use_build_context_synchronously
+      showSnackBar(context: context, message: "File not found. The download may have failed.");
+    }
   } else {
     Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
       return PdfView(
@@ -95,6 +102,7 @@ class PdfViewer extends ConsumerStatefulWidget {
 
 class _PdfViewerState extends ConsumerState<PdfViewer> {
   late PDFViewController controller;
+  final Set<int> _activePointers = {};
 
   @override
   void initState() {
@@ -103,9 +111,8 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
 
   @override
   void deactivate() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      savePdfState(widget.fileName, ref);
-    }
+    // Save PDF state on all platforms (mobile and desktop)
+    savePdfState(widget.fileName, ref);
     super.deactivate();
   }
 
@@ -131,9 +138,34 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
     }
   }
 
+  void _goToNextPage() {
+    final currentPage = ref.read(pdfCurrentPage);
+    final totalPages = ref.read(totalPdfPage);
+    if (currentPage + 1 < totalPages) {
+      ref.read(pdfCurrentPage.notifier).state = currentPage + 1;
+      controller.setPage(currentPage + 1);
+    } else {
+      ref.read(pdfCurrentPage.notifier).state = 0;
+      controller.setPage(0);
+    }
+  }
+
+  void _goToPreviousPage() {
+    final currentPage = ref.read(pdfCurrentPage);
+    final totalPages = ref.read(totalPdfPage);
+    if (currentPage != 0) {
+      ref.read(pdfCurrentPage.notifier).state = currentPage - 1;
+      controller.setPage(currentPage - 1);
+    } else {
+      ref.read(pdfCurrentPage.notifier).state = totalPages - 1;
+      controller.setPage(totalPages - 1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    bool isMobile = Platform.isAndroid || Platform.isIOS;
+    // On desktop, use external PDF viewer with a button
+    bool useExternalViewer = PlatformUtils.isDesktop;
     final currentPage = ref.watch(pdfCurrentPage);
     final totalPages = ref.watch(totalPdfPage);
     return Scaffold(
@@ -141,19 +173,10 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         title: const Text("Openlib"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
-        actions: isMobile
+        actions: !useExternalViewer
             ? [
                 IconButton(
-                    onPressed: () {
-                      if (currentPage != 0) {
-                        ref.read(pdfCurrentPage.notifier).state =
-                            currentPage - 1;
-                        controller.setPage(currentPage - 1);
-                      } else {
-                        ref.read(pdfCurrentPage.notifier).state = totalPages;
-                        controller.setPage(totalPages - 1);
-                      }
-                    },
+                    onPressed: _goToPreviousPage,
                     icon: const Icon(
                       Icons.arrow_left,
                       size: 25,
@@ -161,16 +184,7 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
                 Text(
                     '${(currentPage + 1).toString()} / ${totalPages.toString()}'),
                 IconButton(
-                    onPressed: () {
-                      if (currentPage + 1 < totalPages) {
-                        ref.read(pdfCurrentPage.notifier).state =
-                            currentPage + 1;
-                        controller.setPage(currentPage + 1);
-                      } else {
-                        ref.read(pdfCurrentPage.notifier).state = 0;
-                        controller.setPage(0);
-                      }
-                    },
+                    onPressed: _goToNextPage,
                     icon: const Icon(
                       Icons.arrow_right,
                       size: 25,
@@ -178,37 +192,41 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
               ]
             : [],
       ),
-      body: isMobile
+      body: !useExternalViewer
           ? ref.watch(getBookPosition(widget.fileName)).when(
               data: (data) {
-                return PDFView(
-                  swipeHorizontal: true,
-                  fitEachPage: true,
-                  fitPolicy: FitPolicy.BOTH,
-                  filePath: widget.filePath,
-                  onViewCreated: (controller) {
-                    this.controller = controller;
-                  },
-                  defaultPage: int.parse(data ?? '0'),
-                  onPageChanged: (page, total) {
-                    ref.read(pdfCurrentPage.notifier).state = page ?? 0;
-                    ref.read(totalPdfPage.notifier).state = total ?? 0;
-                  },
+                return _buildTapNavigationWrapper(
+                  PDFView(
+                    swipeHorizontal: true,
+                    fitEachPage: true,
+                    fitPolicy: FitPolicy.BOTH,
+                    filePath: widget.filePath,
+                    onViewCreated: (controller) {
+                      this.controller = controller;
+                    },
+                    defaultPage: int.parse(data ?? '0'),
+                    onPageChanged: (page, total) {
+                      ref.read(pdfCurrentPage.notifier).state = page ?? 0;
+                      ref.read(totalPdfPage.notifier).state = total ?? 0;
+                    },
+                  ),
                 );
               },
               error: (error, stackTrace) {
-                return PDFView(
-                  swipeHorizontal: true,
-                  fitEachPage: true,
-                  fitPolicy: FitPolicy.BOTH,
-                  filePath: widget.filePath,
-                  onViewCreated: (controller) {
-                    this.controller = controller;
-                  },
-                  onPageChanged: (page, total) {
-                    ref.read(pdfCurrentPage.notifier).state = page ?? 0;
-                    ref.read(totalPdfPage.notifier).state = total ?? 0;
-                  },
+                return _buildTapNavigationWrapper(
+                  PDFView(
+                    swipeHorizontal: true,
+                    fitEachPage: true,
+                    fitPolicy: FitPolicy.BOTH,
+                    filePath: widget.filePath,
+                    onViewCreated: (controller) {
+                      this.controller = controller;
+                    },
+                    onPageChanged: (page, total) {
+                      ref.read(pdfCurrentPage.notifier).state = page ?? 0;
+                      ref.read(totalPdfPage.notifier).state = total ?? 0;
+                    },
+                  ),
                 );
               },
               loading: () {
@@ -244,6 +262,34 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildTapNavigationWrapper(Widget child) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) => _activePointers.add(event.pointer),
+      onPointerUp: (event) {
+        _activePointers.remove(event.pointer);
+        
+        // Only handle navigation on single-finger taps
+        if (_activePointers.isEmpty) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final tapPosition = event.position.dx;
+          
+          // Divide screen into three zones: left (30%), center (40%), right (30%)
+          if (tapPosition < screenWidth * 0.3) {
+            // Left zone - previous page
+            _goToPreviousPage();
+          } else if (tapPosition > screenWidth * 0.7) {
+            // Right zone - next page
+            _goToNextPage();
+          }
+          // Center zone (30-70%) - no action, allows zooming and other interactions
+        }
+      },
+      onPointerCancel: (event) => _activePointers.remove(event.pointer),
+      child: child, // Direct child, no overlay
     );
   }
 }

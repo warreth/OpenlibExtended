@@ -11,9 +11,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:openlib/ui/home_page.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:desktop_webview_window/desktop_webview_window.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb;
+import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/services/update_checker.dart';
 import 'package:openlib/ui/mylibrary_page.dart';
 import 'package:openlib/ui/search_page.dart';
 import 'package:openlib/ui/settings_page.dart';
@@ -21,16 +24,25 @@ import 'package:openlib/ui/themes.dart';
 
 import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
+import 'package:openlib/services/download_manager.dart';
+import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/state/state.dart'
     show
         selectedIndexProvider,
         themeModeProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
+        showManualDownloadButtonProvider,
         userAgentProvider,
         cookieProvider;
 
-void main() async {
+void main(List<String> args) async {
+  // Required for desktop_webview_window on Linux - must be called before ensureInitialized
+  if (Platform.isLinux || Platform.isWindows) {
+    if (runWebViewTitleBarWidget(args)) {
+      return;
+    }
+  }
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -39,6 +51,9 @@ void main() async {
   }
 
   MyLibraryDb dataBase = MyLibraryDb.instance;
+
+  await DownloadManager().initialize();
+  
   bool isDarkMode =
       await dataBase.getPreference('darkMode') == 0 ? false : true;
 
@@ -51,11 +66,32 @@ void main() async {
       await dataBase.getPreference('openEpubwithExternalApp') == 0
           ? false
           : true;
+  bool openPdfwithExternalapp = await dataBase
+              .getPreference('openPdfwithExternalApp')
+              .catchError((e) => null) ==
+          0
+      ? false
+      : true;
+
+  bool openEpubwithExternalapp = await dataBase
+              .getPreference('openEpubwithExternalApp')
+              .catchError((e) => null) ==
+          0
+      ? false
+      : true;
+
+  bool showManualDownloadButton = await dataBase
+              .getPreference('showManualDownloadButton')
+              .catchError((e) => null) ==
+          0
+      ? false
+      : true;
 
   String browserUserAgent = await dataBase.getBrowserOptions('userAgent');
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
   if (Platform.isAndroid) {
+    // Android-specific setup for system UI overlay colors
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
         systemNavigationBarColor:
             isDarkMode ? Colors.black : Colors.grey.shade200));
@@ -71,6 +107,8 @@ void main() async {
             .overrideWith((ref) => openPdfwithExternalapp),
         openEpubWithExternalAppProvider
             .overrideWith((ref) => openEpubwithExternalapp),
+        showManualDownloadButtonProvider
+            .overrideWith((ref) => showManualDownloadButton),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
       ],
@@ -118,6 +156,112 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   ];
 
   bool _showExpandedHeader = true; // <-- ONLY new state
+
+  @override
+  void initState() {
+    super.initState();
+    // Request notification permission after first frame (only on mobile)
+    if (PlatformUtils.isMobile) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndRequestNotificationPermission();
+      });
+    }
+    // Check for updates after the app has loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdatesOnStartup();
+    });
+  }
+
+  Future<void> _checkForUpdatesOnStartup() async {
+    // Small delay to let the UI settle
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    try {
+      await UpdateCheckerService().checkAndShowUpdateDialog(context);
+    } catch (e) {
+      // Silently fail on startup - user can manually check in settings
+      debugPrint("Update check failed: $e");
+    }
+  }
+
+  Future<void> _checkAndRequestNotificationPermission() async {
+    // Skip on desktop platforms
+    if (PlatformUtils.isDesktop) return;
+    
+    // Check if we should show the permission dialog
+    final prefs = MyLibraryDb.instance;
+    final hasAskedBefore = await prefs.getPreference('hasAskedNotificationPermission')
+        .catchError((_) => 0);
+    
+    if (hasAskedBefore == 0) {
+      // Check current permission status
+      final notificationService = DownloadNotificationService();
+      final currentStatus = await notificationService.checkNotificationPermission();
+      
+      if (!currentStatus && mounted) {
+        // Show the contextual dialog first
+        _showNotificationPermissionDialog();
+      } else {
+        // Already granted, just mark as asked
+        await prefs.savePreference('hasAskedNotificationPermission', 1);
+      }
+    }
+  }
+
+  void _showNotificationPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Enable Notifications',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
+          content: Text(
+            'Openlib needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.78),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Don't mark as asked so we can ask again later
+              },
+              child: Text(
+                'Maybe Later',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.67),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                // Request permission when user clicks Enable
+                await DownloadNotificationService().requestNotificationPermission();
+                // Mark that we've asked
+                await MyLibraryDb.instance.savePreference('hasAskedNotificationPermission', 1);
+              },
+              child: Text(
+                'Enable',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

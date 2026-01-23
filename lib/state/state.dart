@@ -15,6 +15,8 @@ import 'package:openlib/services/database.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/open_library.dart';
 import 'package:openlib/services/goodreads.dart';
+import 'package:openlib/services/instance_manager.dart';
+import 'package:openlib/services/download_manager.dart';
 // Assuming OpenLibrary, Goodreads, PenguinRandomHouse, BookDigits, and SubCategoriesTypeList are defined
 // or are simple placeholder services/models that work as intended.
 
@@ -95,6 +97,39 @@ final pdfCurrentPage = StateProvider.autoDispose<int>((ref) => 0);
 final totalPdfPage = StateProvider.autoDispose<int>((ref) => 0);
 final openPdfWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
+
+// Download Settings
+final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
+
+// Instance Management States
+final instanceManagerProvider = Provider<InstanceManager>((ref) => InstanceManager());
+
+// Download Manager States
+final downloadManagerProvider = Provider<DownloadManager>((ref) {
+  final manager = DownloadManager();
+  ref.onDispose(() => manager.dispose());
+  return manager;
+});
+
+final activeDownloadsProvider = StreamProvider<Map<String, DownloadTask>>((ref) {
+  final manager = ref.watch(downloadManagerProvider);
+  return manager.downloadsStream;
+});
+
+final archiveInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+  final manager = ref.watch(instanceManagerProvider);
+  return await manager.getInstances();
+});
+
+final enabledInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+  final manager = ref.watch(instanceManagerProvider);
+  return await manager.getEnabledInstances();
+});
+
+final currentInstanceProvider = FutureProvider<ArchiveInstance>((ref) async {
+  final manager = ref.watch(instanceManagerProvider);
+  return await manager.getCurrentInstance();
+});
 
 // ====================================================================
 // DERIVED (COMPUTED) STATE PROVIDERS

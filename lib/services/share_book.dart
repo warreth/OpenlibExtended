@@ -22,7 +22,7 @@ Future<void> shareBook(String title, String link, String path) async {
 }
 
 Future<String> saveAndGetImagePath(String url) async {
-  if (url != null && url.isNotEmpty) {
+  if (url.isNotEmpty) {
     try {
       final imageProvider = CachedNetworkImageProvider(url);
       final imageStream = imageProvider.resolve(const ImageConfiguration());

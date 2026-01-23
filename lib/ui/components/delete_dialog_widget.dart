@@ -74,7 +74,7 @@ class ShowDeleteDialog extends ConsumerWidget {
                       children: [
                         TextButton(
                           style: ButtonStyle(
-                            shape: MaterialStateProperty.all(
+                            shape: WidgetStateProperty.all(
                               RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(50.0),
                                 side: BorderSide(

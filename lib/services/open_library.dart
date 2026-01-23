@@ -21,7 +21,7 @@ abstract class TrendingBooksImpl {
               sendTimeout: Duration(seconds: timeOutDuration),
               receiveTimeout: Duration(seconds: timeOutDuration)));
       return _parser(response.data.toString());
-    } on DioException catch (e) {
+    } on DioException {
       return [];
     }
   }
@@ -70,7 +70,7 @@ class OpenLibrary extends TrendingBooksImpl {
               sendTimeout: const Duration(seconds: timeOutDuration),
               receiveTimeout: const Duration(seconds: timeOutDuration)));
       return _parser('${response.data.toString()}${response2.data.toString()}');
-    } on DioException catch (e) {
+    } on DioException {
       return [];
     }
   }

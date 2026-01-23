@@ -12,7 +12,6 @@ import 'package:openlib/ui/components/book_card_widget.dart';
 import 'package:openlib/ui/components/error_widget.dart';
 // NOTE: Assuming the class INSIDE this file is named TitleText.
 import 'package:openlib/ui/components/page_title_widget.dart'; 
-import 'package:openlib/ui/extensions.dart';
 
 // A constant for the 'No Results Found' text color for better theming/readability.
 const Color _kNoResultsTextColor = Color(0xFF4D4D4D);
@@ -52,9 +51,9 @@ class ResultPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: CustomScrollView(
                 slivers: <Widget>[
-                  SliverToBoxAdapter(
+                  const SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: EdgeInsets.only(bottom: 10),
                       // FIX 1: Changed PageTitleWidget back to TitleText
                       child: TitleText("Results"), 
                     ),
@@ -72,6 +71,7 @@ class ResultPage extends ConsumerWidget {
                           thumbnail: i.thumbnail ?? '',
                           info: i.info ?? '',
                           link: i.link,
+                          md5: i.md5,
                           onClick: () {
                             Navigator.push(
                               context,
@@ -108,7 +108,7 @@ class ResultPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    Text(
+                    const Text(
                       "No Results Found !",
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -147,8 +147,8 @@ class ResultPage extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
+              const Padding(
+                padding: EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
                 // FIX 2: Changed PageTitleWidget back to TitleText
                 child: TitleText("Results"),
               ),

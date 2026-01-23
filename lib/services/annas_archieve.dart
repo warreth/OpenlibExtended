@@ -1,11 +1,11 @@
-// Flutter imports:
-import 'package:flutter/material.dart';
-
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart' as dom;
-import 'dart:convert';
+
+// Project imports:
+import 'package:openlib/services/instance_manager.dart';
+import 'package:openlib/services/logger.dart';
 
 // ====================================================================
 // DATA MODELS
@@ -53,14 +53,58 @@ class BookInfoData extends BookData {
 // ====================================================================
 
 class AnnasArchieve {
-  static const String baseUrl = "https://annas-archive.org";
+  static const String baseUrl = "https://annas-archive.org"; // Fallback default
 
   final Dio dio = Dio();
+  final InstanceManager _instanceManager = InstanceManager();
+  final AppLogger _logger = AppLogger();
+  static const int maxRetries = 2; // Check each server 2x as per requirements
+  static const int retryDelayMs = 500; // Delay between retries in milliseconds
 
   Map<String, dynamic> defaultDioHeaders = {
     "user-agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
   };
+
+  // Try request with retry logic across multiple instances
+  Future<T> _requestWithRetry<T>(
+    Future<T> Function(String baseUrl) requestFn,
+  ) async {
+    final instances = await _instanceManager.getEnabledInstances();
+    
+    if (instances.isEmpty) {
+      // Use default if no instances are enabled
+      return await requestFn(baseUrl);
+    }
+
+    Exception? lastException;
+    List<String> failedInstances = []; // Track failed instances for logging
+    
+    // Try each instance
+    for (final instance in instances) {
+      // Try each instance up to maxRetries times
+      for (int attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          return await requestFn(instance.baseUrl);
+        } catch (e) {
+          lastException = e is Exception ? e : Exception(e.toString());
+          // Log the failure
+          final attemptInfo = '${instance.name} (${instance.baseUrl}) - Attempt ${attempt + 1}/$maxRetries: ${e.toString()}';
+          failedInstances.add(attemptInfo);
+          // Instance failed: $attemptInfo
+          
+          // If this is not the last attempt for this instance, wait before retrying
+          if (attempt < maxRetries - 1) {
+            await Future.delayed(const Duration(milliseconds: retryDelayMs));
+          }
+        }
+      }
+    }
+    
+    // If all instances failed, throw the last exception with context
+    // All instances failed. Attempted: ${failedInstances.join(", ")}
+    throw lastException ?? Exception('All instances failed');
+  }
 
   String getMd5(String url) {
     final uri = Uri.parse(url);
@@ -79,23 +123,11 @@ class AnnasArchieve {
     }
     return "epub";
   }
-
-  // Helper function to safely parse potential NaN/Infinity to prevent crash
-  // This is a generic safeguard for the third type of error you received.
-  dynamic _safeParse(dynamic value) {
-    if (value is String) {
-      if (value.toLowerCase() == 'nan' || value.toLowerCase() == 'infinity') {
-        return null; // Return null or 0 instead of throwing an error
-      }
-      return value;
-    }
-    return value;
-  }
   
   // --------------------------------------------------------------------
   // _parser FUNCTION (Search Results - Fixed nth-of-type issue)
   // --------------------------------------------------------------------
-  List<BookData> _parser(resData, String fileType) {
+  List<BookData> _parser(resData, String fileType, String currentBaseUrl) {
     var document = parse(resData.toString());
 
     var bookContainers =
@@ -113,7 +145,7 @@ class AnnasArchieve {
       }
 
       final String title = mainLinkElement.text.trim();
-      final String link = baseUrl + mainLinkElement.attributes['href']!;
+      final String link = currentBaseUrl + mainLinkElement.attributes['href']!;
       final String md5 = getMd5(mainLinkElement.attributes['href']!);
       final String? thumbnail = thumbnailElement?.attributes['src'];
 
@@ -163,7 +195,7 @@ class AnnasArchieve {
   // --------------------------------------------------------------------
   // _bookInfoParser FUNCTION (Detail Page - Fixed 'unable to get data' error)
   // --------------------------------------------------------------------
-  Future<BookInfoData?> _bookInfoParser(resData, url) async {
+  Future<BookInfoData?> _bookInfoParser(resData, url, String currentBaseUrl) async {
     var document = parse(resData.toString());
     final main = document.querySelector('div.main-inner'); 
     if (main == null) return null;
@@ -172,7 +204,7 @@ class AnnasArchieve {
     String? mirror;
     final slowDownloadLinks = main.querySelectorAll('ul.list-inside a[href*="/slow_download/"]');
     if (slowDownloadLinks.isNotEmpty && slowDownloadLinks.first.attributes['href'] != null) {
-        mirror = baseUrl + slowDownloadLinks.first.attributes['href']!;
+        mirror = currentBaseUrl + slowDownloadLinks.first.attributes['href']!;
     }
     // --------------------------------
 
@@ -239,12 +271,13 @@ class AnnasArchieve {
       required String content,
       required String sort,
       required String fileType,
-      required bool enableFilters}) {
+      required bool enableFilters,
+      required String currentBaseUrl}) {
     searchQuery = searchQuery.replaceAll(" ", "+");
     if (!enableFilters) {
-      return '$baseUrl/search?q=$searchQuery';
+      return '$currentBaseUrl/search?q=$searchQuery';
     }
-    return '$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort';
+    return '$currentBaseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort';
   }
 
   Future<List<BookData>> searchBooks(
@@ -253,18 +286,34 @@ class AnnasArchieve {
       String sort = "",
       String fileType = "",
       bool enableFilters = true}) async {
+    _logger.info('Searching books', tag: 'AnnasArchive', metadata: {
+      'query': searchQuery,
+      'content': content,
+      'sort': sort,
+      'fileType': fileType,
+      'filtersEnabled': enableFilters,
+    });
+    
     try {
-      final String encodedURL = urlEncoder(
-          searchQuery: searchQuery,
-          content: content,
-          sort: sort,
-          fileType: fileType,
-          enableFilters: enableFilters);
+      final books = await _requestWithRetry<List<BookData>>((currentBaseUrl) async {
+        final String encodedURL = urlEncoder(
+            searchQuery: searchQuery,
+            content: content,
+            sort: sort,
+            fileType: fileType,
+            enableFilters: enableFilters,
+            currentBaseUrl: currentBaseUrl);
 
-      final response = await dio.get(encodedURL,
-          options: Options(headers: defaultDioHeaders));
-      return _parser(response.data, fileType);
+        _logger.debug('Fetching search results', tag: 'AnnasArchive', metadata: {'url': encodedURL});
+        final response = await dio.get(encodedURL,
+            options: Options(headers: defaultDioHeaders));
+        return _parser(response.data, fileType, currentBaseUrl);
+      });
+      
+      _logger.info('Search completed', tag: 'AnnasArchive', metadata: {'results': books.length});
+      return books;
     } on DioException catch (e) {
+        _logger.error('Search failed', tag: 'AnnasArchive', error: e.message ?? e.error);
         if (e.type == DioExceptionType.unknown) {
             throw "socketException";
         }
@@ -273,18 +322,39 @@ class AnnasArchieve {
   }
 
   Future<BookInfoData> bookInfo({required String url}) async {
+    _logger.info('Fetching book info', tag: 'AnnasArchive', metadata: {'url': url});
+    
     try {
-      final response =
-          await dio.get(url, options: Options(headers: defaultDioHeaders));
-      BookInfoData? data = await _bookInfoParser(response.data, url);
-      if (data != null) {
-        // Here's where you might use _safeParse if the API returned a numeric field
-        // E.g., int pages = _safeParse(data.pages).toInt(); 
-        return data;
-      } else {
-        throw 'unable to get data';
-      }
+      final data = await _requestWithRetry<BookInfoData>((currentBaseUrl) async {
+        // Replace the base URL in the url parameter if it contains a different one
+        String adjustedUrl = url;
+        final urlParsed = Uri.parse(url);
+        final currentParsed = Uri.parse(currentBaseUrl);
+        
+        // If the URL has a different host, replace it with current instance's host
+        if (urlParsed.host != currentParsed.host) {
+          adjustedUrl = '$currentBaseUrl${urlParsed.path}${urlParsed.query.isNotEmpty ? "?${urlParsed.query}" : ""}';
+        }
+        
+        _logger.debug('Fetching book details', tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
+        final response = await dio.get(adjustedUrl, 
+            options: Options(headers: defaultDioHeaders));
+        BookInfoData? data = await _bookInfoParser(response.data, adjustedUrl, currentBaseUrl);
+        if (data != null) {
+          return data;
+        } else {
+          throw 'unable to get data';
+        }
+      });
+      
+      _logger.info('Book info retrieved successfully', tag: 'AnnasArchive', metadata: {
+        'title': data.title,
+        'format': data.format,
+        'hasMirror': data.mirror != null,
+      });
+      return data;
     } on DioException catch (e) {
+      _logger.error('Failed to fetch book info', tag: 'AnnasArchive', error: e.message ?? e.error);
       if (e.type == DioExceptionType.unknown) {
         throw "socketException";
       }

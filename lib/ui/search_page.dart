@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async'; // For Timer/Debounce
-import 'package:http/http.dart' as http; // Required for the API calls (ensure package is installed)
 
 // Project imports:
+import 'package:openlib/ui/components/active_downloads_widget.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/results_page.dart';
 import 'components/snack_bar_widget.dart';
@@ -135,6 +135,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 8),
+            const ActiveDownloadsWidget(),
             const TitleText("Search"),
             // Search Input Field
             Padding(
@@ -199,7 +201,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 5,
                         offset: const Offset(0, 2),
                       ),
@@ -261,7 +263,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     ),
                   ),
                   icon: const Icon(Icons.arrow_drop_down),
-                  value: dropdownTypeValue,
+                  initialValue: dropdownTypeValue,
                   items: typeValues.keys
                       .toList()
                       .map<DropdownMenuItem<String>>((String value) {
@@ -303,7 +305,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       borderRadius: const BorderRadius.all(Radius.circular(50)),
                     ),
                   ),
-                  value: dropdownSortValue,
+                  initialValue: dropdownSortValue,
                   items: sortValues.keys
                       .toList()
                       .map<DropdownMenuItem<String>>((String value) {
@@ -345,7 +347,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       borderRadius: const BorderRadius.all(Radius.circular(50)),
                     ),
                   ),
-                  value: dropDownFileTypeValue,
+                  initialValue: dropDownFileTypeValue,
                   items: fileType.map<DropdownMenuItem<String>>((String value) {
                     return DropdownMenuItem<String>(
                       value: value,

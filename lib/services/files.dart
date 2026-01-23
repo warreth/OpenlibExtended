@@ -41,17 +41,17 @@ Future<void> moveFilesToAndroidInternalStorage() async {
 }
 
 Future<void> moveFolderContents(
-    String source_path, String destination_path) async {
-  final source = Directory(source_path);
+    String sourcePath, String destinationPath) async {
+  final source = Directory(sourcePath);
   source.listSync(recursive: false).forEach((var entity) {
     if (entity is Directory) {
       var newDirectory =
-          Directory('${destination_path}/${entity.path.split('/').last}');
+          Directory('$destinationPath/${entity.path.split('/').last}');
       newDirectory.createSync();
       moveFolderContents(entity.path, newDirectory.path);
       entity.deleteSync();
     } else if (entity is File) {
-      entity.copySync('${destination_path}/${entity.path.split('/').last}');
+      entity.copySync('$destinationPath/${entity.path.split('/').last}');
       entity.deleteSync();
     }
   });
@@ -79,7 +79,7 @@ Future<String> getFilePath(String fileName) async {
 }
 
 Future<void> deleteFileWithDbData(
-    FutureProviderRef ref, String md5, String format) async {
+    Ref ref, String md5, String format) async {
   try {
     String fileName = '$md5.$format';
     final bookStorageDirectory =
@@ -93,4 +93,76 @@ Future<void> deleteFileWithDbData(
     // print(e);
     rethrow;
   }
+}
+
+// Syncs the library database with actual files on disk
+// Removes entries for files that no longer exist and adds new files found
+// Returns the number of changes made
+Future<int> syncLibraryWithDisk() async {
+  int changes = 0;
+  try {
+    final bookStorageDirectory =
+        await dataBase.getPreference('bookStorageDirectory');
+    final directory = Directory(bookStorageDirectory.toString());
+    
+    if (!await directory.exists()) {
+      return 0;
+    }
+    
+    // Get all books from database
+    final booksInDb = await dataBase.getAll();
+    
+    // Get all book files on disk
+    final filesOnDisk = <String>{};
+    final files = directory.listSync(recursive: false);
+    for (var entity in files) {
+      if (entity is File) {
+        final fileName = entity.path.split('/').last;
+        final extension = fileName.split('.').last.toLowerCase();
+        if (extension == 'epub' || extension == 'pdf' || extension == 'cbr' || extension == 'cbz') {
+          filesOnDisk.add(fileName);
+        }
+      }
+    }
+    
+    // Remove database entries for files that no longer exist
+    for (var book in booksInDb) {
+      final fileName = "${book.id}.${book.format}";
+      if (!filesOnDisk.contains(fileName)) {
+        await dataBase.delete(book.id);
+        await dataBase.deleteBookState(fileName);
+        changes++;
+      }
+    }
+    
+    // Add new files that are not in database
+    final idsInDb = booksInDb.map((b) => b.id).toSet();
+    for (var fileName in filesOnDisk) {
+      final parts = fileName.split('.');
+      if (parts.length >= 2) {
+        final extension = parts.last.toLowerCase();
+        final md5 = parts.sublist(0, parts.length - 1).join('.');
+        
+        if (!idsInDb.contains(md5)) {
+          // Create a minimal book entry for the new file
+          final book = MyBook(
+            id: md5,
+            title: md5,
+            author: "Unknown",
+            thumbnail: "",
+            link: "",
+            publisher: "",
+            info: "",
+            description: "",
+            format: extension,
+          );
+          await dataBase.insert(book);
+          changes++;
+        }
+      }
+    }
+  } catch (e) {
+    // Silently fail
+  }
+  return changes;
 }

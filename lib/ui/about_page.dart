@@ -1,82 +1,127 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 // Package imports:
 import 'package:url_launcher/url_launcher.dart';
+import 'package:yaml/yaml.dart';
 
 // Project imports:
 import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
 
-class AboutPage extends StatelessWidget {
+class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const version = "1.0.12";
+  State<AboutPage> createState() => _AboutPageState();
+}
 
+class _AboutPageState extends State<AboutPage> {
+  String _version = 'Loading...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final yamlString = await rootBundle.loadString('pubspec.yaml');
+      final yamlMap = loadYaml(yamlString);
+      final version = yamlMap['version'] as String;
+      setState(() {
+        _version = version;
+      });
+    } catch (e) {
+      setState(() {
+        _version = 'Unknown';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: const Text("Openlib"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
       ),
-      body: const SingleChildScrollView(
-        physics: BouncingScrollPhysics(),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.vertical,
         child: Padding(
-          padding: EdgeInsets.only(left: 5, right: 5, top: 10),
+          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TitleText("About"),
-              Padding(
+              const TitleText("About"),
+              const Padding(
                 padding:
                     EdgeInsets.only(left: 7, right: 7, top: 13, bottom: 10),
                 child: Text(
-                  "An Open source app to download and read books from shadow library (Anna`s Archive) By --DHR-Store.",
+                  "An Open source app to download and read books from shadow library (Anna's Archive).",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
-              Padding(
+              const Padding(
                 padding: EdgeInsets.only(left: 7, right: 7, top: 10),
+                child: Text(
+                  "This is a forked version maintained by warreth for personal use and community updates.",
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.grey),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 7, right: 7, top: 5),
+                child: Text(
+                  "Original app by dstark5 (https://github.com/dstark5/Openlib).",
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Colors.grey),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 7, right: 7, top: 15),
                 child: Text(
                   "Version",
                   style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ),
               Padding(
-                padding: EdgeInsets.only(left: 7, right: 7, top: 5),
+                padding: const EdgeInsets.only(left: 7, right: 7, top: 5),
                 child: Text(
-                  version,
-                  style: TextStyle(
+                  _version,
+                  style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey),
                 ),
               ),
-              Padding(
+              const Padding(
                 padding: EdgeInsets.only(left: 7, right: 7, top: 15),
                 child: Text(
                   "Github",
                   style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ),
-              _UrlText(
+              const _UrlText(
+                  text: 'This Fork (by warreth)',
+                  url: 'https://github.com/warreth/OpenlibExtended'),
+              const _UrlText(
                   text: 'Report An Issue',
-                  url: 'https://github.com/DHR-Store/Openlib/issues'),
-              _UrlText(
-                  text: 'Share Openlib',
-                  url: 'https://dhr-store.vercel.app/app6.html'),
-              Padding(
+                  url: 'https://github.com/warreth/OpenlibExtended/issues'),
+              const _UrlText(
+                  text: 'Original Project (by dstark5)',
+                  url: 'https://github.com/dstark5/Openlib'),
+              const Padding(
                 padding: EdgeInsets.only(left: 7, right: 7, top: 15),
                 child: Text(
                   "Licence",
                   style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ),
-              _UrlText(
+              const _UrlText(
                   text: "GPL v3.0 license",
                   url: 'https://www.gnu.org/licenses/gpl-3.0.en.html'),
             ],

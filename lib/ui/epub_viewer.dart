@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_file/open_file.dart';
-import 'package:openlib/services/database.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
@@ -25,30 +24,29 @@ Future<void> launchEpubViewer({
   required BuildContext context,
   required WidgetRef ref,
 }) async {
-  if (Platform.isAndroid || Platform.isIOS) {
-    MyLibraryDb dataBase = MyLibraryDb.instance;
+  try {
     String path = await getFilePath(fileName);
     bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
 
+    // Check if user wants external app
     if (openWithExternalApp) {
-      await OpenFile.open(path, linuxByProcess: true);
+      await OpenFile.open(path, linuxByProcess: true, type: "application/epub+zip");
     } else {
       try {
-        // Push to internal Epub Viewer
+        // Use internal Epub Viewer for all platforms (epub_view supports desktop)
         // ignore: use_build_context_synchronously
-        Navigator.push(context,
-            MaterialPageRoute(builder: (BuildContext context) {
+        Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
           return EpubViewerWidget(fileName: fileName);
         }));
       } catch (e) {
         // ignore: use_build_context_synchronously
-        showSnackBar(context: context, message: 'Unable to open epub!');
+        showSnackBar(context: context, message: "Unable to open epub!");
       }
     }
-  } else {
-    Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-      return EpubViewerWidget(fileName: fileName);
-    }));
+  } catch (e) {
+    // File doesn't exist or can't be accessed
+    // ignore: use_build_context_synchronously
+    showSnackBar(context: context, message: "File not found. The download may have failed.");
   }
 }
 
@@ -108,12 +106,13 @@ class EpubViewer extends ConsumerStatefulWidget {
   final String fileName;
 
   @override
-  _EpubViewerState createState() => _EpubViewerState();
+  ConsumerState<EpubViewer> createState() => _EpubViewerState();
 }
 
 class _EpubViewerState extends ConsumerState<EpubViewer> {
   late EpubController _epubReaderController;
   String? epubConf;
+  final Set<int> _activePointers = {};
 
   @override
   void initState() {
@@ -125,9 +124,8 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
 
   @override
   void deactivate() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      saveEpubState(widget.fileName, epubConf, ref);
-    }
+    // Save EPUB state on all platforms (mobile and desktop)
+    saveEpubState(widget.fileName, epubConf, ref);
     super.deactivate();
   }
 
@@ -135,6 +133,21 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
   void dispose() {
     _epubReaderController.dispose();
     super.dispose();
+  }
+
+  void _navigateToPreviousChapter() {
+    final currentValue = _epubReaderController.currentValue;
+    if (currentValue != null && currentValue.chapterNumber > 0) {
+      _epubReaderController.jumpTo(index: currentValue.chapterNumber - 1);
+    }
+  }
+
+  void _navigateToNextChapter() {
+    final currentValue = _epubReaderController.currentValue;
+    if (currentValue != null) {
+      // Try to go to next chapter (will fail silently if at last chapter)
+      _epubReaderController.jumpTo(index: currentValue.chapterNumber + 1);
+    }
   }
 
   @override
@@ -151,34 +164,38 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
       ),
       body: position.when(
         data: (data) {
-          return EpubView(
-            onDocumentLoaded: (doc) {
-              Future.delayed(const Duration(milliseconds: 20), () {
-                if (data != null && data.isNotEmpty) {
-                  _epubReaderController.gotoEpubCfi(data);
-                }
-              });
-            },
-            onChapterChanged: (value) {
-              epubConf = _epubReaderController.generateEpubCfi();
-            },
-            builders: EpubViewBuilders<DefaultBuilderOptions>(
-              options: const DefaultBuilderOptions(),
-              chapterDividerBuilder: (_) => const Divider(),
+          return _buildTapNavigationWrapper(
+            EpubView(
+              onDocumentLoaded: (doc) {
+                Future.delayed(const Duration(milliseconds: 20), () {
+                  if (data != null && data.isNotEmpty) {
+                    _epubReaderController.gotoEpubCfi(data);
+                  }
+                });
+              },
+              onChapterChanged: (value) {
+                epubConf = _epubReaderController.generateEpubCfi();
+              },
+              builders: EpubViewBuilders<DefaultBuilderOptions>(
+                options: const DefaultBuilderOptions(),
+                chapterDividerBuilder: (_) => const Divider(),
+              ),
+              controller: _epubReaderController,
             ),
-            controller: _epubReaderController,
           );
         },
         error: (err, _) {
-          return EpubView(
-            onChapterChanged: (value) {
-              epubConf = _epubReaderController.generateEpubCfi();
-            },
-            builders: EpubViewBuilders<DefaultBuilderOptions>(
-              options: const DefaultBuilderOptions(),
-              chapterDividerBuilder: (_) => const Divider(),
+          return _buildTapNavigationWrapper(
+            EpubView(
+              onChapterChanged: (value) {
+                epubConf = _epubReaderController.generateEpubCfi();
+              },
+              builders: EpubViewBuilders<DefaultBuilderOptions>(
+                options: const DefaultBuilderOptions(),
+                chapterDividerBuilder: (_) => const Divider(),
+              ),
+              controller: _epubReaderController,
             ),
-            controller: _epubReaderController,
           );
         },
         loading: () {
@@ -193,6 +210,34 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildTapNavigationWrapper(Widget child) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) => _activePointers.add(event.pointer),
+      onPointerUp: (event) {
+        _activePointers.remove(event.pointer);
+        
+        // Only handle navigation on single-finger taps
+        if (_activePointers.isEmpty) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final tapPosition = event.position.dx;
+          
+          // Divide screen into three zones: left (30%), center (40%), right (30%)
+          if (tapPosition < screenWidth * 0.3) {
+            // Left zone - previous chapter
+            _navigateToPreviousChapter();
+          } else if (tapPosition > screenWidth * 0.7) {
+            // Right zone - next chapter
+            _navigateToNextChapter();
+          }
+          // Center zone (30-70%) - no action, allows text selection
+        }
+      },
+      onPointerCancel: (event) => _activePointers.remove(event.pointer),
+      child: child, // Direct child, no overlay
     );
   }
 }
