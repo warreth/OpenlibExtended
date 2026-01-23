@@ -2,6 +2,9 @@
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
 
+// Project imports:
+import 'package:openlib/services/logger.dart';
+
 class TrendingBookData {
   final String? title;
   final String? thumbnail;
@@ -11,6 +14,7 @@ class TrendingBookData {
 abstract class TrendingBooksImpl {
   String url = '';
   int timeOutDuration = 20;
+  final AppLogger _logger = AppLogger();
   List<TrendingBookData> _parser(dynamic data);
 
   Future<List<TrendingBookData>> trendingBooks() async {
@@ -21,7 +25,9 @@ abstract class TrendingBooksImpl {
               sendTimeout: Duration(seconds: timeOutDuration),
               receiveTimeout: Duration(seconds: timeOutDuration)));
       return _parser(response.data.toString());
-    } on DioException {
+    } on DioException catch (e) {
+      _logger.warning('Failed to fetch trending books',
+          tag: 'TrendingBooks', metadata: {'url': url, 'error': e.message});
       return [];
     }
   }
@@ -70,7 +76,9 @@ class OpenLibrary extends TrendingBooksImpl {
               sendTimeout: const Duration(seconds: timeOutDuration),
               receiveTimeout: const Duration(seconds: timeOutDuration)));
       return _parser('${response.data.toString()}${response2.data.toString()}');
-    } on DioException {
+    } on DioException catch (e) {
+      _logger.warning('Failed to fetch OpenLibrary trending books',
+          tag: 'OpenLibrary', metadata: {'error': e.message});
       return [];
     }
   }

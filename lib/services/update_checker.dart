@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 // Flutter imports:
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -499,7 +500,61 @@ class UpdateCheckerService {
       return false;
     }
 
-    // Method 1: Try apk_sideload (handles FileProvider and permissions well)
+    // Warn about debug builds
+    if (kDebugMode && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Debug Build Detected: Update may fail with 'App not installed' due to signature mismatch. Uninstall this app first.",
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 10),
+        ),
+      );
+    }
+
+    // Method 1: Try open_file (Most standard method)
+    attemptedMethods.add("Open File");
+    try {
+      _logger.info("Attempting installation with open_file",
+          tag: "UpdateChecker");
+      final result = await OpenFile.open(filePath,
+          type: "application/vnd.android.package-archive");
+      if (result.type == ResultType.done) {
+        _logger.info("open_file installation initiated", tag: "UpdateChecker");
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                  "Opening installer... If nothing happens, the install failed."),
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: "Manual Install",
+                onPressed: () {
+                  if (context.mounted) {
+                    _showInstallFallbackDialog(context, filePath,
+                        attemptedMethods, ["May have failed silently"]);
+                  }
+                },
+              ),
+            ),
+          );
+        }
+        return true;
+      }
+      final errorMsg =
+          "Result type: ${result.type.name}, message: ${result.message}";
+      errorMessages.add(errorMsg);
+      _logger.warning("open_file failed",
+          tag: "UpdateChecker", metadata: {"result": result.type.name});
+    } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
+      _logger.warning("open_file failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // Method 2: Try apk_sideload
     attemptedMethods.add("APK Sideload");
     try {
       _logger.info("Attempting installation with apk_sideload",
@@ -507,7 +562,7 @@ class UpdateCheckerService {
       await InstallApk().installApk(filePath);
       _logger.info("apk_sideload installation initiated", tag: "UpdateChecker");
 
-      // Show user that installer was opened (it may still fail silently on some devices)
+      // Show user that installer was opened
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -539,7 +594,7 @@ class UpdateCheckerService {
           tag: "UpdateChecker", metadata: {"error": e.toString()});
     }
 
-    // Method 2: Try android_package_installer
+    // Method 3: Try android_package_installer
     attemptedMethods.add("Package Installer");
     try {
       _logger.info("Attempting installation with android_package_installer",
@@ -583,47 +638,6 @@ class UpdateCheckerService {
       final errorMsg = e.toString();
       errorMessages.add(errorMsg);
       _logger.warning("android_package_installer failed",
-          tag: "UpdateChecker", metadata: {"error": e.toString()});
-    }
-
-    // Method 3: Try open_file with MIME type
-    attemptedMethods.add("Open File");
-    try {
-      _logger.info("Attempting installation with open_file",
-          tag: "UpdateChecker");
-      final result = await OpenFile.open(filePath,
-          type: "application/vnd.android.package-archive");
-      if (result.type == ResultType.done) {
-        _logger.info("open_file installation initiated", tag: "UpdateChecker");
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                  "Opening installer... If nothing happens, the install failed."),
-              duration: const Duration(seconds: 5),
-              action: SnackBarAction(
-                label: "Manual Install",
-                onPressed: () {
-                  if (context.mounted) {
-                    _showInstallFallbackDialog(context, filePath,
-                        attemptedMethods, ["May have failed silently"]);
-                  }
-                },
-              ),
-            ),
-          );
-        }
-        return true;
-      }
-      final errorMsg =
-          "Result type: ${result.type.name}, message: ${result.message}";
-      errorMessages.add(errorMsg);
-      _logger.warning("open_file failed",
-          tag: "UpdateChecker", metadata: {"result": result.type.name});
-    } catch (e) {
-      final errorMsg = e.toString();
-      errorMessages.add(errorMsg);
-      _logger.warning("open_file failed",
           tag: "UpdateChecker", metadata: {"error": e.toString()});
     }
 
@@ -1054,18 +1068,18 @@ class UpdateCheckerService {
 
     return showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: Row(
             children: [
               Icon(Icons.system_update,
-                  color: Theme.of(context).colorScheme.secondary),
+                  color: Theme.of(dialogContext).colorScheme.secondary),
               const SizedBox(width: 10),
               Text(
                 "Update Available",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.secondary,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
                 ),
               ),
             ],
@@ -1080,7 +1094,7 @@ class UpdateCheckerService {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.tertiary,
+                    color: Theme.of(dialogContext).colorScheme.tertiary,
                   ),
                 ),
                 if (release.isPrerelease)
@@ -1108,7 +1122,7 @@ class UpdateCheckerService {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.tertiary,
+                      color: Theme.of(dialogContext).colorScheme.tertiary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1119,7 +1133,7 @@ class UpdateCheckerService {
                         release.body,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context)
+                          color: Theme.of(dialogContext)
                               .colorScheme
                               .tertiary
                               .withValues(alpha: 0.8),
@@ -1133,11 +1147,11 @@ class UpdateCheckerService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(
                 "Later",
                 style: TextStyle(
-                  color: Theme.of(context)
+                  color: Theme.of(dialogContext)
                       .colorScheme
                       .tertiary
                       .withValues(alpha: 0.7),
@@ -1148,7 +1162,7 @@ class UpdateCheckerService {
             if (downloadUrl != null && (Platform.isAndroid || Platform.isIOS))
               TextButton(
                 onPressed: () async {
-                  Navigator.of(context).pop();
+                  Navigator.of(dialogContext).pop();
                   if (context.mounted) {
                     await _showUpdateDownloadDialog(context, release);
                   }
@@ -1157,7 +1171,7 @@ class UpdateCheckerService {
                   "Download & Install",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.secondary,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
                   ),
                 ),
               ),
@@ -1165,7 +1179,7 @@ class UpdateCheckerService {
             if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
               TextButton(
                 onPressed: () async {
-                  Navigator.of(context).pop();
+                  Navigator.of(dialogContext).pop();
                   if (downloadUrl != null && context.mounted) {
                     await _showUpdateDownloadDialog(context, release);
                   } else {
@@ -1182,7 +1196,7 @@ class UpdateCheckerService {
                       : "Download from GitHub",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.secondary,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
                   ),
                 ),
               ),

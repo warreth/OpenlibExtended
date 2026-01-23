@@ -51,3 +51,5 @@ app.*.map.json
 *.jdk/
 openJdk-25.jdk/
 oracleJdk-25.jdk/
+android/.kotlin/
+test/android-test.sh

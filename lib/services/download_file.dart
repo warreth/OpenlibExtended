@@ -8,8 +8,10 @@ import 'package:dio/dio.dart';
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/services/files.dart' show generateBookFileName;
+import 'package:openlib/services/logger.dart';
 
 MyLibraryDb dataBase = MyLibraryDb.instance;
+final AppLogger _logger = AppLogger();
 
 Future<String> _getFilePath(String fileName) async {
   String bookStorageDirectory =
@@ -68,7 +70,9 @@ Future<void> downloadFile(
     required Function(String) onFileName,
     required Function onDownlaodFailed}) async {
   if (mirrors.isEmpty) {
-    onDownlaodFailed('No mirrors available!');
+    _logger.warning('Download failed - no mirrors available', tag: 'Download');
+    onDownlaodFailed(
+        'No mirrors available! The book may have been removed or is temporarily unavailable.');
   } else {
     Dio dio = Dio();
 
@@ -83,9 +87,14 @@ Future<void> downloadFile(
     String path = await _getFilePath(bookFileName);
     List<String> orderedMirrors = _reorderMirrors(mirrors);
 
+    _logger.debug('Attempting download with ${orderedMirrors.length} mirrors',
+        tag: 'Download', metadata: {'fileName': bookFileName});
+
     String? workingMirror = await _getAliveMirror(orderedMirrors);
 
     if (workingMirror != null) {
+      _logger.info('Found working mirror',
+          tag: 'Download', metadata: {'mirror': workingMirror});
       onStart();
       onFileName(bookFileName);
       try {
@@ -108,7 +117,10 @@ Future<void> downloadFile(
           cancelToken: cancelToken,
         ).catchError((err) {
           if (err.type != DioExceptionType.cancel) {
-            onDownlaodFailed('downloaded Failed! try again...');
+            _logger.error('Download failed',
+                tag: 'Download', error: err.toString());
+            onDownlaodFailed(
+                'Download failed! Check your internet connection and try again.');
           }
           throw err;
         });
@@ -116,11 +128,16 @@ Future<void> downloadFile(
         mirrorStatus(true);
 
         cancelDownlaod(cancelToken);
-      } catch (_) {
-        onDownlaodFailed('downloaded Failed! try again...');
+      } catch (e) {
+        _logger.error('Download exception', tag: 'Download', error: e);
+        onDownlaodFailed(
+            'Download failed! Check your internet connection and try again.');
       }
     } else {
-      onDownlaodFailed('No working mirrors available to download book!');
+      _logger.warning('No working mirrors found',
+          tag: 'Download', metadata: {'mirrorCount': orderedMirrors.length});
+      onDownlaodFailed(
+          'No working mirrors available. The download servers may be temporarily down. Try again later or use a VPN.');
     }
   }
 }

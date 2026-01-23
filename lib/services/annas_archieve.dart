@@ -9,6 +9,7 @@ import 'package:html/dom.dart' as dom;
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/network_error.dart';
 
 // ====================================================================
 // DATA MODELS
@@ -73,6 +74,41 @@ class AnnasArchieve {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
   };
 
+  // Check for Cloudflare block in response
+  bool _isCloudflareBlocked(Response response) {
+    // Check cf-mitigated header
+    if (response.headers.value("cf-mitigated") == "challenge") {
+      return true;
+    }
+
+    // Check response body for Cloudflare markers
+    final body = response.data?.toString().toLowerCase() ?? "";
+    final markers = [
+      "checking your browser",
+      "cloudflare",
+      "cf-browser-verification",
+      "just a moment",
+      "enable javascript and cookies",
+      "ray id:",
+      "attention required",
+      "ddos protection",
+    ];
+
+    for (final marker in markers) {
+      if (body.contains(marker)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Convert DioException to user-friendly NetworkError with async diagnostics
+  Future<NetworkError> _handleErrorAsync(dynamic error,
+      {String? responseBody, String? targetHost}) async {
+    return await NetworkError.fromExceptionAsync(error,
+        responseBody: responseBody, targetHost: targetHost);
+  }
+
   // Try request with optimized retry logic - fast failure and fallback
   Future<T> _requestWithRetry<T>(
     Future<T> Function(String baseUrl) requestFn,
@@ -85,10 +121,12 @@ class AnnasArchieve {
     }
 
     Exception? lastException;
+    String? lastUsedHost;
 
     // Try each instance - they should already be sorted by speed from auto-ranking
     for (int i = 0; i < instances.length; i++) {
       final instance = instances[i];
+      lastUsedHost = instance.baseUrl;
 
       // Fewer retries for subsequent instances (they're slower)
       final retriesForThis = i == 0 ? maxRetriesPerInstance : 0;
@@ -127,9 +165,14 @@ class AnnasArchieve {
       }
     }
 
-    // All instances failed
+    // All instances failed - throw with diagnostic info
     _logger.error('All instances failed', tag: 'AnnasArchive');
-    throw lastException ?? Exception('All instances failed');
+
+    // Throw a diagnostic NetworkError instead of the raw exception
+    throw await _handleErrorAsync(
+      lastException ?? Exception('All instances failed'),
+      targetHost: lastUsedHost,
+    );
   }
 
   String getMd5(String url) {
@@ -407,19 +450,40 @@ class AnnasArchieve {
             tag: 'AnnasArchive', metadata: {'url': encodedURL});
         final response = await dio.get(encodedURL,
             options: Options(headers: defaultDioHeaders));
+
+        // Check for Cloudflare block in the response
+        if (_isCloudflareBlocked(response)) {
+          _logger.warning('Cloudflare block detected in search response',
+              tag: 'AnnasArchive');
+          throw NetworkError(
+            type: NetworkErrorType.cloudflareBlock,
+            userMessage: "Access blocked by Cloudflare protection",
+            solution:
+                "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
+            technicalDetails: "Cloudflare challenge detected in response",
+            rawResponseBody: response.data?.toString(),
+          );
+        }
+
         return _parser(response.data, fileType, currentBaseUrl);
       });
 
       _logger.info('Search completed',
           tag: 'AnnasArchive', metadata: {'results': books.length});
       return books;
+    } on NetworkError {
+      // Re-throw NetworkError as-is for proper UI handling
+      rethrow;
     } on DioException catch (e) {
       _logger.error('Search failed',
           tag: 'AnnasArchive', error: e.message ?? e.error);
-      if (e.type == DioExceptionType.unknown) {
-        throw "socketException";
-      }
-      rethrow;
+      // Convert to user-friendly NetworkError with diagnostics
+      throw await _handleErrorAsync(e,
+          responseBody: e.response?.data?.toString());
+    } catch (e) {
+      _logger.error('Unexpected search error',
+          tag: 'AnnasArchive', error: e.toString());
+      throw await _handleErrorAsync(e);
     }
   }
 
@@ -445,12 +509,33 @@ class AnnasArchieve {
             tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
         final response = await dio.get(adjustedUrl,
             options: Options(headers: defaultDioHeaders));
+
+        // Check for Cloudflare block in the response
+        if (_isCloudflareBlocked(response)) {
+          _logger.warning('Cloudflare block detected in book info response',
+              tag: 'AnnasArchive');
+          throw NetworkError(
+            type: NetworkErrorType.cloudflareBlock,
+            userMessage: "Access blocked by Cloudflare protection",
+            solution:
+                "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
+            technicalDetails: "Cloudflare challenge detected in response",
+            rawResponseBody: response.data?.toString(),
+          );
+        }
+
         BookInfoData? data =
             await _bookInfoParser(response.data, adjustedUrl, currentBaseUrl);
         if (data != null) {
           return data;
         } else {
-          throw 'unable to get data';
+          throw NetworkError(
+            type: NetworkErrorType.unknown,
+            userMessage: "Unable to load book details",
+            solution:
+                "The book information could not be retrieved. Try again or try a different mirror in Settings.",
+            technicalDetails: "Parser returned null for URL: $adjustedUrl",
+          );
         }
       });
 
@@ -462,13 +547,19 @@ class AnnasArchieve {
             'hasMirror': data.mirror != null,
           });
       return data;
+    } on NetworkError {
+      // Re-throw NetworkError as-is for proper UI handling
+      rethrow;
     } on DioException catch (e) {
       _logger.error('Failed to fetch book info',
           tag: 'AnnasArchive', error: e.message ?? e.error);
-      if (e.type == DioExceptionType.unknown) {
-        throw "socketException";
-      }
-      rethrow;
+      // Convert to user-friendly NetworkError with diagnostics
+      throw await _handleErrorAsync(e,
+          responseBody: e.response?.data?.toString());
+    } catch (e) {
+      _logger.error('Unexpected book info error',
+          tag: 'AnnasArchive', error: e.toString());
+      throw await _handleErrorAsync(e);
     }
   }
 }
