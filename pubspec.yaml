@@ -70,6 +70,7 @@ dependencies:
   yaml: ^3.1.2
   package_info_plus: ^8.0.0
   desktop_webview_window: ^0.2.3
+  android_package_installer: ^0.0.3
 
 dev_dependencies:
   import_sorter: ^4.6.0

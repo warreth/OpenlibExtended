@@ -6,11 +6,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 // Package imports:
+import 'package:android_package_installer/android_package_installer.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
@@ -281,15 +283,76 @@ class UpdateCheckerService {
 
   // Get the downloads directory for storing the update file
   Future<Directory> _getDownloadsDirectory() async {
-    if (Platform.isAndroid) {
-      // Use external cache for Android
-      final cacheDir = await getExternalStorageDirectory();
-      if (cacheDir != null) {
-        return cacheDir;
-      }
-    }
-    // Fallback to temp directory
+    // Use temp directory for all platforms - this works better with FileProvider on Android
     return await getTemporaryDirectory();
+  }
+
+  // Check and request install packages permission on Android
+  Future<bool> _checkAndRequestInstallPermission(BuildContext context) async {
+    if (!Platform.isAndroid) return true;
+
+    // Check if permission is already granted
+    final status = await Permission.requestInstallPackages.status;
+    if (status.isGranted) return true;
+
+    // Show explanation dialog and request permission
+    if (!context.mounted) return false;
+
+    final shouldRequest = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.security,
+                  color: Theme.of(dialogContext).colorScheme.secondary),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Permission Required",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            "To install app updates, Openlib needs permission to install packages.\n\n"
+            "This allows the app to automatically install new versions with bug fixes and new features.\n\n"
+            "You will be taken to Settings to enable this permission.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                "Cancel",
+                style: TextStyle(
+                  color: Theme.of(dialogContext)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                "Open Settings",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRequest != true) return false;
+
+    // Request permission - this will open settings on Android 8+
+    final result = await Permission.requestInstallPackages.request();
+    return result.isGranted;
   }
 
   // Download update file with progress tracking
@@ -366,16 +429,56 @@ class UpdateCheckerService {
   }
 
   // Open/Install the downloaded update file
-  Future<void> openUpdateFile(String filePath) async {
+  Future<bool> openUpdateFile(String filePath, BuildContext context) async {
     try {
       _logger.info("Opening update file", tag: "UpdateChecker", metadata: {
         "path": filePath,
       });
 
+      // Verify file exists and has content
+      final file = File(filePath);
+      if (!await file.exists()) {
+        _logger.error("Update file does not exist", tag: "UpdateChecker");
+        throw Exception("Downloaded file not found");
+      }
+
+      final fileSize = await file.length();
+      if (fileSize < 1024) {
+        _logger.error("Update file is too small, likely corrupted",
+            tag: "UpdateChecker", metadata: {"size": fileSize});
+        throw Exception("Downloaded file appears to be corrupted (too small)");
+      }
+
+      _logger.info("File verified", tag: "UpdateChecker", metadata: {
+        "size": fileSize,
+      });
+
       if (Platform.isAndroid) {
-        // Open APK for installation
-        await OpenFile.open(filePath,
-            type: "application/vnd.android.package-archive");
+        // Check and request install permission first
+        final hasPermission = await _checkAndRequestInstallPermission(context);
+        if (!hasPermission) {
+          _logger.warning("Install permission denied", tag: "UpdateChecker");
+          return false;
+        }
+
+        // Use android_package_installer for proper APK installation
+        final statusCode = await AndroidPackageInstaller.installApk(
+          apkFilePath: filePath,
+        );
+
+        if (statusCode != null) {
+          final status = PackageInstallerStatus.byCode(statusCode);
+          _logger.info("APK installation result",
+              tag: "UpdateChecker",
+              metadata: {"status": status.name, "code": statusCode});
+
+          if (status == PackageInstallerStatus.success) {
+            return true;
+          } else {
+            throw Exception("Installation failed: ${status.name}");
+          }
+        }
+        return true;
       } else if (Platform.isWindows) {
         // Run the exe installer
         await Process.start(filePath, [], mode: ProcessStartMode.detached);
@@ -389,6 +492,7 @@ class UpdateCheckerService {
         // iOS requires special handling via MDM or TestFlight
         await OpenFile.open(filePath);
       }
+      return true;
     } catch (e, stackTrace) {
       _logger.error("Failed to open update file",
           tag: "UpdateChecker", error: e, stackTrace: stackTrace);
@@ -422,8 +526,20 @@ class UpdateCheckerService {
     );
 
     // Open the downloaded file if successful
-    if (downloadedFilePath != null) {
-      await openUpdateFile(downloadedFilePath!);
+    if (downloadedFilePath != null && context.mounted) {
+      try {
+        await openUpdateFile(downloadedFilePath!, context);
+      } catch (e) {
+        // Show error to user
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Failed to install update: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
