@@ -11,7 +11,7 @@ import 'package:openlib/state/state.dart' show myLibraryProvider;
 
 MyLibraryDb dataBase = MyLibraryDb.instance;
 
-// Generate a safe filename from book metadata: title_author_info.extension
+// Generate a safe filename: Title.extension
 String generateBookFileName({
   required String title,
   String? author,
@@ -19,13 +19,68 @@ String generateBookFileName({
   required String format,
   required String md5,
 }) {
-  // Sanitize text by removing/replacing invalid characters for filenames
-  String sanitize(String text) {
+  // Remove emojis, icons and non-ASCII characters
+  String removeSpecialChars(String text) {
     return text
-        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '')
-        .replaceAll(RegExp(r'\s+'), '_')
-        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'[\u{1F300}-\u{1F9FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2600}-\u{26FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2700}-\u{27BF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[^\x00-\x7F]+'), '')
         .trim();
+  }
+
+  // Extract text from parentheses and combine with main title
+  String extractAndCombineTitle(String text) {
+    String cleaned = removeSpecialChars(text);
+
+    // Extract content inside parentheses
+    List<String> parentheticalContent = [];
+    RegExp parenRegex = RegExp(r'\(([^)]+)\)');
+    for (var match in parenRegex.allMatches(cleaned)) {
+      String content = match.group(1)?.trim() ?? '';
+      if (content.isNotEmpty) {
+        parentheticalContent.add(content);
+      }
+    }
+
+    // Remove parentheses and their content from main title
+    String mainTitle = cleaned.replaceAll(parenRegex, ' ');
+
+    // Remove brackets and their content
+    mainTitle = mainTitle.replaceAll(RegExp(r'\[[^\]]*\]'), '');
+
+    // Remove numbering patterns like "- 184"
+    mainTitle = mainTitle.replaceAll(RegExp(r'\s*-\s*\d+\s*'), ' ');
+
+    // Remove special characters
+    mainTitle = mainTitle.replaceAll(RegExp(r'[<>:"/\\|?*·,;]'), '').trim();
+
+    // Convert main title to PascalCase
+    String toPascalCase(String input) {
+      List<String> words = input.split(RegExp(r'\s+'));
+      words = words.where((w) => w.isNotEmpty).map((w) {
+        String lower = w.toLowerCase();
+        if (lower.length > 1) {
+          return lower[0].toUpperCase() + lower.substring(1);
+        }
+        return lower.toUpperCase();
+      }).toList();
+      return words.join('');
+    }
+
+    String result = toPascalCase(mainTitle);
+
+    // Add parenthetical content as separate parts
+    for (var content in parentheticalContent) {
+      String cleanedContent =
+          content.replaceAll(RegExp(r'[<>:"/\\|?*·,;]'), '').trim();
+      String pascalContent = toPascalCase(cleanedContent);
+      if (pascalContent.isNotEmpty) {
+        result = "${result}_$pascalContent";
+      }
+    }
+
+    return result;
   }
 
   // Truncate string to max length
@@ -34,34 +89,18 @@ String generateBookFileName({
     return text.substring(0, maxLength);
   }
 
-  String safeTitle = sanitize(title);
-  String safeAuthor = author != null ? sanitize(author) : "";
-  String safeInfo = info != null ? sanitize(info) : "";
+  String safeTitle = extractAndCombineTitle(title);
 
-  // Build filename parts
-  List<String> parts = [];
-  if (safeTitle.isNotEmpty) {
-    parts.add(truncate(safeTitle, 80));
-  }
-  if (safeAuthor.isNotEmpty) {
-    parts.add(truncate(safeAuthor, 40));
-  }
-  if (safeInfo.isNotEmpty) {
-    parts.add(truncate(safeInfo, 30));
-  }
-
-  // Add md5 suffix for uniqueness
-  parts.add(truncate(md5, 8));
-
-  String baseName = parts.join("_");
-
-  // Ensure total filename is not too long (max 200 chars before extension)
-  if (baseName.length > 200) {
-    baseName = baseName.substring(0, 200);
-  }
+  // Ensure filename is not too long (max 200 chars before extension)
+  String baseName = truncate(safeTitle, 200);
 
   // Remove trailing underscores
   baseName = baseName.replaceAll(RegExp(r'_+$'), '');
+
+  // Fallback to md5 if title is empty
+  if (baseName.isEmpty) {
+    baseName = md5.substring(0, 8);
+  }
 
   return "$baseName.$format";
 }

@@ -138,6 +138,19 @@ class AnnasArchieve {
     return pathSegments.isNotEmpty ? pathSegments.last : '';
   }
 
+  // Remove emojis, icons and non-standard characters from text
+  String cleanText(String text) {
+    return text
+        .replaceAll(RegExp(r'[\u{1F300}-\u{1F9FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2600}-\u{26FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2700}-\u{27BF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{1F600}-\u{1F64F}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{1F680}-\u{1F6FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'🔍'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   String getFormat(String info) {
     final infoLower = info.toLowerCase();
     if (infoLower.contains('pdf')) {
@@ -171,7 +184,7 @@ class AnnasArchieve {
         continue;
       }
 
-      final String title = mainLinkElement.text.trim();
+      final String title = cleanText(mainLinkElement.text.trim());
       final String link = currentBaseUrl + mainLinkElement.attributes['href']!;
       final String md5 = getMd5(mainLinkElement.attributes['href']!);
       final String? thumbnail = thumbnailElement?.attributes['src'];
@@ -191,10 +204,12 @@ class AnnasArchieve {
 
       final String? authorRaw = authorLinkElement?.text.trim();
       final String? author = (authorRaw != null && authorRaw.contains('icon-'))
-          ? authorRaw.split(' ').skip(1).join(' ').trim()
-          : authorRaw;
+          ? cleanText(authorRaw.split(' ').skip(1).join(' ').trim())
+          : (authorRaw != null ? cleanText(authorRaw) : null);
 
-      final String? publisher = publisherLinkElement?.text.trim();
+      final String? publisherRaw = publisherLinkElement?.text.trim();
+      final String? publisher =
+          publisherRaw != null ? cleanText(publisherRaw) : null;
 
       final infoElement = container.querySelector('div.text-gray-800');
       // No need for _safeParse here if we only treat info as a string
@@ -279,11 +294,14 @@ class AnnasArchieve {
       return null;
     }
 
-    final String title = titleElement.text.trim().split('<span')[0].trim();
-    final String author = authorLinkElement?.text.trim() ?? "unknown";
+    final String title =
+        cleanText(titleElement.text.trim().split('<span')[0].trim());
+    final String author =
+        cleanText(authorLinkElement?.text.trim() ?? "unknown");
     final String? thumbnail = thumbnailElement?.attributes['src'];
 
-    final String publisher = publisherLinkElement?.text.trim() ?? "unknown";
+    final String publisher =
+        cleanText(publisherLinkElement?.text.trim() ?? "unknown");
     // NOTE: If you extract any numeric data from the 'info' string later in your app (e.g., file size or page count)
     // and attempt to convert it to an integer or double, that's where you should use _safeParse.
     final String info = infoElement?.text.trim() ?? '';
