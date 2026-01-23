@@ -48,6 +48,97 @@ Map<String, String> sortValues = {
 
 List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
 
+// Language filter values (display name: code)
+Map<String, String> languageValues = {
+  "All": "",
+  "English": "en",
+  "Spanish": "es",
+  "French": "fr",
+  "German": "de",
+  "Italian": "it",
+  "Portuguese": "pt",
+  "Russian": "ru",
+  "Chinese": "zh",
+  "Japanese": "ja",
+  "Korean": "ko",
+  "Arabic": "ar",
+  "Hindi": "hi",
+  "Dutch": "nl",
+  "Polish": "pl",
+  "Turkish": "tr",
+  "Swedish": "sv",
+  "Indonesian": "id",
+  "Vietnamese": "vi",
+  "Czech": "cs",
+  "Greek": "el",
+  "Romanian": "ro",
+  "Hungarian": "hu",
+  "Ukrainian": "uk",
+  "Hebrew": "he",
+  "Thai": "th",
+  "Persian": "fa",
+  "Bengali": "bn",
+  "Finnish": "fi",
+  "Norwegian": "no",
+  "Danish": "da",
+};
+
+// Reverse map: language code to uppercase display code
+Map<String, String> languageCodeToDisplay = {
+  "en": "EN",
+  "es": "ES",
+  "fr": "FR",
+  "de": "DE",
+  "it": "IT",
+  "pt": "PT",
+  "ru": "RU",
+  "zh": "ZH",
+  "ja": "JA",
+  "ko": "KO",
+  "ar": "AR",
+  "hi": "HI",
+  "nl": "NL",
+  "pl": "PL",
+  "tr": "TR",
+  "sv": "SV",
+  "id": "ID",
+  "vi": "VI",
+  "cs": "CS",
+  "el": "EL",
+  "ro": "RO",
+  "hu": "HU",
+  "uk": "UK",
+  "he": "HE",
+  "th": "TH",
+  "fa": "FA",
+  "bn": "BN",
+  "fi": "FI",
+  "no": "NO",
+  "da": "DA",
+};
+
+// Year filter values for publishing year range
+List<String> yearValues = [
+  "All",
+  "2025",
+  "2024",
+  "2023",
+  "2022",
+  "2021",
+  "2020",
+  "2019",
+  "2018",
+  "2017",
+  "2016",
+  "2015",
+  "2010-2014",
+  "2005-2009",
+  "2000-2004",
+  "1990-1999",
+  "1980-1989",
+  "Before 1980",
+];
+
 // ====================================================================
 // ENUMS AND DATA CLASSES
 // ====================================================================
@@ -59,8 +150,9 @@ enum CheckSumProcessState { waiting, running, failed, success }
 class FileName {
   final String md5;
   final String format;
+  final String? fileName;
 
-  FileName({required this.md5, required this.format});
+  FileName({required this.md5, required this.format, this.fileName});
 }
 
 // ====================================================================
@@ -75,6 +167,8 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 final selectedTypeState = StateProvider<String>((ref) => "All");
 final selectedSortState = StateProvider<String>((ref) => "Most Relevant");
 final selectedFileTypeState = StateProvider<String>((ref) => "All");
+final selectedLanguageState = StateProvider<String>((ref) => "All");
+final selectedYearState = StateProvider<String>((ref) => "All");
 final searchQueryProvider = StateProvider<String>((ref) => "");
 final enableFiltersState = StateProvider<bool>((ref) => true);
 
@@ -82,12 +176,15 @@ final enableFiltersState = StateProvider<bool>((ref) => true);
 final cookieProvider = StateProvider<String>((ref) => "");
 final userAgentProvider = StateProvider<String>((ref) => "");
 final webViewLoadingState = StateProvider.autoDispose<bool>((ref) => true);
-final downloadProgressProvider = StateProvider.autoDispose<double>((ref) => 0.0);
+final downloadProgressProvider =
+    StateProvider.autoDispose<double>((ref) => 0.0);
 final mirrorStatusProvider = StateProvider.autoDispose<bool>((ref) => false);
 final totalFileSizeInBytes = StateProvider.autoDispose<int>((ref) => 0);
 final downloadedFileSizeInBytes = StateProvider.autoDispose<int>((ref) => 0);
-final downloadState = StateProvider.autoDispose<ProcessState>((ref) => ProcessState.waiting);
-final checkSumState = StateProvider.autoDispose<CheckSumProcessState>((ref) => CheckSumProcessState.waiting);
+final downloadState =
+    StateProvider.autoDispose<ProcessState>((ref) => ProcessState.waiting);
+final checkSumState = StateProvider.autoDispose<CheckSumProcessState>(
+    (ref) => CheckSumProcessState.waiting);
 final cancelCurrentDownload = StateProvider<CancelToken>((ref) {
   return CancelToken();
 });
@@ -101,8 +198,12 @@ final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
 // Download Settings
 final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
 
+// Instance Auto-Ranking Setting (default: enabled)
+final autoRankInstancesProvider = StateProvider<bool>((ref) => true);
+
 // Instance Management States
-final instanceManagerProvider = Provider<InstanceManager>((ref) => InstanceManager());
+final instanceManagerProvider =
+    Provider<InstanceManager>((ref) => InstanceManager());
 
 // Download Manager States
 final downloadManagerProvider = Provider<DownloadManager>((ref) {
@@ -111,17 +212,20 @@ final downloadManagerProvider = Provider<DownloadManager>((ref) {
   return manager;
 });
 
-final activeDownloadsProvider = StreamProvider<Map<String, DownloadTask>>((ref) {
+final activeDownloadsProvider =
+    StreamProvider<Map<String, DownloadTask>>((ref) {
   final manager = ref.watch(downloadManagerProvider);
   return manager.downloadsStream;
 });
 
-final archiveInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+final archiveInstancesProvider =
+    FutureProvider<List<ArchiveInstance>>((ref) async {
   final manager = ref.watch(instanceManagerProvider);
   return await manager.getInstances();
 });
 
-final enabledInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+final enabledInstancesProvider =
+    FutureProvider<List<ArchiveInstance>>((ref) async {
   final manager = ref.watch(instanceManagerProvider);
   return await manager.getEnabledInstances();
 });
@@ -146,6 +250,16 @@ final getSortValue = Provider.autoDispose<String>((ref) {
 final getFileTypeValue = Provider.autoDispose<String>((ref) {
   final selectedFile = ref.watch(selectedFileTypeState);
   return selectedFile == "All" ? '' : selectedFile.toLowerCase();
+});
+
+final getLanguageValue = Provider.autoDispose<String>((ref) {
+  return languageValues[ref.watch(selectedLanguageState)] ?? '';
+});
+
+final getYearValue = Provider.autoDispose<String>((ref) {
+  return ref.watch(selectedYearState) == "All"
+      ? ''
+      : ref.watch(selectedYearState);
 });
 
 // Helper function to convert bytes to readable file size
@@ -175,20 +289,22 @@ final getTrendingBooks = FutureProvider<List<TrendingBookData>>((ref) async {
   GoodReads goodReads = GoodReads();
   // Assuming these classes are available from your project imports
   // ignore: prefer_const_constructors
-  final penguinTrending = PenguinRandomHouse(); 
+  final penguinTrending = PenguinRandomHouse();
   // ignore: prefer_const_constructors
   final bookDigits = BookDigits();
 
-  List<TrendingBookData> trendingBooks = await Future.wait<List<TrendingBookData>>([
+  List<TrendingBookData> trendingBooks =
+      await Future.wait<List<TrendingBookData>>([
     goodReads.trendingBooks(),
     penguinTrending.trendingBooks(),
     // openLibrary.trendingBooks(), // Commented out as in the original
     bookDigits.trendingBooks(),
   ]).then((List<List<TrendingBookData>> listOfData) =>
-      listOfData.expand((element) => element).toList());
+          listOfData.expand((element) => element).toList());
 
   if (trendingBooks.isEmpty) {
-    throw Exception('Nothing Trending Today :('); // Use Exception instead of String
+    throw Exception(
+        'Nothing Trending Today :('); // Use Exception instead of String
   }
   trendingBooks.shuffle();
   return trendingBooks;
@@ -210,7 +326,8 @@ final getSubCategoryTypeList = FutureProvider.family
 // Provider for Anna's Archive Search Results
 final searchProvider = FutureProvider.family
     .autoDispose<List<BookData>, String>((ref, searchQuery) async {
-  if (searchQuery.isEmpty) return []; // Return empty list if search query is empty
+  if (searchQuery.isEmpty)
+    return []; // Return empty list if search query is empty
 
   final AnnasArchieve annasArchieve = AnnasArchieve();
   List<BookData> data = await annasArchieve.searchBooks(
@@ -218,6 +335,8 @@ final searchProvider = FutureProvider.family
       content: ref.watch(getTypeValue),
       sort: ref.watch(getSortValue),
       fileType: ref.watch(getFileTypeValue),
+      language: ref.watch(getLanguageValue),
+      year: ref.watch(getYearValue),
       enableFilters: ref.watch(enableFiltersState));
   return data;
 });
@@ -240,10 +359,15 @@ final checkIdExists =
   return await dataBase.checkIdExists(id);
 });
 
+final getBookByIdProvider =
+    FutureProvider.family.autoDispose<MyBook?, String>((ref, id) async {
+  return await dataBase.getId(id);
+});
+
 final deleteFileFromMyLib =
     FutureProvider.family<void, FileName>((ref, fileName) async {
-  // NOTE: Assuming deleteFileWithDbData is a function in files.dart
-  return await deleteFileWithDbData(ref, fileName.md5, fileName.format);
+  return await deleteFileWithDbData(ref, fileName.md5, fileName.format,
+      fileName: fileName.fileName);
 });
 
 final filePathProvider =

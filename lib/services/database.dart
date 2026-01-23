@@ -14,6 +14,7 @@ class MyBook {
   final String? info;
   final String? description;
   final String? format;
+  final String? fileName;
 
   MyBook(
       {required this.id,
@@ -24,7 +25,8 @@ class MyBook {
       required this.publisher,
       required this.info,
       required this.format,
-      required this.description});
+      required this.description,
+      this.fileName});
 
   Map<String, dynamic> toMap() {
     return {
@@ -36,13 +38,22 @@ class MyBook {
       'publisher': publisher,
       'info': info,
       'format': format,
-      'description': description
+      'description': description,
+      'fileName': fileName
     };
   }
 
   @override
   String toString() {
-    return 'MyBook{id: $id,title: $title,author: $author,thumbnail: $thumbnail,link: $link,publisher: $publisher,info: $info,format: $format,description:$description}';
+    return 'MyBook{id: $id,title: $title,author: $author,thumbnail: $thumbnail,link: $link,publisher: $publisher,info: $info,format: $format,description:$description,fileName:$fileName}';
+  }
+
+  // Get actual filename - uses fileName if available, otherwise falls back to id.format
+  String getFileName() {
+    if (fileName != null && fileName!.isNotEmpty) {
+      return fileName!;
+    }
+    return "$id.$format";
   }
 }
 
@@ -65,10 +76,10 @@ class MyLibraryDb {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (Database db, int version) async {
         await db.execute(
-            'CREATE TABLE mybooks (id TEXT PRIMARY KEY, title TEXT,author TEXT,thumbnail TEXT,link TEXT,publisher TEXT,info TEXT,format TEXT,description TEXT)');
+            'CREATE TABLE mybooks (id TEXT PRIMARY KEY, title TEXT,author TEXT,thumbnail TEXT,link TEXT,publisher TEXT,info TEXT,format TEXT,description TEXT,fileName TEXT)');
         await db.execute(
             'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
         // Create these tables for all platforms (both mobile and desktop)
@@ -97,6 +108,14 @@ class MyLibraryDb {
         if (isbrowserOptionsExist.isEmpty) {
           await db.execute(
               'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
+        }
+        // Add fileName column if upgrading from version < 6
+        if (oldVersion < 6) {
+          try {
+            await db.execute('ALTER TABLE mybooks ADD COLUMN fileName TEXT');
+          } catch (_) {
+            // Column might already exist
+          }
         }
       },
       onOpen: (db) async {
@@ -176,7 +195,8 @@ class MyLibraryDb {
           publisher: maps[i]['publisher'],
           info: maps[i]['info'],
           format: maps[i]['format'],
-          description: maps[i]['description']);
+          description: maps[i]['description'],
+          fileName: maps[i]['fileName']);
     });
     return myBookList.reversed.toList();
   }

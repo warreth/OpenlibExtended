@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async'; // For Timer/Debounce
 
 // Project imports:
+import 'package:openlib/services/database.dart';
 import 'package:openlib/ui/components/active_downloads_widget.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/results_page.dart';
@@ -19,9 +20,13 @@ import 'package:openlib/state/state.dart'
         selectedTypeState,
         selectedSortState,
         selectedFileTypeState,
+        selectedLanguageState,
+        selectedYearState,
         typeValues,
         fileType,
         sortValues,
+        languageValues,
+        yearValues,
         enableFiltersState;
 
 // ====================================================================
@@ -125,6 +130,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final dropdownTypeValue = ref.watch(selectedTypeState);
     final dropdownSortValue = ref.watch(selectedSortState);
     final dropDownFileTypeValue = ref.watch(selectedFileTypeState);
+    final dropdownLanguageValue = ref.watch(selectedLanguageState);
+    final dropdownYearValue = ref.watch(selectedYearState);
 
     // Watch suggestion states
     final suggestions =
@@ -288,6 +295,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   }).toList(),
                   onChanged: (String? val) {
                     ref.read(selectedTypeState.notifier).state = val ?? '';
+                    MyLibraryDb.instance
+                        .savePreference('filterType', val ?? 'All');
                   },
                 ),
               ),
@@ -330,6 +339,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   }).toList(),
                   onChanged: (String? val) {
                     ref.read(selectedSortState.notifier).state = val ?? '';
+                    MyLibraryDb.instance
+                        .savePreference('filterSort', val ?? 'Most Relevant');
                   },
                 ),
               ),
@@ -371,6 +382,98 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   onChanged: (String? val) {
                     ref.read(selectedFileTypeState.notifier).state =
                         val ?? 'All';
+                    MyLibraryDb.instance
+                        .savePreference('filterFileType', val ?? 'All');
+                  },
+                ),
+              ),
+            ),
+            // Language filter dropdown
+            Padding(
+              padding: const EdgeInsets.only(left: 7, right: 7, top: 19),
+              child: SizedBox(
+                width: 200,
+                child: DropdownButtonFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Language',
+                    labelStyle: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                    enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                          color: Theme.of(context).colorScheme.tertiary,
+                          width: 2),
+                      borderRadius: const BorderRadius.all(Radius.circular(50)),
+                    ),
+                  ),
+                  initialValue: dropdownLanguageValue,
+                  items: languageValues.keys
+                      .toList()
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (String? val) {
+                    ref.read(selectedLanguageState.notifier).state =
+                        val ?? 'All';
+                    MyLibraryDb.instance
+                        .savePreference('filterLanguage', val ?? 'All');
+                  },
+                ),
+              ),
+            ),
+            // Year filter dropdown
+            Padding(
+              padding: const EdgeInsets.only(left: 7, right: 7, top: 19),
+              child: SizedBox(
+                width: 180,
+                child: DropdownButtonFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Year Published',
+                    labelStyle: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                    enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                          color: Theme.of(context).colorScheme.tertiary,
+                          width: 2),
+                      borderRadius: const BorderRadius.all(Radius.circular(50)),
+                    ),
+                  ),
+                  initialValue: dropdownYearValue,
+                  items:
+                      yearValues.map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (String? val) {
+                    ref.read(selectedYearState.notifier).state = val ?? 'All';
+                    MyLibraryDb.instance
+                        .savePreference('filterYear', val ?? 'All');
                   },
                 ),
               ),

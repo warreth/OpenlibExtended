@@ -26,6 +26,7 @@ import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
 import 'package:openlib/services/download_manager.dart';
 import 'package:openlib/services/download_notification.dart';
+import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/state/state.dart'
     show
         selectedIndexProvider,
@@ -33,8 +34,14 @@ import 'package:openlib/state/state.dart'
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
+        autoRankInstancesProvider,
         userAgentProvider,
-        cookieProvider;
+        cookieProvider,
+        selectedTypeState,
+        selectedSortState,
+        selectedFileTypeState,
+        selectedLanguageState,
+        selectedYearState;
 
 void main(List<String> args) async {
   // Required for desktop_webview_window on Linux - must be called before ensureInitialized
@@ -81,6 +88,28 @@ void main(List<String> args) async {
   String browserUserAgent = await dataBase.getBrowserOptions('userAgent');
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
+  // Load search filter preferences
+  String savedType = await dataBase
+          .getPreference('filterType')
+          .catchError((e) => 'All') as String? ??
+      'All';
+  String savedSort = await dataBase
+          .getPreference('filterSort')
+          .catchError((e) => 'Most Relevant') as String? ??
+      'Most Relevant';
+  String savedFileType = await dataBase
+          .getPreference('filterFileType')
+          .catchError((e) => 'All') as String? ??
+      'All';
+  String savedLanguage = await dataBase
+          .getPreference('filterLanguage')
+          .catchError((e) => 'All') as String? ??
+      'All';
+  String savedYear = await dataBase
+          .getPreference('filterYear')
+          .catchError((e) => 'All') as String? ??
+      'All';
+
   if (Platform.isAndroid) {
     // Android-specific setup for system UI overlay colors
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
@@ -102,6 +131,11 @@ void main(List<String> args) async {
             .overrideWith((ref) => showManualDownloadButton),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
+        selectedTypeState.overrideWith((ref) => savedType),
+        selectedSortState.overrideWith((ref) => savedSort),
+        selectedFileTypeState.overrideWith((ref) => savedFileType),
+        selectedLanguageState.overrideWith((ref) => savedLanguage),
+        selectedYearState.overrideWith((ref) => savedYear),
       ],
       child: const MyApp(),
     ),
@@ -161,6 +195,29 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdatesOnStartup();
     });
+    // Auto-rank instances on startup if enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoRankInstancesOnStartup();
+    });
+  }
+
+  Future<void> _autoRankInstancesOnStartup() async {
+    // Small delay to let the UI settle first
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
+
+    try {
+      final instanceManager = InstanceManager();
+      final didRank = await instanceManager.rankOnStartupIfNeeded();
+      if (didRank) {
+        debugPrint("Instances auto-ranked on startup");
+        // Update the provider state
+        ref.read(autoRankInstancesProvider.notifier).state = true;
+      }
+    } catch (e) {
+      // Silently fail - don't interrupt user flow
+      debugPrint("Auto-ranking failed: $e");
+    }
   }
 
   Future<void> _checkForUpdatesOnStartup() async {

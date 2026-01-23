@@ -6,18 +6,45 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
-import 'package:openlib/state/state.dart' show checkIdExists;
+import 'package:openlib/state/state.dart'
+    show checkIdExists, languageCodeToDisplay;
 import 'package:openlib/ui/extensions.dart';
 
+// Extract file type from book info string
 String? getFileType(String? info) {
-  if (info != null && info.isNotEmpty) {
-    info = info.toLowerCase();
-    if (info.contains('pdf')) return "PDF";
-    if (info.contains('epub')) return "Epub";
-    if (info.contains('cbr')) return "Cbr";
-    if (info.contains('cbz')) return "Cbz";
-    return null;
+  if (info == null || info.isEmpty) return null;
+  final infoLower = info.toLowerCase();
+  if (infoLower.contains('pdf')) return "PDF";
+  if (infoLower.contains('epub')) return "Epub";
+  if (infoLower.contains('cbr')) return "Cbr";
+  if (infoLower.contains('cbz')) return "Cbz";
+  return null;
+}
+
+// Extract language code from book info string
+// Info format typically: "[en], pdf, 5.2MB" or "English, pdf, 5.2MB"
+String? getLanguage(String? info) {
+  if (info == null || info.isEmpty) return null;
+
+  // Try to match [xx] pattern for language code
+  final bracketMatch =
+      RegExp(r'\[([a-z]{2})\]', caseSensitive: false).firstMatch(info);
+  if (bracketMatch != null) {
+    final code = bracketMatch.group(1)?.toLowerCase();
+    if (code != null && languageCodeToDisplay.containsKey(code)) {
+      return languageCodeToDisplay[code];
+    }
   }
+
+  // Try to find language code at start of info (common format: "en, pdf, ...")
+  final parts = info.split(',');
+  if (parts.isNotEmpty) {
+    final firstPart = parts[0].trim().toLowerCase();
+    if (languageCodeToDisplay.containsKey(firstPart)) {
+      return languageCodeToDisplay[firstPart];
+    }
+  }
+
   return null;
 }
 
@@ -46,9 +73,10 @@ class BookInfoCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     String? fileType = getFileType(info);
-    
+    String? language = getLanguage(info);
+
     // Check if book is downloaded (only if md5 is provided)
-    final isDownloaded = md5 != null 
+    final isDownloaded = md5 != null
         ? ref.watch(checkIdExists(md5!))
         : const AsyncValue<bool>.data(false);
 
@@ -178,6 +206,32 @@ class BookInfoCard extends ConsumerWidget {
                             ),
                           ),
                         if (fileType != null)
+                          const SizedBox(
+                            width: 3,
+                          ),
+                        // Language badge
+                        if (language != null)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: "#6b8cce".toColor(),
+                              borderRadius: BorderRadius.circular(2.5),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
+                              child: Text(
+                                language,
+                                style: const TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        if (language != null)
                           const SizedBox(
                             width: 3,
                           ),

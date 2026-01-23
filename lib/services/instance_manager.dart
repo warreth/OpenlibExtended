@@ -1,8 +1,13 @@
 // Dart imports:
 import 'dart:convert';
+import 'dart:async';
+
+// Package imports:
+import 'package:dio/dio.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/logger.dart';
 
 // ====================================================================
 // INSTANCE DATA MODEL
@@ -71,7 +76,7 @@ class ArchiveInstance {
 // ====================================================================
 
 /// Manages archive instances (mirrors) with CRUD operations and priority management.
-/// 
+///
 /// This singleton service handles:
 /// - Loading and storing instance configurations in the database
 /// - Managing instance priority ordering
@@ -138,10 +143,11 @@ class InstanceManager {
   Future<List<ArchiveInstance>> getInstances() async {
     try {
       final stored = await _database.getPreference(_storageKey);
-      
+
       final List<dynamic> jsonList = jsonDecode(stored);
-      final instances = jsonList.map((json) => ArchiveInstance.fromJson(json)).toList();
-      
+      final instances =
+          jsonList.map((json) => ArchiveInstance.fromJson(json)).toList();
+
       // Sort by priority
       instances.sort((a, b) => a.priority.compareTo(b.priority));
       return instances;
@@ -170,17 +176,23 @@ class InstanceManager {
   Future<void> addInstance(String name, String baseUrl) async {
     final instances = await getInstances();
     final newId = 'custom_${DateTime.now().millisecondsSinceEpoch}';
-    final newPriority = instances.isEmpty ? 0 : instances.map((i) => i.priority).fold<int>(0, (max, priority) => priority > max ? priority : max) + 1;
-    
+    final newPriority = instances.isEmpty
+        ? 0
+        : instances.map((i) => i.priority).fold<int>(
+                0, (max, priority) => priority > max ? priority : max) +
+            1;
+
     final newInstance = ArchiveInstance(
       id: newId,
       name: name,
-      baseUrl: baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl,
+      baseUrl: baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl,
       priority: newPriority,
       enabled: true,
       isCustom: true,
     );
-    
+
     instances.add(newInstance);
     await _saveInstances(instances);
   }
@@ -191,17 +203,17 @@ class InstanceManager {
   Future<bool> removeInstance(String id) async {
     final instances = await getInstances();
     final index = instances.indexWhere((i) => i.id == id);
-    
+
     if (index == -1) {
       return false; // Instance not found
     }
 
     final instance = instances[index];
-    
+
     if (!instance.isCustom) {
       return false; // Cannot remove default instances
     }
-    
+
     instances.removeAt(index);
     await _saveInstances(instances);
     return true;
@@ -213,7 +225,7 @@ class InstanceManager {
   Future<void> toggleInstance(String id, bool enabled) async {
     final instances = await getInstances();
     final index = instances.indexWhere((i) => i.id == id);
-    
+
     if (index != -1) {
       instances[index] = instances[index].copyWith(enabled: enabled);
       await _saveInstances(instances);
@@ -222,7 +234,8 @@ class InstanceManager {
 
   /// Reorder instances by updating their priority based on new order.
   /// [reorderedInstances] List of instances in new order.
-  Future<void> reorderInstances(List<ArchiveInstance> reorderedInstances) async {
+  Future<void> reorderInstances(
+      List<ArchiveInstance> reorderedInstances) async {
     // Update priorities based on new order
     for (int i = 0; i < reorderedInstances.length; i++) {
       reorderedInstances[i] = reorderedInstances[i].copyWith(priority: i);
@@ -258,12 +271,12 @@ class InstanceManager {
   Future<ArchiveInstance> getCurrentInstance() async {
     final selectedId = await getSelectedInstanceId();
     final instances = await getEnabledInstances();
-    
+
     if (instances.isEmpty) {
       // Return default if no enabled instances
       return _defaultInstances.first;
     }
-    
+
     if (selectedId != null) {
       final selected = instances.firstWhere(
         (i) => i.id == selectedId,
@@ -271,7 +284,7 @@ class InstanceManager {
       );
       return selected;
     }
-    
+
     return instances.first;
   }
 
@@ -286,7 +299,164 @@ class InstanceManager {
   /// Reset to default instances, clearing all custom instances.
   Future<void> resetToDefaults() async {
     await _saveInstances(_defaultInstances);
-    // Don't save null, just leave the preference as-is or empty
-    // The getCurrentInstance() will handle missing selected ID gracefully
+  }
+
+  // ====================================================================
+  // INSTANCE RANKING / SPEED TESTING
+  // ====================================================================
+
+  static const String _autoRankKey = 'auto_rank_instances';
+  static const String _lastRankTimeKey = 'last_instance_rank_time';
+  final AppLogger _logger = AppLogger();
+
+  /// Check if auto-ranking is enabled (default: true)
+  Future<bool> isAutoRankEnabled() async {
+    try {
+      final value = await _database.getPreference(_autoRankKey);
+      return value == 1;
+    } catch (e) {
+      // Default to enabled if preference doesn't exist
+      return true;
+    }
+  }
+
+  /// Enable or disable auto-ranking
+  Future<void> setAutoRankEnabled(bool enabled) async {
+    await _database.savePreference(_autoRankKey, enabled);
+  }
+
+  /// Get the timestamp of the last ranking
+  Future<int?> getLastRankTime() async {
+    try {
+      final value = await _database.getPreference(_lastRankTimeKey);
+      return value as int?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Ping a single instance and return response time in milliseconds
+  /// Returns null if the instance is unreachable
+  Future<int?> _pingInstance(ArchiveInstance instance) async {
+    final dio = Dio();
+    dio.options.connectTimeout = const Duration(seconds: 5);
+    dio.options.receiveTimeout = const Duration(seconds: 5);
+
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await dio.head(
+        instance.baseUrl,
+        options: Options(
+          headers: {
+            "user-agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+        ),
+      );
+      stopwatch.stop();
+      dio.close();
+
+      if (response.statusCode == 200 ||
+          response.statusCode == 301 ||
+          response.statusCode == 302) {
+        return stopwatch.elapsedMilliseconds;
+      }
+      return null;
+    } catch (e) {
+      stopwatch.stop();
+      dio.close();
+      return null;
+    }
+  }
+
+  /// Rank all enabled instances by response time in parallel
+  /// Updates instance priorities and saves the new order
+  /// Returns a map of instance ID to response time (null = unreachable)
+  Future<Map<String, int?>> rankInstancesBySpeed() async {
+    _logger.info('Starting instance ranking', tag: 'InstanceManager');
+
+    final instances = await getInstances();
+    final enabledInstances = instances.where((i) => i.enabled).toList();
+
+    if (enabledInstances.isEmpty) {
+      _logger.warning('No enabled instances to rank', tag: 'InstanceManager');
+      return {};
+    }
+
+    // Ping all instances in parallel
+    final futures = enabledInstances.map((instance) async {
+      final responseTime = await _pingInstance(instance);
+      return MapEntry(instance.id, responseTime);
+    });
+
+    final results = await Future.wait(futures);
+    final responseTimeMap = Map<String, int?>.fromEntries(results);
+
+    _logger.info('Ranking results', tag: 'InstanceManager', metadata: {
+      for (final entry in responseTimeMap.entries)
+        entry.key: entry.value != null ? "${entry.value}ms" : "unreachable"
+    });
+
+    // Sort enabled instances by response time (reachable first, then by speed)
+    enabledInstances.sort((a, b) {
+      final timeA = responseTimeMap[a.id];
+      final timeB = responseTimeMap[b.id];
+
+      // Both unreachable - keep original order
+      if (timeA == null && timeB == null)
+        return a.priority.compareTo(b.priority);
+      // A unreachable - B comes first
+      if (timeA == null) return 1;
+      // B unreachable - A comes first
+      if (timeB == null) return -1;
+      // Both reachable - sort by speed
+      return timeA.compareTo(timeB);
+    });
+
+    // Rebuild the full list maintaining disabled instances at their positions
+    final disabledInstances = instances.where((i) => !i.enabled).toList();
+    final allSorted = [...enabledInstances, ...disabledInstances];
+
+    // Update priorities
+    for (int i = 0; i < allSorted.length; i++) {
+      allSorted[i] = allSorted[i].copyWith(priority: i);
+    }
+
+    await _saveInstances(allSorted);
+
+    // Save the ranking timestamp
+    await _database.savePreference(
+        _lastRankTimeKey, DateTime.now().millisecondsSinceEpoch);
+
+    _logger
+        .info('Instance ranking completed', tag: 'InstanceManager', metadata: {
+      'fastest':
+          enabledInstances.isNotEmpty ? enabledInstances.first.name : 'none',
+    });
+
+    return responseTimeMap;
+  }
+
+  /// Rank instances on startup if auto-rank is enabled
+  /// Only ranks if more than 1 hour has passed since last ranking
+  Future<bool> rankOnStartupIfNeeded() async {
+    final autoRankEnabled = await isAutoRankEnabled();
+    if (!autoRankEnabled) {
+      _logger.debug('Auto-ranking disabled', tag: 'InstanceManager');
+      return false;
+    }
+
+    final lastRankTime = await getLastRankTime();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Skip if ranked less than 1 hour ago
+    if (lastRankTime != null && (now - lastRankTime) < 3600000) {
+      _logger.debug('Skipping ranking - ranked recently',
+          tag: 'InstanceManager');
+      return false;
+    }
+
+    await rankInstancesBySpeed();
+    return true;
   }
 }

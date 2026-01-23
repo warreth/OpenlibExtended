@@ -11,6 +11,100 @@ import 'package:openlib/state/state.dart' show myLibraryProvider;
 
 MyLibraryDb dataBase = MyLibraryDb.instance;
 
+// Generate a safe filename: Title.extension
+String generateBookFileName({
+  required String title,
+  String? author,
+  String? info,
+  required String format,
+  required String md5,
+}) {
+  // Remove emojis, icons and non-ASCII characters
+  String removeSpecialChars(String text) {
+    return text
+        .replaceAll(RegExp(r'[\u{1F300}-\u{1F9FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2600}-\u{26FF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[\u{2700}-\u{27BF}]', unicode: true), '')
+        .replaceAll(RegExp(r'[^\x00-\x7F]+'), '')
+        .trim();
+  }
+
+  // Extract text from parentheses and combine with main title
+  String extractAndCombineTitle(String text) {
+    String cleaned = removeSpecialChars(text);
+
+    // Extract content inside parentheses
+    List<String> parentheticalContent = [];
+    RegExp parenRegex = RegExp(r'\(([^)]+)\)');
+    for (var match in parenRegex.allMatches(cleaned)) {
+      String content = match.group(1)?.trim() ?? '';
+      if (content.isNotEmpty) {
+        parentheticalContent.add(content);
+      }
+    }
+
+    // Remove parentheses and their content from main title
+    String mainTitle = cleaned.replaceAll(parenRegex, ' ');
+
+    // Remove brackets and their content
+    mainTitle = mainTitle.replaceAll(RegExp(r'\[[^\]]*\]'), '');
+
+    // Remove numbering patterns like "- 184"
+    mainTitle = mainTitle.replaceAll(RegExp(r'\s*-\s*\d+\s*'), ' ');
+
+    // Remove special characters
+    mainTitle = mainTitle.replaceAll(RegExp(r'[<>:"/\\|?*·,;]'), '').trim();
+
+    // Convert main title to PascalCase
+    String toPascalCase(String input) {
+      List<String> words = input.split(RegExp(r'\s+'));
+      words = words.where((w) => w.isNotEmpty).map((w) {
+        String lower = w.toLowerCase();
+        if (lower.length > 1) {
+          return lower[0].toUpperCase() + lower.substring(1);
+        }
+        return lower.toUpperCase();
+      }).toList();
+      return words.join('');
+    }
+
+    String result = toPascalCase(mainTitle);
+
+    // Add parenthetical content as separate parts
+    for (var content in parentheticalContent) {
+      String cleanedContent =
+          content.replaceAll(RegExp(r'[<>:"/\\|?*·,;]'), '').trim();
+      String pascalContent = toPascalCase(cleanedContent);
+      if (pascalContent.isNotEmpty) {
+        result = "${result}_$pascalContent";
+      }
+    }
+
+    return result;
+  }
+
+  // Truncate string to max length
+  String truncate(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength);
+  }
+
+  String safeTitle = extractAndCombineTitle(title);
+
+  // Ensure filename is not too long (max 200 chars before extension)
+  String baseName = truncate(safeTitle, 200);
+
+  // Remove trailing underscores
+  baseName = baseName.replaceAll(RegExp(r'_+$'), '');
+
+  // Fallback to md5 if title is empty
+  if (baseName.isEmpty) {
+    baseName = md5.substring(0, 8);
+  }
+
+  return "$baseName.$format";
+}
+
 Future<String> get getBookStorageDefaultDirectory async {
   if (Platform.isAndroid) {
     final directory = await getExternalStorageDirectory();
@@ -78,15 +172,16 @@ Future<String> getFilePath(String fileName) async {
   throw "File Not Exists";
 }
 
-Future<void> deleteFileWithDbData(
-    Ref ref, String md5, String format) async {
+Future<void> deleteFileWithDbData(Ref ref, String md5, String format,
+    {String? fileName}) async {
   try {
-    String fileName = '$md5.$format';
+    // Use provided fileName or fall back to md5.format
+    String actualFileName = fileName ?? '$md5.$format';
     final bookStorageDirectory =
         await dataBase.getPreference('bookStorageDirectory');
-    await deleteFile('$bookStorageDirectory/$fileName');
+    await deleteFile('$bookStorageDirectory/$actualFileName');
     await dataBase.delete(md5);
-    await dataBase.deleteBookState(fileName);
+    await dataBase.deleteBookState(actualFileName);
     // ignore: unused_result
     ref.refresh(myLibraryProvider);
   } catch (e) {
@@ -104,14 +199,14 @@ Future<int> syncLibraryWithDisk() async {
     final bookStorageDirectory =
         await dataBase.getPreference('bookStorageDirectory');
     final directory = Directory(bookStorageDirectory.toString());
-    
+
     if (!await directory.exists()) {
       return 0;
     }
-    
+
     // Get all books from database
     final booksInDb = await dataBase.getAll();
-    
+
     // Get all book files on disk
     final filesOnDisk = <String>{};
     final files = directory.listSync(recursive: false);
@@ -119,31 +214,46 @@ Future<int> syncLibraryWithDisk() async {
       if (entity is File) {
         final fileName = entity.path.split('/').last;
         final extension = fileName.split('.').last.toLowerCase();
-        if (extension == 'epub' || extension == 'pdf' || extension == 'cbr' || extension == 'cbz') {
+        if (extension == 'epub' ||
+            extension == 'pdf' ||
+            extension == 'cbr' ||
+            extension == 'cbz') {
           filesOnDisk.add(fileName);
         }
       }
     }
-    
+
     // Remove database entries for files that no longer exist
     for (var book in booksInDb) {
-      final fileName = "${book.id}.${book.format}";
+      // Use actual fileName from database if available, otherwise fall back to id.format
+      final fileName = book.getFileName();
       if (!filesOnDisk.contains(fileName)) {
         await dataBase.delete(book.id);
         await dataBase.deleteBookState(fileName);
         changes++;
       }
     }
-    
-    // Add new files that are not in database
-    final idsInDb = booksInDb.map((b) => b.id).toSet();
+
+    // Add new files that are not in database (only for legacy md5.format named files)
+    final existingFileNames = booksInDb.map((b) => b.getFileName()).toSet();
     for (var fileName in filesOnDisk) {
-      final parts = fileName.split('.');
-      if (parts.length >= 2) {
-        final extension = parts.last.toLowerCase();
-        final md5 = parts.sublist(0, parts.length - 1).join('.');
-        
-        if (!idsInDb.contains(md5)) {
+      if (!existingFileNames.contains(fileName)) {
+        final parts = fileName.split('.');
+        if (parts.length >= 2) {
+          final extension = parts.last.toLowerCase();
+          // Try to extract md5 from filename (either pure md5 or as suffix after last underscore)
+          String md5 = parts.sublist(0, parts.length - 1).join('.');
+
+          // For new format files, try to extract md5 suffix
+          if (md5.contains('_')) {
+            final lastUnderscore = md5.lastIndexOf('_');
+            final possibleMd5 = md5.substring(lastUnderscore + 1);
+            // MD5 is 32 characters, but we only store 8 in the filename
+            if (possibleMd5.length == 8) {
+              md5 = possibleMd5;
+            }
+          }
+
           // Create a minimal book entry for the new file
           final book = MyBook(
             id: md5,
@@ -155,6 +265,7 @@ Future<int> syncLibraryWithDisk() async {
             info: "",
             description: "",
             format: extension,
+            fileName: fileName,
           );
           await dataBase.insert(book);
           changes++;

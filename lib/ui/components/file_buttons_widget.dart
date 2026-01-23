@@ -15,13 +15,18 @@ import 'package:openlib/ui/pdf_viewer.dart' show launchPdfViewer;
 class FileOpenAndDeleteButtons extends ConsumerWidget {
   final String id;
   final String format;
+  final String? fileName;
   final Function onDelete;
 
   const FileOpenAndDeleteButtons(
       {super.key,
       required this.id,
       required this.format,
+      this.fileName,
       required this.onDelete});
+
+  // Get actual filename - uses fileName if provided, otherwise falls back to id.format
+  String get actualFileName => fileName ?? "$id.$format";
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,12 +47,12 @@ class FileOpenAndDeleteButtons extends ConsumerWidget {
             onPressed: () async {
               if (format == 'pdf') {
                 await launchPdfViewer(
-                    fileName: '$id.$format', context: context, ref: ref);
+                    fileName: actualFileName, context: context, ref: ref);
               } else if (format == 'epub') {
                 await launchEpubViewer(
-                    fileName: '$id.$format', context: context, ref: ref);
+                    fileName: actualFileName, context: context, ref: ref);
               } else {
-                await openCbrAndCbz(fileName: '$id.$format', context: context);
+                await openCbrAndCbz(fileName: actualFileName, context: context);
               }
             },
             child: const Padding(
@@ -76,6 +81,7 @@ class FileOpenAndDeleteButtons extends ConsumerWidget {
                     return ShowDeleteDialog(
                       id: id,
                       format: format,
+                      fileName: fileName,
                       onDelete: onDelete,
                     );
                   });

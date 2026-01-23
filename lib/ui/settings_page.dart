@@ -27,6 +27,7 @@ import 'package:openlib/state/state.dart'
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
+        autoRankInstancesProvider,
         instanceManagerProvider,
         currentInstanceProvider,
         archiveInstancesProvider,
@@ -162,6 +163,7 @@ class SettingsPage extends ConsumerWidget {
                 const Icon(Icons.settings),
               ],
             ),
+            const _AutoRankInstancesWidget(),
             const Padding(
               padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
               child: Text(
@@ -639,6 +641,213 @@ class _InstanceSelectorWidgetState
           ),
         ),
       ),
+    );
+  }
+}
+
+// Auto-rank instances widget with toggle and manual rank button
+class _AutoRankInstancesWidget extends ConsumerStatefulWidget {
+  const _AutoRankInstancesWidget();
+
+  @override
+  ConsumerState<_AutoRankInstancesWidget> createState() =>
+      _AutoRankInstancesWidgetState();
+}
+
+class _AutoRankInstancesWidgetState
+    extends ConsumerState<_AutoRankInstancesWidget> {
+  bool _isRanking = false;
+  bool _autoRankEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAutoRankSetting();
+  }
+
+  Future<void> _loadAutoRankSetting() async {
+    final manager = ref.read(instanceManagerProvider);
+    final enabled = await manager.isAutoRankEnabled();
+    if (mounted) {
+      setState(() {
+        _autoRankEnabled = enabled;
+      });
+      ref.read(autoRankInstancesProvider.notifier).state = enabled;
+    }
+  }
+
+  Future<void> _toggleAutoRank(bool value) async {
+    final manager = ref.read(instanceManagerProvider);
+    await manager.setAutoRankEnabled(value);
+    if (mounted) {
+      setState(() {
+        _autoRankEnabled = value;
+      });
+      ref.read(autoRankInstancesProvider.notifier).state = value;
+    }
+  }
+
+  Future<void> _rankNow() async {
+    if (_isRanking) return;
+
+    setState(() {
+      _isRanking = true;
+    });
+
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      final manager = ref.read(instanceManagerProvider);
+      final results = await manager.rankInstancesBySpeed();
+
+      // Refresh the instances provider to reflect new order
+      ref.invalidate(archiveInstancesProvider);
+      ref.invalidate(currentInstanceProvider);
+
+      if (!mounted) return;
+
+      // Find the fastest instance
+      String fastestName = "Unknown";
+      int? fastestTime;
+      final instances = await manager.getInstances();
+      for (final instance in instances) {
+        final time = results[instance.id];
+        if (time != null && (fastestTime == null || time < fastestTime)) {
+          fastestTime = time;
+          fastestName = instance.name;
+        }
+      }
+
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            fastestTime != null
+                ? "Ranked! Fastest: $fastestName (${fastestTime}ms)"
+                : "Ranking complete",
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text("Ranking failed: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRanking = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+          child: Container(
+            height: 75,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(5),
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Auto-Rank Instances",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.tertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Automatically sort by speed on startup",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .tertiary
+                                .withAlpha(140),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _autoRankEnabled,
+                    thumbColor: WidgetStateProperty.resolveWith((states) =>
+                        states.contains(WidgetState.selected)
+                            ? Colors.green
+                            : null),
+                    onChanged: _toggleAutoRank,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+          child: InkWell(
+            onTap: _isRanking ? null : _rankNow,
+            child: Container(
+              height: 61,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Rank Instances Now",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: _isRanking
+                            ? Theme.of(context)
+                                .colorScheme
+                                .tertiary
+                                .withAlpha(100)
+                            : Theme.of(context).colorScheme.tertiary,
+                      ),
+                    ),
+                    _isRanking
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                          )
+                        : const Icon(Icons.speed),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

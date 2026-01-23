@@ -32,6 +32,7 @@ import 'package:openlib/state/state.dart'
         downloadState,
         checkSumState,
         checkIdExists,
+        getBookByIdProvider,
         myLibraryProvider,
         showManualDownloadButtonProvider,
         downloadManagerProvider;
@@ -110,22 +111,28 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
   @override
   Widget build(BuildContext context) {
     final isBookExist = ref.watch(checkIdExists(widget.data.md5));
+    final bookData = ref.watch(getBookByIdProvider(widget.data.md5));
 
     return isBookExist.when(
       data: (isExists) {
         if (isExists) {
+          // Get fileName from database for existing books
+          final fileName = bookData.whenOrNull(data: (book) => book?.fileName);
           return FileOpenAndDeleteButtons(
             id: widget.data.md5,
             format: widget.data.format!,
+            fileName: fileName,
             onDelete: () async {
               await Future.delayed(const Duration(seconds: 1));
               // ignore: unused_result
               ref.refresh(checkIdExists(widget.data.md5));
+              // ignore: unused_result
+              ref.refresh(getBookByIdProvider(widget.data.md5));
             },
           );
         } else {
           final showManualButton = ref.watch(showManualDownloadButtonProvider);
-          
+
           return Padding(
             padding: const EdgeInsets.only(top: 21, bottom: 21),
             child: Wrap(
@@ -157,10 +164,13 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                                 Webview(url: widget.data.mirror!),
                           ),
                         );
-                        
-                        if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
+
+                        if (mirrors != null &&
+                            mirrors.isNotEmpty &&
+                            context.mounted) {
                           // Start download with fetched mirrors
-                          final downloadManager = ref.read(downloadManagerProvider);
+                          final downloadManager =
+                              ref.read(downloadManagerProvider);
                           final task = DownloadTask(
                             id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
                             md5: widget.data.md5,
@@ -174,9 +184,9 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                             link: widget.data.link,
                             mirrors: mirrors,
                           );
-                          
+
                           await downloadManager.addDownload(task);
-                          
+
                           if (context.mounted) {
                             showSnackBar(
                               context: context,
@@ -187,7 +197,8 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                         }
                       } else {
                         // Other platforms: use background mirror fetcher
-                        final downloadManager = ref.read(downloadManagerProvider);
+                        final downloadManager =
+                            ref.read(downloadManagerProvider);
                         final task = DownloadTask(
                           id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
                           md5: widget.data.md5,
@@ -200,14 +211,15 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           description: widget.data.description,
                           link: widget.data.link,
                           mirrors: [], // Will be fetched in background
-                          mirrorUrl: widget.data.mirror, // Store mirror URL for retry
+                          mirrorUrl:
+                              widget.data.mirror, // Store mirror URL for retry
                         );
-                        
+
                         await downloadManager.addDownloadWithMirrorUrl(
                           task,
                           widget.data.mirror!,
                         );
-                        
+
                         if (context.mounted) {
                           showSnackBar(
                             context: context,
@@ -227,9 +239,12 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                 if (showManualButton)
                   TextButton(
                     style: TextButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.2),
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .tertiary
+                          .withValues(alpha: 0.2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       textStyle: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
@@ -246,10 +261,13 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                                 Webview(url: widget.data.mirror!),
                           ),
                         );
-                        
-                        if (mirrors != null && mirrors.isNotEmpty && context.mounted) {
+
+                        if (mirrors != null &&
+                            mirrors.isNotEmpty &&
+                            context.mounted) {
                           // Start download in background with fetched mirrors
-                          final downloadManager = ref.read(downloadManagerProvider);
+                          final downloadManager =
+                              ref.read(downloadManagerProvider);
                           final task = DownloadTask(
                             id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
                             md5: widget.data.md5,
@@ -263,9 +281,9 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                             link: widget.data.link,
                             mirrors: mirrors, // Use manually fetched mirrors
                           );
-                          
+
                           await downloadManager.addDownload(task);
-                          
+
                           if (context.mounted) {
                             showSnackBar(
                               context: context,
@@ -312,13 +330,21 @@ Future<void> downloadFileWidget(WidgetRef ref, BuildContext context,
       builder: (BuildContext context) {
         return _ShowDialog(title: data.title);
       });
-  // print(mirrors);
+
+  String? downloadedFileName;
+
   downloadFile(
       mirrors: mirrors,
       md5: data.md5,
       format: data.format!,
+      title: data.title,
+      author: data.author,
+      info: data.info,
       onStart: () {
         ref.read(downloadState.notifier).state = ProcessState.running;
+      },
+      onFileName: (String fileName) {
+        downloadedFileName = fileName;
       },
       onProgress: (int rcv, int total) async {
         if (ref.read(totalFileSizeInBytes) != total) {
@@ -339,14 +365,16 @@ Future<void> downloadFileWidget(WidgetRef ref, BuildContext context,
               publisher: data.publisher,
               info: data.info,
               format: data.format,
-              description: data.description));
+              description: data.description,
+              fileName: downloadedFileName));
 
           ref.read(downloadState.notifier).state = ProcessState.complete;
           ref.read(checkSumState.notifier).state = CheckSumProcessState.running;
 
           try {
             final checkSum = await verifyFileCheckSum(
-                md5Hash: data.md5, format: data.format!);
+                md5Hash: data.md5,
+                fileName: downloadedFileName ?? "${data.md5}.${data.format}");
             if (checkSum == true) {
               ref.read(checkSumState.notifier).state =
                   CheckSumProcessState.success;

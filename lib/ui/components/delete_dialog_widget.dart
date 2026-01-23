@@ -11,12 +11,14 @@ import 'package:openlib/ui/components/snack_bar_widget.dart';
 class ShowDeleteDialog extends ConsumerWidget {
   final String id;
   final String format;
+  final String? fileName;
   final Function onDelete;
 
   const ShowDeleteDialog(
       {super.key,
       required this.id,
       required this.format,
+      this.fileName,
       required this.onDelete});
 
   @override
@@ -86,8 +88,8 @@ class ShowDeleteDialog extends ConsumerWidget {
                             ),
                           ),
                           onPressed: () {
-                            ref.read(deleteFileFromMyLib(
-                                FileName(md5: id, format: format)));
+                            ref.read(deleteFileFromMyLib(FileName(
+                                md5: id, format: format, fileName: fileName)));
                             Navigator.of(context).pop();
 
                             showSnackBar(
