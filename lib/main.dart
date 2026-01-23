@@ -53,19 +53,10 @@ void main(List<String> args) async {
   MyLibraryDb dataBase = MyLibraryDb.instance;
 
   await DownloadManager().initialize();
-  
+
   bool isDarkMode =
       await dataBase.getPreference('darkMode') == 0 ? false : true;
 
-  bool openPdfwithExternalapp =
-      await dataBase.getPreference('openPdfwithExternalApp') == 0
-          ? false
-          : true;
-
-  bool openEpubwithExternalapp =
-      await dataBase.getPreference('openEpubwithExternalApp') == 0
-          ? false
-          : true;
   bool openPdfwithExternalapp = await dataBase
               .getPreference('openPdfwithExternalApp')
               .catchError((e) => null) ==
@@ -188,17 +179,19 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   Future<void> _checkAndRequestNotificationPermission() async {
     // Skip on desktop platforms
     if (PlatformUtils.isDesktop) return;
-    
+
     // Check if we should show the permission dialog
     final prefs = MyLibraryDb.instance;
-    final hasAskedBefore = await prefs.getPreference('hasAskedNotificationPermission')
+    final hasAskedBefore = await prefs
+        .getPreference('hasAskedNotificationPermission')
         .catchError((_) => 0);
-    
+
     if (hasAskedBefore == 0) {
       // Check current permission status
       final notificationService = DownloadNotificationService();
-      final currentStatus = await notificationService.checkNotificationPermission();
-      
+      final currentStatus =
+          await notificationService.checkNotificationPermission();
+
       if (!currentStatus && mounted) {
         // Show the contextual dialog first
         _showNotificationPermissionDialog();
@@ -225,7 +218,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             'Openlib needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
             style: TextStyle(
               fontSize: 13,
-              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.78),
+              color: Theme.of(context)
+                  .colorScheme
+                  .tertiary
+                  .withValues(alpha: 0.78),
             ),
           ),
           actions: [
@@ -237,7 +233,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               child: Text(
                 'Maybe Later',
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.67),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.67),
                 ),
               ),
             ),
@@ -245,9 +244,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               onPressed: () async {
                 Navigator.of(context).pop();
                 // Request permission when user clicks Enable
-                await DownloadNotificationService().requestNotificationPermission();
+                await DownloadNotificationService()
+                    .requestNotificationPermission();
                 // Mark that we've asked
-                await MyLibraryDb.instance.savePreference('hasAskedNotificationPermission', 1);
+                await MyLibraryDb.instance
+                    .savePreference('hasAskedNotificationPermission', 1);
               },
               child: Text(
                 'Enable',
@@ -288,8 +289,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               child: AppBar(
                 backgroundColor: Theme.of(context).colorScheme.surface,
                 title: const Text("Openlib"),
-                titleTextStyle:
-                    Theme.of(context).textTheme.displayLarge,
+                titleTextStyle: Theme.of(context).textTheme.displayLarge,
               ),
             ),
             Expanded(
@@ -300,8 +300,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: GNav(
-          backgroundColor:
-              isDarkMode ? Colors.black : Colors.grey.shade200,
+          backgroundColor: isDarkMode ? Colors.black : Colors.grey.shade200,
           haptic: true,
           tabBorderRadius: 50,
           tabActiveBorder: Border.all(
@@ -314,10 +313,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           color: Colors.white,
           activeColor: Colors.white,
           iconSize: 19,
-          tabBackgroundColor:
-              Theme.of(context).colorScheme.secondary,
-          padding:
-              const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
+          tabBackgroundColor: Theme.of(context).colorScheme.secondary,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
           tabs: const [
             GButton(icon: Icons.trending_up, text: 'Home'),
             GButton(icon: Icons.search, text: 'Search'),
