@@ -463,6 +463,7 @@ class UpdateCheckerService {
     });
 
     if (Platform.isAndroid) {
+      if (!context.mounted) return false;
       return await _installApkWithFallbacks(filePath, context);
     } else if (Platform.isWindows) {
       await Process.start(filePath, [], mode: ProcessStartMode.detached);
@@ -483,6 +484,10 @@ class UpdateCheckerService {
   // Install APK on Android with multiple fallback methods
   Future<bool> _installApkWithFallbacks(
       String filePath, BuildContext context) async {
+    // Track errors from each method for user display
+    List<String> attemptedMethods = [];
+    List<String> errorMessages = [];
+
     // Check and request install permission first
     final hasPermission = await _checkAndRequestInstallPermission(context);
     if (!hasPermission) {
@@ -495,21 +500,47 @@ class UpdateCheckerService {
     }
 
     // Method 1: Try apk_sideload (handles FileProvider and permissions well)
+    attemptedMethods.add("APK Sideload");
     try {
       _logger.info("Attempting installation with apk_sideload",
           tag: "UpdateChecker");
       await InstallApk().installApk(filePath);
       _logger.info("apk_sideload installation initiated", tag: "UpdateChecker");
+
+      // Show user that installer was opened (it may still fail silently on some devices)
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                "Opening installer... If nothing happens, the install failed."),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: "Manual Install",
+              onPressed: () {
+                if (context.mounted) {
+                  _showInstallFallbackDialog(context, filePath,
+                      attemptedMethods, ["May have failed silently"]);
+                }
+              },
+            ),
+          ),
+        );
+      }
       return true;
     } on PlatformException catch (e) {
+      final errorMsg = "PlatformException: ${e.message ?? "Unknown error"}";
+      errorMessages.add(errorMsg);
       _logger.warning("apk_sideload failed",
           tag: "UpdateChecker", metadata: {"error": e.message});
     } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
       _logger.warning("apk_sideload failed",
           tag: "UpdateChecker", metadata: {"error": e.toString()});
     }
 
     // Method 2: Try android_package_installer
+    attemptedMethods.add("Package Installer");
     try {
       _logger.info("Attempting installation with android_package_installer",
           tag: "UpdateChecker");
@@ -522,15 +553,41 @@ class UpdateCheckerService {
             tag: "UpdateChecker",
             metadata: {"status": status.name, "code": statusCode});
         if (status == PackageInstallerStatus.success) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                    "Opening installer... If nothing happens, the install failed."),
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: "Manual Install",
+                  onPressed: () {
+                    if (context.mounted) {
+                      _showInstallFallbackDialog(context, filePath,
+                          attemptedMethods, ["May have failed silently"]);
+                    }
+                  },
+                ),
+              ),
+            );
+          }
           return true;
+        } else {
+          final errorMsg = "Status: ${status.name} (code: $statusCode)";
+          errorMessages.add(errorMsg);
         }
+      } else {
+        errorMessages.add("Returned null status code");
       }
     } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
       _logger.warning("android_package_installer failed",
           tag: "UpdateChecker", metadata: {"error": e.toString()});
     }
 
     // Method 3: Try open_file with MIME type
+    attemptedMethods.add("Open File");
     try {
       _logger.info("Attempting installation with open_file",
           tag: "UpdateChecker");
@@ -538,36 +595,69 @@ class UpdateCheckerService {
           type: "application/vnd.android.package-archive");
       if (result.type == ResultType.done) {
         _logger.info("open_file installation initiated", tag: "UpdateChecker");
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                  "Opening installer... If nothing happens, the install failed."),
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: "Manual Install",
+                onPressed: () {
+                  if (context.mounted) {
+                    _showInstallFallbackDialog(context, filePath,
+                        attemptedMethods, ["May have failed silently"]);
+                  }
+                },
+              ),
+            ),
+          );
+        }
         return true;
       }
+      final errorMsg =
+          "Result type: ${result.type.name}, message: ${result.message}";
+      errorMessages.add(errorMsg);
       _logger.warning("open_file failed",
           tag: "UpdateChecker", metadata: {"result": result.type.name});
     } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
       _logger.warning("open_file failed",
           tag: "UpdateChecker", metadata: {"error": e.toString()});
     }
 
-    // All automatic methods failed - show fallback dialog
+    // All automatic methods failed - show fallback dialog with error details
+    _logger.error("All installation methods failed",
+        tag: "UpdateChecker",
+        metadata: {
+          "attemptedMethods": attemptedMethods,
+          "errors": errorMessages,
+        });
+
     if (context.mounted) {
-      await _showInstallFallbackDialog(context, filePath);
+      await _showInstallFallbackDialog(
+          context, filePath, attemptedMethods, errorMessages);
     }
     return false;
   }
 
   // Show fallback dialog with manual options when automatic installation fails
-  Future<void> _showInstallFallbackDialog(
-      BuildContext context, String filePath) async {
+  Future<void> _showInstallFallbackDialog(BuildContext context, String filePath,
+      [List<String>? attemptedMethods, List<String>? errorMessages]) async {
     final fileName = filePath.split("/").last;
+    final hasErrors = errorMessages != null && errorMessages.isNotEmpty;
+    final hasMethods = attemptedMethods != null && attemptedMethods.isNotEmpty;
 
     await showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Row(
+          title: const Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-              const SizedBox(width: 10),
-              const Expanded(
+              SizedBox(width: 10),
+              Expanded(
                 child: Text(
                   "Installation Issue",
                   style: TextStyle(fontWeight: FontWeight.bold),
@@ -575,26 +665,117 @@ class UpdateCheckerService {
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "The automatic installer couldn't open the APK. This can happen on some Android versions.\n\n"
-                "You can install manually using one of these options:",
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "File: $fileName",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(dialogContext)
-                      .colorScheme
-                      .tertiary
-                      .withValues(alpha: 0.7),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "The automatic installer couldn't open the APK. This can happen on some Android versions.\n\n"
+                  "You can install manually using one of these options:",
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  "File: $fileName",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(dialogContext)
+                        .colorScheme
+                        .tertiary
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+                // Show attempted methods and errors for debugging
+                if (hasMethods || hasErrors) ...[
+                  const SizedBox(height: 16),
+                  ExpansionTile(
+                    initiallyExpanded: false,
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(
+                      "Technical Details",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(dialogContext).colorScheme.tertiary,
+                      ),
+                    ),
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .tertiaryContainer
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (hasMethods) ...[
+                              Text(
+                                "Methods tried:",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(dialogContext)
+                                      .colorScheme
+                                      .tertiary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...attemptedMethods.map((method) => Text(
+                                    "• $method",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(dialogContext)
+                                          .colorScheme
+                                          .tertiary,
+                                    ),
+                                  )),
+                            ],
+                            if (hasErrors) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                "Errors encountered:",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red[300],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...errorMessages.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final error = entry.value;
+                                final methodName = hasMethods &&
+                                        index < attemptedMethods.length
+                                    ? attemptedMethods[index]
+                                    : "Method ${index + 1}";
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: SelectableText(
+                                    "$methodName: $error",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: "monospace",
+                                      color: Theme.of(dialogContext)
+                                          .colorScheme
+                                          .error,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -759,11 +940,11 @@ class UpdateCheckerService {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Row(
+          title: const Row(
             children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 28),
-              const SizedBox(width: 10),
-              const Expanded(
+              Icon(Icons.error_outline, color: Colors.red, size: 28),
+              SizedBox(width: 10),
+              Expanded(
                 child: Text(
                   "Installation Error",
                   style: TextStyle(fontWeight: FontWeight.bold),
