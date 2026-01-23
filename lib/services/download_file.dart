@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb;
+import 'package:openlib/services/files.dart' show generateBookFileName;
 
 MyLibraryDb dataBase = MyLibraryDb.instance;
 
@@ -57,28 +58,36 @@ Future<void> downloadFile(
     {required List<String> mirrors,
     required String md5,
     required String format,
+    required String title,
+    String? author,
+    String? info,
     required Function onStart,
     required Function onProgress,
     required Function cancelDownlaod,
     required Function mirrorStatus,
+    required Function(String) onFileName,
     required Function onDownlaodFailed}) async {
   if (mirrors.isEmpty) {
     onDownlaodFailed('No mirrors available!');
   } else {
     Dio dio = Dio();
 
-    String path = await _getFilePath('$md5.$format');
+    // Generate proper filename: title_author_info.extension
+    String bookFileName = generateBookFileName(
+      title: title,
+      author: author,
+      info: info,
+      format: format,
+      md5: md5,
+    );
+    String path = await _getFilePath(bookFileName);
     List<String> orderedMirrors = _reorderMirrors(mirrors);
 
     String? workingMirror = await _getAliveMirror(orderedMirrors);
 
-    // print(workingMirror);
-    // print(path);
-    // print(orderedMirrors);
-    // print(orderedMirrors[0]);
-
     if (workingMirror != null) {
       onStart();
+      onFileName(bookFileName);
       try {
         CancelToken cancelToken = CancelToken();
         dio.download(
@@ -117,11 +126,11 @@ Future<void> downloadFile(
 }
 
 Future<bool> verifyFileCheckSum(
-    {required String md5Hash, required String format}) async {
+    {required String md5Hash, required String fileName}) async {
   try {
     final bookStorageDirectory =
         await dataBase.getPreference('bookStorageDirectory');
-    final filePath = '$bookStorageDirectory/$md5Hash.$format';
+    final filePath = '$bookStorageDirectory/$fileName';
     final file = File(filePath);
     final stream = file.openRead();
     final hash = await md5.bind(stream).first;

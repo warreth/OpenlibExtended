@@ -59,8 +59,9 @@ enum CheckSumProcessState { waiting, running, failed, success }
 class FileName {
   final String md5;
   final String format;
+  final String? fileName;
 
-  FileName({required this.md5, required this.format});
+  FileName({required this.md5, required this.format, this.fileName});
 }
 
 // ====================================================================
@@ -82,12 +83,15 @@ final enableFiltersState = StateProvider<bool>((ref) => true);
 final cookieProvider = StateProvider<String>((ref) => "");
 final userAgentProvider = StateProvider<String>((ref) => "");
 final webViewLoadingState = StateProvider.autoDispose<bool>((ref) => true);
-final downloadProgressProvider = StateProvider.autoDispose<double>((ref) => 0.0);
+final downloadProgressProvider =
+    StateProvider.autoDispose<double>((ref) => 0.0);
 final mirrorStatusProvider = StateProvider.autoDispose<bool>((ref) => false);
 final totalFileSizeInBytes = StateProvider.autoDispose<int>((ref) => 0);
 final downloadedFileSizeInBytes = StateProvider.autoDispose<int>((ref) => 0);
-final downloadState = StateProvider.autoDispose<ProcessState>((ref) => ProcessState.waiting);
-final checkSumState = StateProvider.autoDispose<CheckSumProcessState>((ref) => CheckSumProcessState.waiting);
+final downloadState =
+    StateProvider.autoDispose<ProcessState>((ref) => ProcessState.waiting);
+final checkSumState = StateProvider.autoDispose<CheckSumProcessState>(
+    (ref) => CheckSumProcessState.waiting);
 final cancelCurrentDownload = StateProvider<CancelToken>((ref) {
   return CancelToken();
 });
@@ -102,7 +106,8 @@ final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
 
 // Instance Management States
-final instanceManagerProvider = Provider<InstanceManager>((ref) => InstanceManager());
+final instanceManagerProvider =
+    Provider<InstanceManager>((ref) => InstanceManager());
 
 // Download Manager States
 final downloadManagerProvider = Provider<DownloadManager>((ref) {
@@ -111,17 +116,20 @@ final downloadManagerProvider = Provider<DownloadManager>((ref) {
   return manager;
 });
 
-final activeDownloadsProvider = StreamProvider<Map<String, DownloadTask>>((ref) {
+final activeDownloadsProvider =
+    StreamProvider<Map<String, DownloadTask>>((ref) {
   final manager = ref.watch(downloadManagerProvider);
   return manager.downloadsStream;
 });
 
-final archiveInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+final archiveInstancesProvider =
+    FutureProvider<List<ArchiveInstance>>((ref) async {
   final manager = ref.watch(instanceManagerProvider);
   return await manager.getInstances();
 });
 
-final enabledInstancesProvider = FutureProvider<List<ArchiveInstance>>((ref) async {
+final enabledInstancesProvider =
+    FutureProvider<List<ArchiveInstance>>((ref) async {
   final manager = ref.watch(instanceManagerProvider);
   return await manager.getEnabledInstances();
 });
@@ -175,20 +183,22 @@ final getTrendingBooks = FutureProvider<List<TrendingBookData>>((ref) async {
   GoodReads goodReads = GoodReads();
   // Assuming these classes are available from your project imports
   // ignore: prefer_const_constructors
-  final penguinTrending = PenguinRandomHouse(); 
+  final penguinTrending = PenguinRandomHouse();
   // ignore: prefer_const_constructors
   final bookDigits = BookDigits();
 
-  List<TrendingBookData> trendingBooks = await Future.wait<List<TrendingBookData>>([
+  List<TrendingBookData> trendingBooks =
+      await Future.wait<List<TrendingBookData>>([
     goodReads.trendingBooks(),
     penguinTrending.trendingBooks(),
     // openLibrary.trendingBooks(), // Commented out as in the original
     bookDigits.trendingBooks(),
   ]).then((List<List<TrendingBookData>> listOfData) =>
-      listOfData.expand((element) => element).toList());
+          listOfData.expand((element) => element).toList());
 
   if (trendingBooks.isEmpty) {
-    throw Exception('Nothing Trending Today :('); // Use Exception instead of String
+    throw Exception(
+        'Nothing Trending Today :('); // Use Exception instead of String
   }
   trendingBooks.shuffle();
   return trendingBooks;
@@ -210,7 +220,8 @@ final getSubCategoryTypeList = FutureProvider.family
 // Provider for Anna's Archive Search Results
 final searchProvider = FutureProvider.family
     .autoDispose<List<BookData>, String>((ref, searchQuery) async {
-  if (searchQuery.isEmpty) return []; // Return empty list if search query is empty
+  if (searchQuery.isEmpty)
+    return []; // Return empty list if search query is empty
 
   final AnnasArchieve annasArchieve = AnnasArchieve();
   List<BookData> data = await annasArchieve.searchBooks(
@@ -240,10 +251,15 @@ final checkIdExists =
   return await dataBase.checkIdExists(id);
 });
 
+final getBookByIdProvider =
+    FutureProvider.family.autoDispose<MyBook?, String>((ref, id) async {
+  return await dataBase.getId(id);
+});
+
 final deleteFileFromMyLib =
     FutureProvider.family<void, FileName>((ref, fileName) async {
-  // NOTE: Assuming deleteFileWithDbData is a function in files.dart
-  return await deleteFileWithDbData(ref, fileName.md5, fileName.format);
+  return await deleteFileWithDbData(ref, fileName.md5, fileName.format,
+      fileName: fileName.fileName);
 });
 
 final filePathProvider =

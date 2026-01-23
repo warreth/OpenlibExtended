@@ -9,6 +9,7 @@ import 'package:crypto/crypto.dart';
 // Project imports:
 import 'package:openlib/services/database.dart' show MyLibraryDb, MyBook;
 import 'package:openlib/services/download_notification.dart';
+import 'package:openlib/services/files.dart' show generateBookFileName;
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/mirror_fetcher.dart';
 
@@ -116,7 +117,8 @@ class DownloadManager {
   // Tasks are removed 30 seconds after completion: 3s for notification clear, then 27s additional delay
   static const Duration _notificationClearDelay = Duration(seconds: 3);
   static const Duration _totalCompletionTime = Duration(seconds: 30);
-  static final Duration _taskRemovalDelay = _totalCompletionTime - _notificationClearDelay;
+  static final Duration _taskRemovalDelay =
+      _totalCompletionTime - _notificationClearDelay;
 
   Stream<Map<String, DownloadTask>> get downloadsStream =>
       _downloadsController.stream;
@@ -162,8 +164,7 @@ class DownloadManager {
     for (var url in mirrors) {
       try {
         final response = await dio.head(url,
-            options:
-                Options(receiveTimeout: const Duration(seconds: timeOut)));
+            options: Options(receiveTimeout: const Duration(seconds: timeOut)));
         if (response.statusCode == 200) {
           dio.close();
           return url;
@@ -174,11 +175,11 @@ class DownloadManager {
   }
 
   Future<bool> _verifyFileCheckSum(
-      {required String md5Hash, required String format}) async {
+      {required String md5Hash, required String fileName}) async {
     try {
       final bookStorageDirectory =
           await _database.getPreference('bookStorageDirectory');
-      final filePath = '$bookStorageDirectory/$md5Hash.$format';
+      final filePath = '$bookStorageDirectory/$fileName';
       final file = File(filePath);
       final stream = file.openRead();
       final hash = await md5.bind(stream).first;
@@ -193,11 +194,13 @@ class DownloadManager {
 
   Future<void> addDownload(DownloadTask task) async {
     if (_activeDownloads.containsKey(task.id)) {
-      _logger.warning('Download already exists: ${task.title}', tag: 'DownloadManager');
+      _logger.warning('Download already exists: ${task.title}',
+          tag: 'DownloadManager');
       return;
     }
 
-    _logger.info('Adding download: ${task.title} (${task.format})', tag: 'DownloadManager');
+    _logger.info('Adding download: ${task.title} (${task.format})',
+        tag: 'DownloadManager');
     _activeDownloads[task.id] = task;
     _notifyListeners();
 
@@ -211,14 +214,18 @@ class DownloadManager {
     _startDownload(task);
   }
 
-  Future<void> addDownloadWithMirrorUrl(DownloadTask task, String mirrorUrl) async {
+  Future<void> addDownloadWithMirrorUrl(
+      DownloadTask task, String mirrorUrl) async {
     if (_activeDownloads.containsKey(task.id)) {
-      _logger.warning('Download already exists: ${task.title}', tag: 'DownloadManager');
+      _logger.warning('Download already exists: ${task.title}',
+          tag: 'DownloadManager');
       return;
     }
 
-    _logger.info('Adding download with mirror URL: ${task.title} (${task.format})', tag: 'DownloadManager');
-    
+    _logger.info(
+        'Adding download with mirror URL: ${task.title} (${task.format})',
+        tag: 'DownloadManager');
+
     // Store the mirror URL in the task for potential retry
     final taskWithMirrorUrl = task.copyWith(mirrorUrl: mirrorUrl);
     _activeDownloads[task.id] = taskWithMirrorUrl;
@@ -237,28 +244,43 @@ class DownloadManager {
   Future<void> _startDownload(DownloadTask task) async {
     Dio? dio;
     try {
-      _logger.info('Starting download for: ${task.title} (${task.format})', tag: 'DownloadManager', metadata: {
-        'taskId': task.id,
-        'md5': task.md5,
-        'mirrors': task.mirrors.length,
-      });
-      
+      _logger.info('Starting download for: ${task.title} (${task.format})',
+          tag: 'DownloadManager',
+          metadata: {
+            'taskId': task.id,
+            'md5': task.md5,
+            'mirrors': task.mirrors.length,
+          });
+
       if (task.mirrors.isEmpty) {
-        _logger.warning('No mirrors available for: ${task.title}', tag: 'DownloadManager');
+        _logger.warning('No mirrors available for: ${task.title}',
+            tag: 'DownloadManager');
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'No mirrors available!');
         return;
       }
 
       dio = Dio();
-      
-      String path = await _getFilePath('${task.md5}.${task.format}');
+
+      // Generate proper filename: title_author_info.extension
+      String bookFileName = generateBookFileName(
+        title: task.title,
+        author: task.author,
+        info: task.info,
+        format: task.format,
+        md5: task.md5,
+      );
+      String path = await _getFilePath(bookFileName);
       List<String> orderedMirrors = _reorderMirrors(task.mirrors);
-      
-      _logger.debug('Reordered mirrors for: ${task.title}', tag: 'DownloadManager', metadata: {
-        'ipfs_count': orderedMirrors.where((m) => m.contains('ipfs')).length,
-        'https_count': orderedMirrors.where((m) => !m.contains('ipfs')).length,
-      });
+
+      _logger.debug('Reordered mirrors for: ${task.title}',
+          tag: 'DownloadManager',
+          metadata: {
+            'ipfs_count':
+                orderedMirrors.where((m) => m.contains('ipfs')).length,
+            'https_count':
+                orderedMirrors.where((m) => !m.contains('ipfs')).length,
+          });
 
       _updateTaskStatus(task.id, DownloadStatus.downloadingMirrors);
       await _notificationService.showDownloadNotification(
@@ -271,9 +293,11 @@ class DownloadManager {
       String? workingMirror = await _getAliveMirror(orderedMirrors);
 
       if (workingMirror == null) {
-        _logger.error('No working mirrors found for: ${task.title}', tag: 'DownloadManager', metadata: {
-          'checked_mirrors': orderedMirrors.length,
-        });
+        _logger.error('No working mirrors found for: ${task.title}',
+            tag: 'DownloadManager',
+            metadata: {
+              'checked_mirrors': orderedMirrors.length,
+            });
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'No working mirrors available!');
         await _notificationService.showDownloadNotification(
@@ -284,23 +308,25 @@ class DownloadManager {
         );
         return;
       }
-      
-      _logger.info('Found working mirror for: ${task.title}', tag: 'DownloadManager', metadata: {
-        'mirror': workingMirror,
-      });
+
+      _logger.info('Found working mirror for: ${task.title}',
+          tag: 'DownloadManager',
+          metadata: {
+            'mirror': workingMirror,
+          });
 
       // Try to download from each mirror until successful
       bool downloadSuccessful = false;
       int mirrorIndex = orderedMirrors.indexOf(workingMirror);
-      
+
       // Create a single cancel token for the entire mirror retry sequence
       CancelToken cancelToken = CancelToken();
       _activeDownloads[task.id] =
           _activeDownloads[task.id]!.copyWith(cancelToken: cancelToken);
-      
+
       while (mirrorIndex < orderedMirrors.length && !downloadSuccessful) {
         final currentMirror = orderedMirrors[mirrorIndex];
-        
+
         try {
           _updateTaskStatus(task.id, DownloadStatus.downloading);
 
@@ -332,14 +358,13 @@ class DownloadManager {
 
           // Download completed successfully
           downloadSuccessful = true;
-          
         } on DioException catch (e) {
           if (e.type == DioExceptionType.cancel) {
             _updateTaskStatus(task.id, DownloadStatus.cancelled);
             await _notificationService.cancelNotification(task.id.hashCode);
             return;
           }
-          
+
           // Try next mirror if available
           mirrorIndex++;
           if (mirrorIndex < orderedMirrors.length) {
@@ -350,7 +375,7 @@ class DownloadManager {
               body: 'Retrying with alternate mirror...',
               progress: 0,
             );
-            
+
             // Wait up to 2 seconds before retrying, but check for cancellation
             const totalDelay = Duration(seconds: 2);
             const stepDelay = Duration(milliseconds: 100);
@@ -360,7 +385,7 @@ class DownloadManager {
               elapsed += stepDelay;
 
               // Check if task was cancelled during the delay
-              if (!_activeDownloads.containsKey(task.id) || 
+              if (!_activeDownloads.containsKey(task.id) ||
                   _activeDownloads[task.id]?.cancelToken?.isCancelled == true) {
                 _updateTaskStatus(task.id, DownloadStatus.cancelled);
                 await _notificationService.cancelNotification(task.id.hashCode);
@@ -395,7 +420,7 @@ class DownloadManager {
       );
 
       bool checkSumValid =
-          await _verifyFileCheckSum(md5Hash: task.md5, format: task.format);
+          await _verifyFileCheckSum(md5Hash: task.md5, fileName: bookFileName);
 
       await _database.insert(MyBook(
         id: task.md5,
@@ -407,6 +432,7 @@ class DownloadManager {
         info: task.info,
         format: task.format,
         description: task.description,
+        fileName: bookFileName,
       ));
 
       _updateTaskStatus(task.id, DownloadStatus.completed);
@@ -462,11 +488,13 @@ class DownloadManager {
     }
   }
 
-  Future<void> _startDownloadWithMirrorUrl(DownloadTask task, String mirrorUrl) async {
+  Future<void> _startDownloadWithMirrorUrl(
+      DownloadTask task, String mirrorUrl) async {
     Dio? dio;
     try {
-      _logger.info('Starting download with mirror URL for: ${task.title}', tag: 'DownloadManager');
-      
+      _logger.info('Starting download with mirror URL for: ${task.title}',
+          tag: 'DownloadManager');
+
       // Update status to fetching mirrors
       _updateTaskStatus(task.id, DownloadStatus.fetchingMirrors);
       await _notificationService.showDownloadNotification(
@@ -481,12 +509,14 @@ class DownloadManager {
       List<String> fetchedMirrors = await mirrorFetcher.fetchMirrors(mirrorUrl);
 
       if (!_activeDownloads.containsKey(task.id)) {
-        _logger.warning('Task cancelled while fetching mirrors: ${task.title}', tag: 'DownloadManager');
+        _logger.warning('Task cancelled while fetching mirrors: ${task.title}',
+            tag: 'DownloadManager');
         return; // Task was cancelled while fetching mirrors
       }
 
       if (fetchedMirrors.isEmpty) {
-        _logger.error('Background mirror fetching failed for: ${task.title}', tag: 'DownloadManager');
+        _logger.error('Background mirror fetching failed for: ${task.title}',
+            tag: 'DownloadManager');
         // Background fetching failed - keep task for manual retry
         _updateTaskStatus(task.id, DownloadStatus.failed,
             errorMessage: 'Manual verification required');
@@ -496,15 +526,17 @@ class DownloadManager {
           body: 'Manual verification needed',
           progress: -1,
         );
-        
+
         // Clear notification after configured delay but keep task in UI for manual retry
         await Future.delayed(_notificationClearDelay);
         await _notificationService.cancelNotification(task.id.hashCode);
-        
+
         return;
       }
 
-      _logger.info('Successfully fetched ${fetchedMirrors.length} mirrors for: ${task.title}', tag: 'DownloadManager');
+      _logger.info(
+          'Successfully fetched ${fetchedMirrors.length} mirrors for: ${task.title}',
+          tag: 'DownloadManager');
 
       // Update task with fetched mirrors
       final updatedTask = task.copyWith(mirrors: fetchedMirrors);
@@ -512,8 +544,16 @@ class DownloadManager {
 
       // Now proceed with the regular download flow
       dio = Dio();
-      
-      String path = await _getFilePath('${updatedTask.md5}.${updatedTask.format}');
+
+      // Generate proper filename: title_author_info.extension
+      String bookFileName = generateBookFileName(
+        title: updatedTask.title,
+        author: updatedTask.author,
+        info: updatedTask.info,
+        format: updatedTask.format,
+        md5: updatedTask.md5,
+      );
+      String path = await _getFilePath(bookFileName);
       List<String> orderedMirrors = _reorderMirrors(updatedTask.mirrors);
 
       _updateTaskStatus(updatedTask.id, DownloadStatus.downloadingMirrors);
@@ -541,15 +581,15 @@ class DownloadManager {
       // Try to download from each mirror until successful
       bool downloadSuccessful = false;
       int mirrorIndex = orderedMirrors.indexOf(workingMirror);
-      
+
       // Create a single cancel token for the entire mirror retry sequence
       CancelToken cancelToken = CancelToken();
       _activeDownloads[updatedTask.id] =
           _activeDownloads[updatedTask.id]!.copyWith(cancelToken: cancelToken);
-      
+
       while (mirrorIndex < orderedMirrors.length && !downloadSuccessful) {
         final currentMirror = orderedMirrors[mirrorIndex];
-        
+
         try {
           _updateTaskStatus(updatedTask.id, DownloadStatus.downloading);
 
@@ -581,25 +621,26 @@ class DownloadManager {
 
           // Download completed successfully
           downloadSuccessful = true;
-          
         } on DioException catch (e) {
           if (e.type == DioExceptionType.cancel) {
             _updateTaskStatus(updatedTask.id, DownloadStatus.cancelled);
-            await _notificationService.cancelNotification(updatedTask.id.hashCode);
+            await _notificationService
+                .cancelNotification(updatedTask.id.hashCode);
             return;
           }
-          
+
           // Try next mirror if available
           mirrorIndex++;
           if (mirrorIndex < orderedMirrors.length) {
-            _updateTaskStatus(updatedTask.id, DownloadStatus.downloadingMirrors);
+            _updateTaskStatus(
+                updatedTask.id, DownloadStatus.downloadingMirrors);
             await _notificationService.showDownloadNotification(
               id: updatedTask.id.hashCode,
               title: updatedTask.title,
               body: 'Retrying with alternate mirror...',
               progress: 0,
             );
-            
+
             // Wait up to 2 seconds before retrying, but check for cancellation
             const totalDelay = Duration(seconds: 2);
             const stepDelay = Duration(milliseconds: 100);
@@ -609,10 +650,12 @@ class DownloadManager {
               elapsed += stepDelay;
 
               // Check if task was cancelled during the delay
-              if (!_activeDownloads.containsKey(updatedTask.id) || 
-                  _activeDownloads[updatedTask.id]?.cancelToken?.isCancelled == true) {
+              if (!_activeDownloads.containsKey(updatedTask.id) ||
+                  _activeDownloads[updatedTask.id]?.cancelToken?.isCancelled ==
+                      true) {
                 _updateTaskStatus(updatedTask.id, DownloadStatus.cancelled);
-                await _notificationService.cancelNotification(updatedTask.id.hashCode);
+                await _notificationService
+                    .cancelNotification(updatedTask.id.hashCode);
                 return;
               }
             }
@@ -643,8 +686,8 @@ class DownloadManager {
         progress: 100,
       );
 
-      bool checkSumValid =
-          await _verifyFileCheckSum(md5Hash: updatedTask.md5, format: updatedTask.format);
+      bool checkSumValid = await _verifyFileCheckSum(
+          md5Hash: updatedTask.md5, fileName: bookFileName);
 
       await _database.insert(MyBook(
         id: updatedTask.md5,
@@ -656,6 +699,7 @@ class DownloadManager {
         info: updatedTask.info,
         format: updatedTask.format,
         description: updatedTask.description,
+        fileName: bookFileName,
       ));
 
       _updateTaskStatus(updatedTask.id, DownloadStatus.completed);

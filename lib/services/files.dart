@@ -11,6 +11,61 @@ import 'package:openlib/state/state.dart' show myLibraryProvider;
 
 MyLibraryDb dataBase = MyLibraryDb.instance;
 
+// Generate a safe filename from book metadata: title_author_info.extension
+String generateBookFileName({
+  required String title,
+  String? author,
+  String? info,
+  required String format,
+  required String md5,
+}) {
+  // Sanitize text by removing/replacing invalid characters for filenames
+  String sanitize(String text) {
+    return text
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '')
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .trim();
+  }
+
+  // Truncate string to max length
+  String truncate(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength);
+  }
+
+  String safeTitle = sanitize(title);
+  String safeAuthor = author != null ? sanitize(author) : "";
+  String safeInfo = info != null ? sanitize(info) : "";
+
+  // Build filename parts
+  List<String> parts = [];
+  if (safeTitle.isNotEmpty) {
+    parts.add(truncate(safeTitle, 80));
+  }
+  if (safeAuthor.isNotEmpty) {
+    parts.add(truncate(safeAuthor, 40));
+  }
+  if (safeInfo.isNotEmpty) {
+    parts.add(truncate(safeInfo, 30));
+  }
+
+  // Add md5 suffix for uniqueness
+  parts.add(truncate(md5, 8));
+
+  String baseName = parts.join("_");
+
+  // Ensure total filename is not too long (max 200 chars before extension)
+  if (baseName.length > 200) {
+    baseName = baseName.substring(0, 200);
+  }
+
+  // Remove trailing underscores
+  baseName = baseName.replaceAll(RegExp(r'_+$'), '');
+
+  return "$baseName.$format";
+}
+
 Future<String> get getBookStorageDefaultDirectory async {
   if (Platform.isAndroid) {
     final directory = await getExternalStorageDirectory();
@@ -78,15 +133,16 @@ Future<String> getFilePath(String fileName) async {
   throw "File Not Exists";
 }
 
-Future<void> deleteFileWithDbData(
-    Ref ref, String md5, String format) async {
+Future<void> deleteFileWithDbData(Ref ref, String md5, String format,
+    {String? fileName}) async {
   try {
-    String fileName = '$md5.$format';
+    // Use provided fileName or fall back to md5.format
+    String actualFileName = fileName ?? '$md5.$format';
     final bookStorageDirectory =
         await dataBase.getPreference('bookStorageDirectory');
-    await deleteFile('$bookStorageDirectory/$fileName');
+    await deleteFile('$bookStorageDirectory/$actualFileName');
     await dataBase.delete(md5);
-    await dataBase.deleteBookState(fileName);
+    await dataBase.deleteBookState(actualFileName);
     // ignore: unused_result
     ref.refresh(myLibraryProvider);
   } catch (e) {
@@ -104,14 +160,14 @@ Future<int> syncLibraryWithDisk() async {
     final bookStorageDirectory =
         await dataBase.getPreference('bookStorageDirectory');
     final directory = Directory(bookStorageDirectory.toString());
-    
+
     if (!await directory.exists()) {
       return 0;
     }
-    
+
     // Get all books from database
     final booksInDb = await dataBase.getAll();
-    
+
     // Get all book files on disk
     final filesOnDisk = <String>{};
     final files = directory.listSync(recursive: false);
@@ -119,31 +175,46 @@ Future<int> syncLibraryWithDisk() async {
       if (entity is File) {
         final fileName = entity.path.split('/').last;
         final extension = fileName.split('.').last.toLowerCase();
-        if (extension == 'epub' || extension == 'pdf' || extension == 'cbr' || extension == 'cbz') {
+        if (extension == 'epub' ||
+            extension == 'pdf' ||
+            extension == 'cbr' ||
+            extension == 'cbz') {
           filesOnDisk.add(fileName);
         }
       }
     }
-    
+
     // Remove database entries for files that no longer exist
     for (var book in booksInDb) {
-      final fileName = "${book.id}.${book.format}";
+      // Use actual fileName from database if available, otherwise fall back to id.format
+      final fileName = book.getFileName();
       if (!filesOnDisk.contains(fileName)) {
         await dataBase.delete(book.id);
         await dataBase.deleteBookState(fileName);
         changes++;
       }
     }
-    
-    // Add new files that are not in database
-    final idsInDb = booksInDb.map((b) => b.id).toSet();
+
+    // Add new files that are not in database (only for legacy md5.format named files)
+    final existingFileNames = booksInDb.map((b) => b.getFileName()).toSet();
     for (var fileName in filesOnDisk) {
-      final parts = fileName.split('.');
-      if (parts.length >= 2) {
-        final extension = parts.last.toLowerCase();
-        final md5 = parts.sublist(0, parts.length - 1).join('.');
-        
-        if (!idsInDb.contains(md5)) {
+      if (!existingFileNames.contains(fileName)) {
+        final parts = fileName.split('.');
+        if (parts.length >= 2) {
+          final extension = parts.last.toLowerCase();
+          // Try to extract md5 from filename (either pure md5 or as suffix after last underscore)
+          String md5 = parts.sublist(0, parts.length - 1).join('.');
+
+          // For new format files, try to extract md5 suffix
+          if (md5.contains('_')) {
+            final lastUnderscore = md5.lastIndexOf('_');
+            final possibleMd5 = md5.substring(lastUnderscore + 1);
+            // MD5 is 32 characters, but we only store 8 in the filename
+            if (possibleMd5.length == 8) {
+              md5 = possibleMd5;
+            }
+          }
+
           // Create a minimal book entry for the new file
           final book = MyBook(
             id: md5,
@@ -155,6 +226,7 @@ Future<int> syncLibraryWithDisk() async {
             info: "",
             description: "",
             format: extension,
+            fileName: fileName,
           );
           await dataBase.insert(book);
           changes++;
