@@ -326,6 +326,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final selectedIndex = ref.watch(selectedIndexProvider);
 
+    // Calculate proper header height including status bar on mobile
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final expandedHeaderHeight = PlatformUtils.isMobile
+        ? kToolbarHeight + statusBarHeight
+        : kToolbarHeight;
+
     return Scaffold(
       body: NotificationListener<UserScrollNotification>(
         onNotification: (notification) {
@@ -342,8 +348,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              height: _showExpandedHeader ? kToolbarHeight : 0,
+              height: _showExpandedHeader ? expandedHeaderHeight : 0,
               child: AppBar(
+                toolbarHeight: kToolbarHeight,
                 backgroundColor: Theme.of(context).colorScheme.surface,
                 title: const Text("Openlib"),
                 titleTextStyle: Theme.of(context).textTheme.displayLarge,

@@ -68,19 +68,29 @@ class ReleaseInfo {
         downloadUrls["ios"] = url;
       } else if (name.contains("windows") ||
           name.endsWith(".exe") ||
-          name.endsWith("-windows-x64.zip")) {
+          name.endsWith(".msix") ||
+          (name.endsWith(".zip") &&
+              (name.contains("win") || name.contains("x64")))) {
         downloadUrls["windows"] = url;
-      } else if (name.contains("linux")) {
+      } else if (name.contains("linux") ||
+          name.endsWith(".AppImage") ||
+          name.endsWith(".flatpak")) {
         if (name.endsWith(".AppImage")) {
           downloadUrls["linux-appimage"] = url;
         } else if (name.endsWith(".flatpak")) {
           downloadUrls["linux-flatpak"] = url;
         } else if (name.endsWith(".tar.gz")) {
           downloadUrls["linux-tar"] = url;
+        } else if (name.endsWith(".deb")) {
+          downloadUrls["linux-deb"] = url;
+        } else if (name.endsWith(".rpm")) {
+          downloadUrls["linux-rpm"] = url;
         } else {
           downloadUrls["linux"] = url;
         }
-      } else if (name.endsWith(".dmg") || name.contains("macos")) {
+      } else if (name.endsWith(".dmg") ||
+          name.contains("macos") ||
+          name.contains("darwin")) {
         downloadUrls["macos"] = url;
       }
     }
@@ -244,6 +254,8 @@ class UpdateCheckerService {
     } else if (Platform.isLinux) {
       return release.downloadUrls["linux-appimage"] ??
           release.downloadUrls["linux-tar"] ??
+          release.downloadUrls["linux-deb"] ??
+          release.downloadUrls["linux-flatpak"] ??
           release.downloadUrls["linux"];
     } else if (Platform.isMacOS) {
       return release.downloadUrls["macos"];
@@ -527,11 +539,11 @@ class UpdateCheckerService {
                 ),
               ),
             ),
-            if (downloadUrl != null)
+            // Show download button for mobile when URL exists
+            if (downloadUrl != null && (Platform.isAndroid || Platform.isIOS))
               TextButton(
                 onPressed: () async {
                   Navigator.of(context).pop();
-                  // Show download progress dialog
                   if (context.mounted) {
                     await _showUpdateDownloadDialog(context, release);
                   }
@@ -544,7 +556,33 @@ class UpdateCheckerService {
                   ),
                 ),
               ),
-            if (downloadUrl == null)
+            // Show download button for desktop (direct download or open GitHub)
+            if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  if (downloadUrl != null && context.mounted) {
+                    await _showUpdateDownloadDialog(context, release);
+                  } else {
+                    final uri = Uri.parse(release.htmlUrl);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                    }
+                  }
+                },
+                child: Text(
+                  downloadUrl != null
+                      ? "Download & Install"
+                      : "Download from GitHub",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ),
+            // Fallback for mobile when no download URL
+            if (downloadUrl == null && (Platform.isAndroid || Platform.isIOS))
               TextButton(
                 onPressed: () async {
                   Navigator.of(context).pop();

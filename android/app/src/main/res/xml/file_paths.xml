@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths><!-- Provides access to external storage directory -->
+    <external-path name="external_files" path="."/><!-- Provides access to files in the app's external files directory -->
+    <external-files-path name="external_app_files" path="."/><!-- Provides access to cache directory -->
+    <cache-path name="cache" path="."/><!-- Provides access to external cache directory -->
+    <external-cache-path name="external_cache" path="."/><!-- Provides access to files directory -->
+    <files-path name="files" path="."/>
+</paths>
