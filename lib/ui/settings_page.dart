@@ -33,33 +33,35 @@ import 'package:openlib/state/state.dart'
         myLibraryProvider;
 
 // Scans a directory for book files (epub, pdf) and imports them to the library database
-Future<void> scanAndImportBooks(String directoryPath, MyLibraryDb database, WidgetRef ref) async {
+Future<void> scanAndImportBooks(
+    String directoryPath, MyLibraryDb database, WidgetRef ref) async {
   try {
     final directory = Directory(directoryPath);
     if (!await directory.exists()) return;
-    
+
     final files = directory.listSync(recursive: false);
     int importedCount = 0;
-    
+
     for (var entity in files) {
       if (entity is File) {
         final fileName = entity.path.split('/').last;
         final extension = fileName.split('.').last.toLowerCase();
-        
+
         // Only process epub and pdf files
         if (extension == 'epub' || extension == 'pdf') {
           // Extract the md5 hash from the filename (the part before the extension)
           final parts = fileName.split('.');
           if (parts.length >= 2) {
             final md5 = parts.sublist(0, parts.length - 1).join('.');
-            
+
             // Check if this book already exists in the database
             final exists = await database.checkIdExists(md5);
             if (!exists) {
               // Create a minimal book entry for the imported file
               final book = MyBook(
                 id: md5,
-                title: md5, // Use filename as title since we don't have metadata
+                title:
+                    md5, // Use filename as title since we don't have metadata
                 author: "Unknown",
                 thumbnail: "",
                 link: "",
@@ -75,7 +77,7 @@ Future<void> scanAndImportBooks(String directoryPath, MyLibraryDb database, Widg
         }
       }
     }
-    
+
     // Refresh the library provider to show new books
     if (importedCount > 0) {
       // ignore: unused_result
@@ -89,7 +91,7 @@ Future<void> scanAndImportBooks(String directoryPath, MyLibraryDb database, Widg
 Future<void> requestStoragePermission() async {
   // Desktop platforms don't require runtime storage permissions
   if (PlatformUtils.isDesktop) return;
-  
+
   // Check whether the device is running Android 11 or higher
   DeviceInfoPlugin plugin = DeviceInfoPlugin();
   AndroidDeviceInfo android = await plugin.androidInfo;
@@ -183,7 +185,10 @@ class SettingsPage extends ConsumerWidget {
                 Switch(
                   // This bool value toggles the switch.
                   value: ref.watch(themeModeProvider) == ThemeMode.dark,
-                  activeThumbColor: Colors.red,
+                  thumbColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? Colors.red
+                          : null),
                   onChanged: (bool value) {
                     ref.read(themeModeProvider.notifier).state =
                         value == true ? ThemeMode.dark : ThemeMode.light;
@@ -211,7 +216,10 @@ class SettingsPage extends ConsumerWidget {
                 Switch(
                   // This bool value toggles the switch.
                   value: ref.watch(openPdfWithExternalAppProvider),
-                  activeThumbColor: Colors.red,
+                  thumbColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? Colors.red
+                          : null),
                   onChanged: (bool value) {
                     ref.read(openPdfWithExternalAppProvider.notifier).state =
                         value;
@@ -235,7 +243,10 @@ class SettingsPage extends ConsumerWidget {
                   value: ref.watch(
                     openEpubWithExternalAppProvider,
                   ),
-                  activeThumbColor: Colors.red,
+                  thumbColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? Colors.red
+                          : null),
                   onChanged: (bool value) {
                     ref.read(openEpubWithExternalAppProvider.notifier).state =
                         value;
@@ -273,7 +284,10 @@ class SettingsPage extends ConsumerWidget {
                         "Enable if background download doesn't work",
                         style: TextStyle(
                           fontSize: 11,
-                          color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .tertiary
+                              .withAlpha(140),
                         ),
                       ),
                     ],
@@ -281,7 +295,10 @@ class SettingsPage extends ConsumerWidget {
                 ),
                 Switch(
                   value: ref.watch(showManualDownloadButtonProvider),
-                  activeThumbColor: Colors.red,
+                  thumbColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? Colors.red
+                          : null),
                   onChanged: (bool value) {
                     ref.read(showManualDownloadButtonProvider.notifier).state =
                         value;
@@ -304,23 +321,25 @@ class SettingsPage extends ConsumerWidget {
                 onClick: () async {
                   final currentDirectory =
                       await dataBase.getPreference('bookStorageDirectory');
-                  final internalDirectory = await getBookStorageDefaultDirectory;
+                  final internalDirectory =
+                      await getBookStorageDefaultDirectory;
                   String? pickedDirectory =
                       await FilePicker.platform.getDirectoryPath();
                   if (pickedDirectory == null) {
                     return;
                   }
                   await requestStoragePermission();
-                  
+
                   // Only move books if current directory is the internal default
                   // Don't move if already using an external directory
                   if (currentDirectory == internalDirectory) {
                     await moveFolderContents(currentDirectory, pickedDirectory);
                   }
-                  
+
                   // Save the new directory preference
-                  await dataBase.savePreference('bookStorageDirectory', pickedDirectory);
-                  
+                  await dataBase.savePreference(
+                      'bookStorageDirectory', pickedDirectory);
+
                   // Scan the new directory for existing books and add them to library
                   await scanAndImportBooks(pickedDirectory, dataBase, ref);
                 },
@@ -435,10 +454,12 @@ class _InstanceSelectorWidget extends ConsumerStatefulWidget {
   const _InstanceSelectorWidget();
 
   @override
-  ConsumerState<_InstanceSelectorWidget> createState() => _InstanceSelectorWidgetState();
+  ConsumerState<_InstanceSelectorWidget> createState() =>
+      _InstanceSelectorWidgetState();
 }
 
-class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget> {
+class _InstanceSelectorWidgetState
+    extends ConsumerState<_InstanceSelectorWidget> {
   String? _selectedInstanceId;
 
   @override
@@ -470,10 +491,12 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
         return allInstancesAsync.when(
           data: (instances) {
             final selectedId = _selectedInstanceId ?? currentInstance.id;
-            
+
             // Ensure selected instance is in the list (handle disabled instances)
-            final selectedInstanceExists = instances.any((i) => i.id == selectedId);
-            final effectiveSelectedId = selectedInstanceExists ? selectedId : currentInstance.id;
+            final selectedInstanceExists =
+                instances.any((i) => i.id == selectedId);
+            final effectiveSelectedId =
+                selectedInstanceExists ? selectedId : currentInstance.id;
 
             return Padding(
               padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
@@ -521,7 +544,8 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                                       padding: EdgeInsets.only(left: 4.0),
                                       child: Text(
                                         '(disabled)',
-                                        style: TextStyle(fontSize: 10, color: Colors.grey),
+                                        style: TextStyle(
+                                            fontSize: 10, color: Colors.grey),
                                       ),
                                     ),
                                 ],
@@ -531,19 +555,21 @@ class _InstanceSelectorWidgetState extends ConsumerState<_InstanceSelectorWidget
                           onChanged: (String? newValue) async {
                             if (newValue != null) {
                               // Capture context-dependent objects before async gap
-                              final scaffoldMessenger = ScaffoldMessenger.of(context);
-                              
+                              final scaffoldMessenger =
+                                  ScaffoldMessenger.of(context);
+
                               setState(() {
                                 _selectedInstanceId = newValue;
                               });
                               final manager = ref.read(instanceManagerProvider);
                               await manager.setSelectedInstanceId(newValue);
                               ref.invalidate(currentInstanceProvider);
-                              
+
                               if (!mounted) return;
                               scaffoldMessenger.showSnackBar(
                                 const SnackBar(
-                                  content: Text('Instance changed successfully'),
+                                  content:
+                                      Text('Instance changed successfully'),
                                   duration: Duration(seconds: 2),
                                 ),
                               );
@@ -662,7 +688,8 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("You're on the latest version (${result.currentVersion})"),
+            content:
+                Text("You're on the latest version (${result.currentVersion})"),
             backgroundColor: Colors.green,
           ),
         );
@@ -720,7 +747,10 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
                           "Get pre-release versions",
                           style: TextStyle(
                             fontSize: 11,
-                            color: Theme.of(context).colorScheme.tertiary.withAlpha(140),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .tertiary
+                                .withAlpha(140),
                           ),
                         ),
                       ],
@@ -728,7 +758,10 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
                   ),
                   Switch(
                     value: _includePrereleases,
-                    activeThumbColor: Colors.orange,
+                    thumbColor: WidgetStateProperty.resolveWith((states) =>
+                        states.contains(WidgetState.selected)
+                            ? Colors.orange
+                            : null),
                     onChanged: (bool value) async {
                       setState(() {
                         _includePrereleases = value;

@@ -12,6 +12,10 @@
 .swiftpm/
 migrate_working_dir/
 
+.act/
+.actrc
+event.json
+
 # IntelliJ related
 *.iml
 *.ipr

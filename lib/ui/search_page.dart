@@ -11,7 +11,7 @@ import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/results_page.dart';
 import 'components/snack_bar_widget.dart';
 // Import the new API Service (adjust path as necessary)
-import 'package:openlib/services/google_suggest_api.dart'; 
+import 'package:openlib/services/google_suggest_api.dart';
 
 import 'package:openlib/state/state.dart'
     show
@@ -33,12 +33,11 @@ final searchSuggestionProvider = StateProvider<List<String>>((ref) => []);
 // Provider to show/hide the loading indicator
 final suggestionsLoadingProvider = StateProvider<bool>((ref) => false);
 
-
 // ====================================================================
 // SearchPage Implementation (Stateful Conversion for API & Debounce)
 // ====================================================================
 
-class SearchPage extends ConsumerStatefulWidget { // <--- CONVERTED TO STATEFUL
+class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
   @override
@@ -47,21 +46,24 @@ class SearchPage extends ConsumerStatefulWidget { // <--- CONVERTED TO STATEFUL
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   Timer? _debounce;
-  late final TextEditingController _searchController; 
-  final GoogleSuggestApi _apiService = GoogleSuggestApi(); // Instantiate API service
+  late final TextEditingController _searchController;
+  final GoogleSuggestApi _apiService =
+      GoogleSuggestApi(); // Instantiate API service
 
   @override
   void initState() {
     super.initState();
     // Initialize controller with current state value
-    _searchController = TextEditingController(text: ref.read(searchQueryProvider));
-    
+    _searchController =
+        TextEditingController(text: ref.read(searchQueryProvider));
+
     // Listener to update the TextField when state changes (e.g., when a suggestion is tapped)
     ref.listenManual(searchQueryProvider, (previous, next) {
       if (_searchController.text != next) {
         _searchController.text = next;
         // Move cursor to the end
-        _searchController.selection = TextSelection.fromPosition(TextPosition(offset: next.length));
+        _searchController.selection =
+            TextSelection.fromPosition(TextPosition(offset: next.length));
       }
     });
   }
@@ -72,7 +74,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _searchController.dispose();
     super.dispose();
   }
-  
+
   // *** API LOGIC ***
   Future<void> _fetchSuggestions(String query) async {
     final cleanQuery = query.trim();
@@ -82,7 +84,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
 
     ref.read(suggestionsLoadingProvider.notifier).state = true;
-    
+
     // Call the Google Suggest API function
     final realSuggestions = await _apiService.fetchSuggestions(cleanQuery);
 
@@ -118,14 +120,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   @override
-  Widget build(BuildContext context) { // WidgetRef is available via ConsumerState
+  Widget build(BuildContext context) {
+    // WidgetRef is available via ConsumerState
     final dropdownTypeValue = ref.watch(selectedTypeState);
     final dropdownSortValue = ref.watch(selectedSortState);
     final dropDownFileTypeValue = ref.watch(selectedFileTypeState);
-    
+
     // Watch suggestion states
-    final suggestions = ref.watch(searchSuggestionProvider); // The list of titles
-    final isLoadingSuggestions = ref.watch(suggestionsLoadingProvider); // Loading state
+    final suggestions =
+        ref.watch(searchSuggestionProvider); // The list of titles
+    final isLoadingSuggestions =
+        ref.watch(suggestionsLoadingProvider); // Loading state
 
     return SingleChildScrollView(
       scrollDirection: Axis.vertical,
@@ -159,19 +164,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   suffixIcon: IconButton(
                     padding: const EdgeInsets.only(right: 5),
                     color: Theme.of(context).colorScheme.secondary,
-                    icon: isLoadingSuggestions // Show loading spinner if fetching suggestions
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.0,
-                              color: Theme.of(context).colorScheme.secondary,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.search,
-                            size: 23,
-                          ),
+                    icon:
+                        isLoadingSuggestions // Show loading spinner if fetching suggestions
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.0,
+                                  color:
+                                      Theme.of(context).colorScheme.secondary,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.search,
+                                size: 23,
+                              ),
                     onPressed: () => onSubmit(context), // <--- Simplified call
                   ),
                   filled: true,
@@ -186,10 +193,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
-                onChanged: _onSearchQueryChanged, // <--- Calls the debounced function
+                onChanged:
+                    _onSearchQueryChanged, // <--- Calls the debounced function
               ),
             ),
-            
+
             // --- Suggestions List (NEW) ---
             if (suggestions.isNotEmpty && _searchController.text.isNotEmpty)
               Padding(
@@ -223,11 +231,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         leading: const Icon(Icons.book, size: 18),
                         onTap: () {
                           // 1. Update the state with the selected suggestion
-                          ref.read(searchQueryProvider.notifier).state = suggestion;
-                          
+                          ref.read(searchQueryProvider.notifier).state =
+                              suggestion;
+
                           // 2. Clear the suggestion list
-                          ref.read(searchSuggestionProvider.notifier).state = [];
-                          
+                          ref.read(searchSuggestionProvider.notifier).state =
+                              [];
+
                           // 3. Immediately perform search
                           onSubmit(context);
                         },
