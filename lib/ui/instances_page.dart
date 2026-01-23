@@ -80,8 +80,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                     uri.host.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content:
-                          Text('Please enter a valid URL with http:// or https://'),
+                      content: Text(
+                          'Please enter a valid URL with http:// or https://'),
                     ),
                   );
                   return;
@@ -90,10 +90,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 // Capture context-dependent objects before async gap
                 final navigator = Navigator.of(context);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
-                
+
                 final manager = ref.read(instanceManagerProvider);
                 await manager.addInstance(name, url);
-                
+
                 // Refresh the instances list
                 ref.invalidate(archiveInstancesProvider);
 
@@ -102,7 +102,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                     navigator.pop();
                   }
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Instance added successfully')),
+                    const SnackBar(
+                        content: Text('Instance added successfully')),
                   );
                 }
               },
@@ -131,12 +132,12 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 // Capture context-dependent objects before async gap
                 final navigator = Navigator.of(context);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
-                
+
                 final manager = ref.read(instanceManagerProvider);
                 final success = await manager.removeInstance(instance.id);
-                
+
                 if (!mounted) return;
-                
+
                 if (success) {
                   ref.invalidate(archiveInstancesProvider);
                   navigator.pop();
@@ -146,7 +147,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 } else {
                   navigator.pop();
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Cannot delete default instances')),
+                    const SnackBar(
+                        content: Text('Cannot delete default instances')),
                   );
                 }
               },
@@ -176,7 +178,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
             onPressed: () async {
               // Capture context-dependent objects before async gap
               final scaffoldMessenger = ScaffoldMessenger.of(context);
-              
+
               final manager = ref.read(instanceManagerProvider);
               await manager.resetToDefaults();
               ref.invalidate(archiveInstancesProvider);
@@ -220,11 +222,11 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                       if (oldIndex < newIndex) {
                         newIndex -= 1;
                       }
-                      
+
                       final newList = List<ArchiveInstance>.from(instances);
                       final item = newList.removeAt(oldIndex);
                       newList.insert(newIndex, item);
-                      
+
                       final manager = ref.read(instanceManagerProvider);
                       await manager.reorderInstances(newList);
                       ref.invalidate(archiveInstancesProvider);
@@ -233,7 +235,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                       final instance = instances[index];
                       return Card(
                         key: ValueKey(instance.id),
-                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         child: ListTile(
                           leading: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -257,19 +260,22 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                               Expanded(
                                 child: Text(
                                   instance.name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
                               if (instance.isCustom)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: Colors.blue.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Text(
                                     'Custom',
-                                    style: TextStyle(fontSize: 10, color: Colors.blue),
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.blue),
                                   ),
                                 ),
                             ],
@@ -283,17 +289,25 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                             children: [
                               Switch(
                                 value: instance.enabled,
-                                activeThumbColor: Colors.green,
+                                thumbColor: WidgetStateProperty.resolveWith(
+                                    (states) =>
+                                        states.contains(WidgetState.selected)
+                                            ? Colors.green
+                                            : null),
                                 onChanged: (value) async {
-                                  final manager = ref.read(instanceManagerProvider);
-                                  await manager.toggleInstance(instance.id, value);
+                                  final manager =
+                                      ref.read(instanceManagerProvider);
+                                  await manager.toggleInstance(
+                                      instance.id, value);
                                   ref.invalidate(archiveInstancesProvider);
                                 },
                               ),
                               if (instance.isCustom)
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () => _showDeleteConfirmDialog(instance),
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () =>
+                                      _showDeleteConfirmDialog(instance),
                                 ),
                             ],
                           ),
@@ -312,7 +326,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                       Text('Error: $error'),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: () => ref.invalidate(archiveInstancesProvider),
+                        onPressed: () =>
+                            ref.invalidate(archiveInstancesProvider),
                         child: const Text('Retry'),
                       ),
                     ],
