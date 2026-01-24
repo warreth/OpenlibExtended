@@ -276,7 +276,15 @@ class SettingsPage extends ConsumerWidget {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text("Cancel"),
+                        child: Text(
+                          "Cancel",
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).brightness == Brightness.light
+                                    ? Colors.black
+                                    : Colors.white,
+                          ),
+                        ),
                       ),
                       TextButton(
                         onPressed: () {
@@ -285,7 +293,15 @@ class SettingsPage extends ConsumerWidget {
                           dataBase.savePreference('donationKey', newKey);
                           Navigator.pop(context);
                         },
-                        child: const Text("Save"),
+                        child: Text(
+                          "Save",
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).brightness == Brightness.light
+                                    ? Colors.black
+                                    : Colors.white,
+                          ),
+                        ),
                       ),
                     ],
                   ),
