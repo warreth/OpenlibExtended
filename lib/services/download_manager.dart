@@ -562,8 +562,7 @@ class DownloadManager {
 
       int contentLength = 0;
       if (response.headers.value('content-length') != null) {
-        contentLength =
-            int.parse(response.headers.value('content-length')!);
+        contentLength = int.parse(response.headers.value('content-length')!);
       }
 
       int total = received + contentLength;
@@ -611,8 +610,7 @@ class DownloadManager {
       if (e is DioException && e.type == DioExceptionType.cancel) {
         rethrow;
       }
-      _logger.error('Download stream error',
-          tag: 'DownloadManager', error: e);
+      _logger.error('Download stream error', tag: 'DownloadManager', error: e);
       return false;
     } finally {
       dio.close();
