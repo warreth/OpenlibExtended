@@ -135,7 +135,7 @@ class AnnasArchieve {
         try {
           // Apply timeout to the request function
           final result = await requestFn(instance.baseUrl).timeout(
-            Duration(seconds: requestTimeoutSeconds),
+            const Duration(seconds: requestTimeoutSeconds),
             onTimeout: () {
               throw TimeoutException(
                   "Request timed out after ${requestTimeoutSeconds}s");

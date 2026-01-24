@@ -403,8 +403,9 @@ class InstanceManager {
       final timeB = responseTimeMap[b.id];
 
       // Both unreachable - keep original order
-      if (timeA == null && timeB == null)
+      if (timeA == null && timeB == null) {
         return a.priority.compareTo(b.priority);
+      }
       // A unreachable - B comes first
       if (timeA == null) return 1;
       // B unreachable - A comes first

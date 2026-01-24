@@ -326,8 +326,9 @@ final getSubCategoryTypeList = FutureProvider.family
 // Provider for Anna's Archive Search Results
 final searchProvider = FutureProvider.family
     .autoDispose<List<BookData>, String>((ref, searchQuery) async {
-  if (searchQuery.isEmpty)
+  if (searchQuery.isEmpty) {
     return []; // Return empty list if search query is empty
+  }
 
   final AnnasArchieve annasArchieve = AnnasArchieve();
   List<BookData> data = await annasArchieve.searchBooks(

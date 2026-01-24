@@ -134,21 +134,40 @@ Future<void> moveFilesToAndroidInternalStorage() async {
   }
 }
 
-Future<void> moveFolderContents(
-    String sourcePath, String destinationPath) async {
+Future<void> moveLibraryFiles(String sourcePath, String destinationPath) async {
   final source = Directory(sourcePath);
-  source.listSync(recursive: false).forEach((var entity) {
-    if (entity is Directory) {
-      var newDirectory =
-          Directory('$destinationPath/${entity.path.split('/').last}');
-      newDirectory.createSync();
-      moveFolderContents(entity.path, newDirectory.path);
-      entity.deleteSync();
-    } else if (entity is File) {
-      entity.copySync('$destinationPath/${entity.path.split('/').last}');
-      entity.deleteSync();
+  if (!await source.exists()) return;
+
+  // Allowed extensions for books
+  final allowedExtensions = ['.pdf', '.epub', '.cbr', '.cbz'];
+
+  await for (final entity in source.list(recursive: false)) {
+    if (entity is File) {
+      final path = entity.path.toLowerCase();
+      if (allowedExtensions.any((ext) => path.endsWith(ext))) {
+        try {
+          final fileName = entity.path.split(Platform.pathSeparator).last;
+          final newPath = '$destinationPath${Platform.pathSeparator}$fileName';
+
+          // Ensure destination directory exists
+          final destDir = Directory(destinationPath);
+          if (!await destDir.exists()) {
+            await destDir.create(recursive: true);
+          }
+
+          final destFile = File(newPath);
+          if (!await destFile.exists()) {
+            await entity.copy(newPath);
+            await entity.delete();
+          }
+        } catch (e) {
+          // ignore: avoid_print
+          print("Error moving file: ${entity.path} -> $e");
+        }
+      }
     }
-  });
+    // We intentionally ignore directories to avoid moving unwanted folders
+  }
 }
 
 Future<bool> isFileExists(String filePath) async {

@@ -21,6 +21,7 @@ import 'package:openlib/ui/mylibrary_page.dart';
 import 'package:openlib/ui/search_page.dart';
 import 'package:openlib/ui/settings_page.dart';
 import 'package:openlib/ui/themes.dart';
+import 'package:openlib/ui/onboarding/onboarding_page.dart';
 
 import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
@@ -110,6 +111,12 @@ void main(List<String> args) async {
           .catchError((e) => 'All') as String? ??
       'All';
 
+  // Check onboarding status
+  bool onboardingCompleted = await dataBase
+          .getPreference('onboardingCompleted')
+          .catchError((e) => 0) ==
+      1;
+
   if (Platform.isAndroid) {
     // Android-specific setup for system UI overlay colors
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
@@ -137,13 +144,14 @@ void main(List<String> args) async {
         selectedLanguageState.overrideWith((ref) => savedLanguage),
         selectedYearState.overrideWith((ref) => savedYear),
       ],
-      child: const MyApp(),
+      child: MyApp(onboardingCompleted: onboardingCompleted),
     ),
   );
 }
 
 class MyApp extends ConsumerWidget {
-  const MyApp({super.key});
+  final bool onboardingCompleted;
+  const MyApp({super.key, this.onboardingCompleted = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -160,7 +168,7 @@ class MyApp extends ConsumerWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ref.watch(themeModeProvider),
-      home: const MainScreen(),
+      home: onboardingCompleted ? const MainScreen() : const OnboardingPage(),
     );
   }
 }

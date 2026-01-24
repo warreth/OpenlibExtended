@@ -335,7 +335,7 @@ class SettingsPage extends ConsumerWidget {
                   // Only move books if current directory is the internal default
                   // Don't move if already using an external directory
                   if (currentDirectory == internalDirectory) {
-                    await moveFolderContents(currentDirectory, pickedDirectory);
+                    await moveLibraryFiles(currentDirectory, pickedDirectory);
                   }
 
                   // Save the new directory preference
