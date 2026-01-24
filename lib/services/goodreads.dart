@@ -2,8 +2,12 @@
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
 
+// Project imports:
+import 'package:openlib/services/network_error.dart';
+import 'package:openlib/services/logger.dart';
+
 class CategoryBookData {
-  final String? title;  
+  final String? title;
   final String? thumbnail;
   final String? link;
   CategoryBookData({this.title, this.thumbnail, this.link});
@@ -19,15 +23,16 @@ class CategoryBookData {
 
   @override
   int get hashCode {
-    return title.hashCode ^ thumbnail.hashCode ^ link.hashCode; // Using XOR to combine hash codes
+    return title.hashCode ^
+        thumbnail.hashCode ^
+        link.hashCode; // Using XOR to combine hash codes
   }
-  }
-
+}
 
 String baseUrl = "https://www.goodreads.com/";
 
 class SubCategoriesTypeList {
-   List<CategoryBookData>_parser(data) {
+  List<CategoryBookData> _parser(data) {
     var document = parse(data.toString());
     var categoryList = document.querySelectorAll('.listImgs a');
     List<CategoryBookData> categoriesBooks = [];
@@ -37,16 +42,14 @@ class SubCategoriesTypeList {
         String? title = element.querySelector('img')?.attributes['title'];
         String? thumbnail = element.querySelector('img')?.attributes['src'];
         String? link = element.querySelector('a')?.attributes['herf']!;
-        categoriesBooks.add(  CategoryBookData(
-              title: title
-                  .toString()
-                  .trim(),
-              thumbnail: thumbnail
-                  .toString()
-                  .replaceAll("._SY75_.", "._SY225_.")
-                  .replaceAll("._SX50_.", "._SX148_."),
-              link : link
-                  .toString(),
+        categoriesBooks.add(
+          CategoryBookData(
+            title: title.toString().trim(),
+            thumbnail: thumbnail
+                .toString()
+                .replaceAll("._SY75_.", "._SY225_.")
+                .replaceAll("._SX50_.", "._SX148_."),
+            link: link.toString(),
           ),
         );
       }
@@ -55,6 +58,7 @@ class SubCategoriesTypeList {
   }
 
   Future<List<CategoryBookData>> categoriesBooks({required String url}) async {
+    final logger = AppLogger();
     try {
       final dio = Dio();
       final response = await dio.get('$baseUrl$url',
@@ -67,11 +71,10 @@ class SubCategoriesTypeList {
               receiveTimeout: const Duration(seconds: 20)));
       return _parser('${response.data.toString()}${response1.data.toString()}');
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.unknown) {
-        throw "socketException";
-      }
-      rethrow;
+      logger.error('Failed to fetch categories',
+          tag: 'GoodReads', error: e.message ?? e.error);
+      throw NetworkError.fromException(e,
+          responseBody: e.response?.data?.toString());
     }
   }
 }
-

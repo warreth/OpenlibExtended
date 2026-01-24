@@ -3,14 +3,19 @@ import 'dart:convert';
 import 'dart:io';
 
 // Flutter imports:
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Package imports:
+import 'package:android_package_installer/android_package_installer.dart';
+import 'package:apk_sideload/install_apk.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
@@ -68,19 +73,29 @@ class ReleaseInfo {
         downloadUrls["ios"] = url;
       } else if (name.contains("windows") ||
           name.endsWith(".exe") ||
-          name.endsWith("-windows-x64.zip")) {
+          name.endsWith(".msix") ||
+          (name.endsWith(".zip") &&
+              (name.contains("win") || name.contains("x64")))) {
         downloadUrls["windows"] = url;
-      } else if (name.contains("linux")) {
+      } else if (name.contains("linux") ||
+          name.endsWith(".AppImage") ||
+          name.endsWith(".flatpak")) {
         if (name.endsWith(".AppImage")) {
           downloadUrls["linux-appimage"] = url;
         } else if (name.endsWith(".flatpak")) {
           downloadUrls["linux-flatpak"] = url;
         } else if (name.endsWith(".tar.gz")) {
           downloadUrls["linux-tar"] = url;
+        } else if (name.endsWith(".deb")) {
+          downloadUrls["linux-deb"] = url;
+        } else if (name.endsWith(".rpm")) {
+          downloadUrls["linux-rpm"] = url;
         } else {
           downloadUrls["linux"] = url;
         }
-      } else if (name.endsWith(".dmg") || name.contains("macos")) {
+      } else if (name.endsWith(".dmg") ||
+          name.contains("macos") ||
+          name.contains("darwin")) {
         downloadUrls["macos"] = url;
       }
     }
@@ -244,6 +259,8 @@ class UpdateCheckerService {
     } else if (Platform.isLinux) {
       return release.downloadUrls["linux-appimage"] ??
           release.downloadUrls["linux-tar"] ??
+          release.downloadUrls["linux-deb"] ??
+          release.downloadUrls["linux-flatpak"] ??
           release.downloadUrls["linux"];
     } else if (Platform.isMacOS) {
       return release.downloadUrls["macos"];
@@ -269,15 +286,76 @@ class UpdateCheckerService {
 
   // Get the downloads directory for storing the update file
   Future<Directory> _getDownloadsDirectory() async {
-    if (Platform.isAndroid) {
-      // Use external cache for Android
-      final cacheDir = await getExternalStorageDirectory();
-      if (cacheDir != null) {
-        return cacheDir;
-      }
-    }
-    // Fallback to temp directory
+    // Use temp directory for all platforms - this works better with FileProvider on Android
     return await getTemporaryDirectory();
+  }
+
+  // Check and request install packages permission on Android
+  Future<bool> _checkAndRequestInstallPermission(BuildContext context) async {
+    if (!Platform.isAndroid) return true;
+
+    // Check if permission is already granted
+    final status = await Permission.requestInstallPackages.status;
+    if (status.isGranted) return true;
+
+    // Show explanation dialog and request permission
+    if (!context.mounted) return false;
+
+    final shouldRequest = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.security,
+                  color: Theme.of(dialogContext).colorScheme.secondary),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Permission Required",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            "To install app updates, Openlib needs permission to install packages.\n\n"
+            "This allows the app to automatically install new versions with bug fixes and new features.\n\n"
+            "You will be taken to Settings to enable this permission.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                "Cancel",
+                style: TextStyle(
+                  color: Theme.of(dialogContext)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                "Open Settings",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRequest != true) return false;
+
+    // Request permission - this will open settings on Android 8+
+    final result = await Permission.requestInstallPackages.request();
+    return result.isGranted;
   }
 
   // Download update file with progress tracking
@@ -353,35 +431,474 @@ class UpdateCheckerService {
     }
   }
 
-  // Open/Install the downloaded update file
-  Future<void> openUpdateFile(String filePath) async {
-    try {
-      _logger.info("Opening update file", tag: "UpdateChecker", metadata: {
-        "path": filePath,
-      });
+  // Open/Install the downloaded update file with fallback mechanisms
+  Future<bool> openUpdateFile(String filePath, BuildContext context,
+      {ReleaseInfo? release}) async {
+    _logger.info("Opening update file", tag: "UpdateChecker", metadata: {
+      "path": filePath,
+    });
 
-      if (Platform.isAndroid) {
-        // Open APK for installation
-        await OpenFile.open(filePath,
-            type: "application/vnd.android.package-archive");
-      } else if (Platform.isWindows) {
-        // Run the exe installer
-        await Process.start(filePath, [], mode: ProcessStartMode.detached);
-      } else if (Platform.isLinux) {
-        // Run the AppImage
-        await Process.start(filePath, [], mode: ProcessStartMode.detached);
-      } else if (Platform.isMacOS) {
-        // Open the DMG
-        await OpenFile.open(filePath, type: "application/x-apple-diskimage");
-      } else if (Platform.isIOS) {
-        // iOS requires special handling via MDM or TestFlight
-        await OpenFile.open(filePath);
+    // Verify file exists and has content
+    final file = File(filePath);
+    if (!await file.exists()) {
+      _logger.error("Update file does not exist", tag: "UpdateChecker");
+      if (context.mounted) {
+        _showInstallErrorDialog(context, filePath, "Downloaded file not found",
+            release: release);
       }
-    } catch (e, stackTrace) {
-      _logger.error("Failed to open update file",
-          tag: "UpdateChecker", error: e, stackTrace: stackTrace);
-      rethrow;
+      return false;
     }
+
+    final fileSize = await file.length();
+    if (fileSize < 10240) {
+      _logger.error("Update file is too small, likely corrupted",
+          tag: "UpdateChecker", metadata: {"size": fileSize});
+      if (context.mounted) {
+        _showInstallErrorDialog(context, filePath,
+            "Downloaded file appears to be corrupted (only ${_formatBytes(fileSize)})",
+            release: release);
+      }
+      return false;
+    }
+
+    _logger.info("File verified", tag: "UpdateChecker", metadata: {
+      "size": fileSize,
+    });
+
+    if (Platform.isAndroid) {
+      if (!context.mounted) return false;
+      return await _installApkWithFallbacks(filePath, context,
+          release: release);
+    } else if (Platform.isWindows) {
+      await Process.start(filePath, [], mode: ProcessStartMode.detached);
+      return true;
+    } else if (Platform.isLinux) {
+      await Process.start(filePath, [], mode: ProcessStartMode.detached);
+      return true;
+    } else if (Platform.isMacOS) {
+      await OpenFile.open(filePath, type: "application/x-apple-diskimage");
+      return true;
+    } else if (Platform.isIOS) {
+      await OpenFile.open(filePath);
+      return true;
+    }
+    return false;
+  }
+
+  // Install APK on Android with multiple fallback methods
+  Future<bool> _installApkWithFallbacks(String filePath, BuildContext context,
+      {ReleaseInfo? release}) async {
+    // Track errors from each method for user display
+    List<String> attemptedMethods = [];
+    List<String> errorMessages = [];
+
+    // Check and request install permission first
+    final hasPermission = await _checkAndRequestInstallPermission(context);
+    if (!hasPermission) {
+      _logger.warning("Install permission denied", tag: "UpdateChecker");
+      if (context.mounted) {
+        _showInstallErrorDialog(context, filePath,
+            "Permission to install apps was denied. You can still install manually.",
+            release: release);
+      }
+      return false;
+    }
+
+    // Warn about debug builds
+    if (kDebugMode && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Debug Build Detected: Update may fail with 'App not installed' due to signature mismatch. Uninstall this app first.",
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 10),
+        ),
+      );
+    }
+
+    // Method 1: Try open_file (Most standard method)
+    attemptedMethods.add("Open File");
+    try {
+      _logger.info("Attempting installation with open_file",
+          tag: "UpdateChecker");
+      final result = await OpenFile.open(filePath,
+          type: "application/vnd.android.package-archive");
+      if (result.type == ResultType.done) {
+        _logger.info("open_file installation initiated", tag: "UpdateChecker");
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                  "Opening installer... If nothing happens, the install failed."),
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: "Manual Install",
+                onPressed: () {
+                  if (context.mounted) {
+                    _showInstallFallbackDialog(
+                        context,
+                        filePath,
+                        attemptedMethods,
+                        ["May have failed silently"],
+                        release);
+                  }
+                },
+              ),
+            ),
+          );
+        }
+        return true;
+      }
+      final errorMsg =
+          "Result type: ${result.type.name}, message: ${result.message}";
+      errorMessages.add(errorMsg);
+      _logger.warning("open_file failed",
+          tag: "UpdateChecker", metadata: {"result": result.type.name});
+    } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
+      _logger.warning("open_file failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // Method 2: Try apk_sideload
+    attemptedMethods.add("APK Sideload");
+    try {
+      _logger.info("Attempting installation with apk_sideload",
+          tag: "UpdateChecker");
+      await InstallApk().installApk(filePath);
+      _logger.info("apk_sideload installation initiated", tag: "UpdateChecker");
+
+      // Show user that installer was opened
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                "Opening installer... If nothing happens, the install failed."),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: "Manual Install",
+              onPressed: () {
+                if (context.mounted) {
+                  _showInstallFallbackDialog(context, filePath,
+                      attemptedMethods, ["May have failed silently"], release);
+                }
+              },
+            ),
+          ),
+        );
+      }
+      return true;
+    } on PlatformException catch (e) {
+      final errorMsg = "PlatformException: ${e.message ?? "Unknown error"}";
+      errorMessages.add(errorMsg);
+      _logger.warning("apk_sideload failed",
+          tag: "UpdateChecker", metadata: {"error": e.message});
+    } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
+      _logger.warning("apk_sideload failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // Method 3: Try android_package_installer
+    attemptedMethods.add("Package Installer");
+    try {
+      _logger.info("Attempting installation with android_package_installer",
+          tag: "UpdateChecker");
+      final statusCode = await AndroidPackageInstaller.installApk(
+        apkFilePath: filePath,
+      );
+      if (statusCode != null) {
+        final status = PackageInstallerStatus.byCode(statusCode);
+        _logger.info("android_package_installer result",
+            tag: "UpdateChecker",
+            metadata: {"status": status.name, "code": statusCode});
+        if (status == PackageInstallerStatus.success) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                    "Opening installer... If nothing happens, the install failed."),
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: "Manual Install",
+                  onPressed: () {
+                    if (context.mounted) {
+                      _showInstallFallbackDialog(
+                          context,
+                          filePath,
+                          attemptedMethods,
+                          ["May have failed silently"],
+                          release);
+                    }
+                  },
+                ),
+              ),
+            );
+          }
+          return true;
+        } else {
+          final errorMsg = "Status: ${status.name} (code: $statusCode)";
+          errorMessages.add(errorMsg);
+        }
+      } else {
+        errorMessages.add("Returned null status code");
+      }
+    } catch (e) {
+      final errorMsg = e.toString();
+      errorMessages.add(errorMsg);
+      _logger.warning("android_package_installer failed",
+          tag: "UpdateChecker", metadata: {"error": e.toString()});
+    }
+
+    // All automatic methods failed - show fallback dialog with error details
+    _logger.error("All installation methods failed",
+        tag: "UpdateChecker",
+        metadata: {
+          "attemptedMethods": attemptedMethods,
+          "errors": errorMessages,
+        });
+
+    if (context.mounted) {
+      await _showInstallFallbackDialog(
+          context, filePath, attemptedMethods, errorMessages, release);
+    }
+    return false;
+  }
+
+  // Show fallback dialog with manual options when automatic installation fails
+  Future<void> _showInstallFallbackDialog(BuildContext context, String filePath,
+      [List<String>? attemptedMethods,
+      List<String>? errorMessages,
+      ReleaseInfo? release]) async {
+    final fileName = filePath.split("/").last;
+    final hasErrors = errorMessages != null && errorMessages.isNotEmpty;
+    final hasMethods = attemptedMethods != null && attemptedMethods.isNotEmpty;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "Installation Issue",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "The automatic installer couldn't open the APK. This can happen on some Android versions.\n\n"
+                  "You can install manually using one of these options:",
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "File: $fileName",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(dialogContext)
+                        .colorScheme
+                        .tertiary
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+                // Show attempted methods and errors for debugging
+                if (hasMethods || hasErrors) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(dialogContext)
+                          .colorScheme
+                          .errorContainer
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(dialogContext)
+                            .colorScheme
+                            .error
+                            .withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Installation Failed",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (hasMethods) ...[
+                          Text(
+                            "Methods tried:",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(dialogContext)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...attemptedMethods.map((method) => Text(
+                                "• $method",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(dialogContext)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              )),
+                        ],
+                        if (hasErrors) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            "Errors encountered:",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(dialogContext).colorScheme.error,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...errorMessages.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final error = entry.value;
+                            final methodName =
+                                hasMethods && index < attemptedMethods.length
+                                    ? attemptedMethods[index]
+                                    : "Method ${index + 1}";
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: SelectableText(
+                                "$methodName: $error",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: "monospace",
+                                  color:
+                                      Theme.of(dialogContext).colorScheme.error,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                "Cancel",
+                style: TextStyle(
+                  color: Theme.of(dialogContext)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            if (release != null)
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  final url = getDownloadUrlForPlatform(release);
+                  final targetUrl = url ?? release.htmlUrl;
+                  final uri = Uri.parse(targetUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: Text(
+                  "Download via Browser",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show error dialog with fallback options
+  Future<void> _showInstallErrorDialog(
+      BuildContext context, String filePath, String errorMessage,
+      {ReleaseInfo? release}) async {
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "Installation Error",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Text(errorMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                "OK",
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.secondary,
+                ),
+              ),
+            ),
+            if (File(filePath).existsSync())
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await _showInstallFallbackDialog(
+                      context, filePath, null, null, release);
+                },
+                child: Text(
+                  "Try Manual Install",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return "$bytes B";
+    if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
+    return "${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB";
   }
 
   // Show update download dialog with progress
@@ -410,8 +927,20 @@ class UpdateCheckerService {
     );
 
     // Open the downloaded file if successful
-    if (downloadedFilePath != null) {
-      await openUpdateFile(downloadedFilePath!);
+    if (downloadedFilePath != null && context.mounted) {
+      try {
+        await openUpdateFile(downloadedFilePath!, context, release: release);
+      } catch (e) {
+        // Show error to user
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Failed to install update: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -437,18 +966,18 @@ class UpdateCheckerService {
 
     return showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: Row(
             children: [
               Icon(Icons.system_update,
-                  color: Theme.of(context).colorScheme.secondary),
+                  color: Theme.of(dialogContext).colorScheme.secondary),
               const SizedBox(width: 10),
               Text(
                 "Update Available",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.secondary,
+                  color: Theme.of(dialogContext).colorScheme.secondary,
                 ),
               ),
             ],
@@ -463,7 +992,7 @@ class UpdateCheckerService {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.tertiary,
+                    color: Theme.of(dialogContext).colorScheme.tertiary,
                   ),
                 ),
                 if (release.isPrerelease)
@@ -491,7 +1020,7 @@ class UpdateCheckerService {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.tertiary,
+                      color: Theme.of(dialogContext).colorScheme.tertiary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -502,7 +1031,7 @@ class UpdateCheckerService {
                         release.body,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context)
+                          color: Theme.of(dialogContext)
                               .colorScheme
                               .tertiary
                               .withValues(alpha: 0.8),
@@ -516,22 +1045,22 @@ class UpdateCheckerService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(
                 "Later",
                 style: TextStyle(
-                  color: Theme.of(context)
+                  color: Theme.of(dialogContext)
                       .colorScheme
                       .tertiary
                       .withValues(alpha: 0.7),
                 ),
               ),
             ),
-            if (downloadUrl != null)
+            // Show download button for mobile when URL exists
+            if (downloadUrl != null && (Platform.isAndroid || Platform.isIOS))
               TextButton(
                 onPressed: () async {
-                  Navigator.of(context).pop();
-                  // Show download progress dialog
+                  Navigator.of(dialogContext).pop();
                   if (context.mounted) {
                     await _showUpdateDownloadDialog(context, release);
                   }
@@ -540,11 +1069,37 @@ class UpdateCheckerService {
                   "Download & Install",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.secondary,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
                   ),
                 ),
               ),
-            if (downloadUrl == null)
+            // Show download button for desktop (direct download or open GitHub)
+            if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  if (downloadUrl != null && context.mounted) {
+                    await _showUpdateDownloadDialog(context, release);
+                  } else {
+                    final uri = Uri.parse(release.htmlUrl);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                    }
+                  }
+                },
+                child: Text(
+                  downloadUrl != null
+                      ? "Download & Install"
+                      : "Download from GitHub",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
+                  ),
+                ),
+              ),
+            // Fallback for mobile when no download URL
+            if (downloadUrl == null && (Platform.isAndroid || Platform.isIOS))
               TextButton(
                 onPressed: () async {
                   Navigator.of(context).pop();
