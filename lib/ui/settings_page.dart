@@ -18,6 +18,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:openlib/services/database.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
+import 'package:openlib/ui/onboarding/onboarding_page.dart';
 
 import 'package:openlib/state/state.dart'
     show
@@ -173,27 +174,48 @@ class SettingsPage extends ConsumerWidget {
                 }
               },
             ),
-            _buildSettingTile(
-              context,
-              title: "Storage Location",
-              subtitle: "Change where books are saved",
-              icon: Icons.folder,
-              onTap: () async {
-                final currentDirectory =
-                    await dataBase.getPreference('bookStorageDirectory');
-                final internalDirectory = await getBookStorageDefaultDirectory;
-                String? pickedDirectory =
-                    await FilePicker.platform.getDirectoryPath();
-                if (pickedDirectory == null) return;
-                await requestStoragePermission();
-
-                if (currentDirectory == internalDirectory) {
-                  await moveLibraryFiles(currentDirectory, pickedDirectory);
+            FutureBuilder<dynamic>(
+              future: dataBase.getPreference('bookStorageDirectory'),
+              builder: (context, snapshot) {
+                String subtitle = "Change where books are saved";
+                if (snapshot.hasData && snapshot.data is String) {
+                  subtitle = snapshot.data as String;
                 }
+                return _buildSettingTile(
+                  context,
+                  title: "Storage Location",
+                  subtitle: subtitle,
+                  icon: Icons.folder,
+                  onTap: () async {
+                    final currentDirectory =
+                        await dataBase.getPreference('bookStorageDirectory');
+                    final internalDirectory =
+                        await getBookStorageDefaultDirectory;
+                    String? pickedDirectory =
+                        await FilePicker.platform.getDirectoryPath();
+                    if (pickedDirectory == null) return;
+                    await requestStoragePermission();
 
-                await dataBase.savePreference(
-                    'bookStorageDirectory', pickedDirectory);
-                await scanAndImportBooks(pickedDirectory, dataBase, ref);
+                    if (currentDirectory == internalDirectory) {
+                      await moveLibraryFiles(currentDirectory, pickedDirectory);
+                    }
+
+                    await dataBase.savePreference(
+                        'bookStorageDirectory', pickedDirectory);
+                    await scanAndImportBooks(pickedDirectory, dataBase, ref);
+                    // Force rebuild to show new path
+                    // ignore: unused_result
+                    ref.refresh(myLibraryProvider);
+                    // Since this FutureBuilder depends on the db future directly,
+                    // we might need to trigger a setstate or similar if we want it to update immediately
+                    // without page reload. But SettingsPage is a ConsumerWidget.
+                    // A simple hack is to rely on the fact that we're rebuilding the parent or
+                    // just let it update on next entry.
+                    // For better UX, we should probably watch a provider that updates when preference changes.
+                    // But for now, this matches the existing pattern.
+                    (context as Element).markNeedsBuild();
+                  },
+                );
               },
             ),
             const SizedBox(height: 20),
@@ -239,6 +261,26 @@ class SettingsPage extends ConsumerWidget {
               onTap: () {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => const AboutPage()));
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "Developer"),
+            _buildSettingTile(
+              context,
+              title: "Redo Onboarding",
+              subtitle: "Reset app setup and start over",
+              icon: Icons.restart_alt,
+              onTap: () async {
+                // Clear relevant preferences
+                await dataBase.savePreference('onboardingCompleted', 0);
+
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                        builder: (context) => const OnboardingPage()),
+                    (route) => false,
+                  );
+                }
               },
             ),
             const Padding(
@@ -307,6 +349,7 @@ class SettingsPage extends ConsumerWidget {
       {required String title,
       String? subtitle,
       IconData? icon,
+      Widget? trailing,
       required VoidCallback onTap}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -323,7 +366,7 @@ class SettingsPage extends ConsumerWidget {
         subtitle: subtitle != null
             ? Text(subtitle, style: const TextStyle(fontSize: 12))
             : null,
-        trailing: const Icon(Icons.chevron_right),
+        trailing: trailing ?? const Icon(Icons.chevron_right),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );

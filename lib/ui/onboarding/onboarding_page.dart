@@ -225,10 +225,15 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                 style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
           const SizedBox(height: 20),
-          FilledButton.icon(
+          ElevatedButton.icon(
             onPressed: _selectStorage,
             icon: const Icon(Icons.edit),
             label: const Text("Select Folder"),
+            style: ElevatedButton.styleFrom(
+              // Ensure visible colors regardless of theme defaults
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              foregroundColor: Colors.white,
+            ),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -252,23 +257,35 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           Text("Automatic Updates",
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
-          SwitchListTile(
-            title: const Text("Enable Auto-Updates"),
-            subtitle: const Text(
-                "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
-            value: _enableAutoUpdate,
-            onChanged: (val) async {
-              setState(() {
-                _enableAutoUpdate = val;
-              });
-              if (val && Platform.isAndroid) {
-                // Request install permission if they enable it
-                final status = await Permission.requestInstallPackages.status;
-                if (!status.isGranted) {
-                  await Permission.requestInstallPackages.request();
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+            ),
+            child: SwitchListTile(
+              title: const Text("Enable Auto-Updates"),
+              subtitle: const Text(
+                  "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
+              activeColor: Theme.of(context).colorScheme.secondary,
+              activeTrackColor:
+                  Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+              inactiveThumbColor: Colors.grey,
+              inactiveTrackColor: Colors.grey.withOpacity(0.5),
+              value: _enableAutoUpdate,
+              onChanged: (val) async {
+                setState(() {
+                  _enableAutoUpdate = val;
+                });
+                if (val && Platform.isAndroid) {
+                  // Request install permission if they enable it
+                  final status = await Permission.requestInstallPackages.status;
+                  if (!status.isGranted) {
+                    await Permission.requestInstallPackages.request();
+                  }
                 }
-              }
-            },
+              },
+            ),
           ),
         ],
       ),

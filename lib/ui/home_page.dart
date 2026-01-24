@@ -28,7 +28,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           const SizedBox(height: 8),
           const ActiveDownloadsWidget(),
           Padding(
-            padding: const EdgeInsets.only(left: 5, right: 5, top: 10, bottom: 5),
+            padding:
+                const EdgeInsets.only(left: 5, right: 5, top: 10, bottom: 5),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -72,6 +73,7 @@ class PelletContainer extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         color: Theme.of(context).colorScheme.secondary,
+        // Border matches secondary color to avoid white border in dark mode
         border: Border.all(color: Theme.of(context).colorScheme.secondary),
       ),
       child: Row(
@@ -86,7 +88,12 @@ class PelletContainer extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: selectedIndex == 0
                       ? Theme.of(context).colorScheme.secondary
-                      : Theme.of(context).colorScheme.primary,
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? const Color(
+                              0xFF1E1E1E) // Dark Grey for unselected in Dark Mode
+                          : Theme.of(context)
+                              .colorScheme
+                              .primary), // White for unselected in Light Mode
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(25),
                     bottomLeft: Radius.circular(25),
@@ -99,8 +106,10 @@ class PelletContainer extends StatelessWidget {
                   icon: Icon(
                     Icons.trending_up,
                     color: selectedIndex == 0
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.tertiary,
+                        ? Colors.white // Always white when selected (on Red)
+                        : Theme.of(context)
+                            .colorScheme
+                            .tertiary, // Black/White based on theme when unselected
                   ),
                   label: const Text(''), // Empty label
                   style: TextButton.styleFrom(
@@ -125,7 +134,12 @@ class PelletContainer extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: selectedIndex == 1
                       ? Theme.of(context).colorScheme.secondary
-                      : Theme.of(context).colorScheme.primary,
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? const Color(
+                              0xFF1E1E1E) // Dark Grey for unselected in Dark Mode
+                          : Theme.of(context)
+                              .colorScheme
+                              .primary), // White for unselected in Light Mode
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(0),
                     bottomLeft: Radius.circular(0),
@@ -138,8 +152,10 @@ class PelletContainer extends StatelessWidget {
                   icon: Icon(
                     Icons.dashboard_rounded,
                     color: selectedIndex == 1
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.tertiary,
+                        ? Colors.white // Always white when selected (on Red)
+                        : Theme.of(context)
+                            .colorScheme
+                            .tertiary, // Black/White based on theme when unselected
                   ),
                   label: const Text(''), // Empty label
                   style: TextButton.styleFrom(
