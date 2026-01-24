@@ -115,6 +115,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/icons/
     - google_fonts/
     - pubspec.yaml
   # An image asset can refer to one or more resolution-specific "variants", see
