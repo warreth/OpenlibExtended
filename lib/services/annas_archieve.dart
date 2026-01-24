@@ -285,18 +285,31 @@ class AnnasArchieve {
   // _bookInfoParser FUNCTION (Detail Page - Fixed 'unable to get data' error)
   // --------------------------------------------------------------------
   Future<BookInfoData?> _bookInfoParser(
-      resData, url, String currentBaseUrl) async {
+      resData, url, String currentBaseUrl, String? donationKey) async {
     var document = parse(resData.toString());
     final main = document.querySelector('div.main-inner');
     if (main == null) return null;
 
     // --- Mirror Link Extraction ---
     String? mirror;
-    final slowDownloadLinks =
-        main.querySelectorAll('ul.list-inside a[href*="/slow_download/"]');
-    if (slowDownloadLinks.isNotEmpty &&
-        slowDownloadLinks.first.attributes['href'] != null) {
-      mirror = currentBaseUrl + slowDownloadLinks.first.attributes['href']!;
+
+    if (donationKey != null && donationKey.isNotEmpty) {
+      final fastDownloadLinks =
+          main.querySelectorAll('ul.list-inside a[href*="/fast_download/"]');
+      if (fastDownloadLinks.isNotEmpty &&
+          fastDownloadLinks.first.attributes['href'] != null) {
+        mirror =
+            "$currentBaseUrl${fastDownloadLinks.first.attributes['href']!}?key=$donationKey";
+      }
+    }
+
+    if (mirror == null) {
+      final slowDownloadLinks =
+          main.querySelectorAll('ul.list-inside a[href*="/slow_download/"]');
+      if (slowDownloadLinks.isNotEmpty &&
+          slowDownloadLinks.first.attributes['href'] != null) {
+        mirror = currentBaseUrl + slowDownloadLinks.first.attributes['href']!;
+      }
     }
     // --------------------------------
 
@@ -487,7 +500,8 @@ class AnnasArchieve {
     }
   }
 
-  Future<BookInfoData> bookInfo({required String url}) async {
+  Future<BookInfoData> bookInfo(
+      {required String url, String? donationKey}) async {
     _logger.info('Fetching book info',
         tag: 'AnnasArchive', metadata: {'url': url});
 
@@ -524,8 +538,8 @@ class AnnasArchieve {
           );
         }
 
-        BookInfoData? data =
-            await _bookInfoParser(response.data, adjustedUrl, currentBaseUrl);
+        BookInfoData? data = await _bookInfoParser(
+            response.data, adjustedUrl, currentBaseUrl, donationKey);
         if (data != null) {
           return data;
         } else {

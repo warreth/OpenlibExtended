@@ -173,6 +173,7 @@ final searchQueryProvider = StateProvider<String>((ref) => "");
 final enableFiltersState = StateProvider<bool>((ref) => true);
 
 // Web/Download States
+final donationKeyProvider = StateProvider<String>((ref) => "");
 final cookieProvider = StateProvider<String>((ref) => "");
 final userAgentProvider = StateProvider<String>((ref) => "");
 final webViewLoadingState = StateProvider.autoDispose<bool>((ref) => true);
@@ -346,7 +347,9 @@ final searchProvider = FutureProvider.family
 final bookInfoProvider =
     FutureProvider.family<BookInfoData, String>((ref, url) async {
   final AnnasArchieve annasArchieve = AnnasArchieve();
-  BookInfoData data = await annasArchieve.bookInfo(url: url);
+  final donationKey = ref.watch(donationKeyProvider);
+  BookInfoData data =
+      await annasArchieve.bookInfo(url: url, donationKey: donationKey);
   return data;
 });
 

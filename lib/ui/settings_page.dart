@@ -30,6 +30,7 @@ import 'package:openlib/state/state.dart'
         instanceManagerProvider,
         currentInstanceProvider,
         archiveInstancesProvider,
+        donationKeyProvider,
         myLibraryProvider;
 
 // Scans a directory for book files (epub, pdf) and imports them to the library database
@@ -250,6 +251,45 @@ class SettingsPage extends ConsumerWidget {
               onChanged: (val) {
                 ref.read(showManualDownloadButtonProvider.notifier).state = val;
                 dataBase.savePreference('showManualDownloadButton', val);
+              },
+            ),
+            _buildSettingTile(
+              context,
+              title: "Anna's Archive Donation Key",
+              subtitle: "Enter key for faster downloads",
+              icon: Icons.key,
+              onTap: () {
+                final currentKey = ref.read(donationKeyProvider);
+                final controller = TextEditingController(text: currentKey);
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text("Donation Key"),
+                    content: TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        hintText: "Enter your key",
+                        helperText:
+                            "Used for faster downloads on Anna's Archive",
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Cancel"),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          final newKey = controller.text.trim();
+                          ref.read(donationKeyProvider.notifier).state = newKey;
+                          dataBase.savePreference('donationKey', newKey);
+                          Navigator.pop(context);
+                        },
+                        child: const Text("Save"),
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
             const SizedBox(height: 20),
