@@ -1,4 +1,4 @@
-package com.app.openlib
+package dev.wath.openlibextended
 
 import io.flutter.embedding.android.FlutterActivity
 

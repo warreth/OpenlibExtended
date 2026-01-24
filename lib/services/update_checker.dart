@@ -205,7 +205,7 @@ class UpdateCheckerService {
 
     final response = await http.get(url, headers: {
       "Accept": "application/vnd.github.v3+json",
-      "User-Agent": "Openlib-App",
+      "User-Agent": "OpenlibExtended-App",
     });
 
     if (response.statusCode != 200) {
@@ -319,7 +319,7 @@ class UpdateCheckerService {
             ],
           ),
           content: const Text(
-            "To install app updates, Openlib needs permission to install packages.\n\n"
+            "To install app updates, OpenlibExtended needs permission to install packages.\n\n"
             "This allows the app to automatically install new versions with bug fixes and new features.\n\n"
             "You will be taken to Settings to enable this permission.",
           ),
@@ -395,7 +395,7 @@ class UpdateCheckerService {
         cancelToken: cancelToken,
         options: Options(
           headers: {
-            "User-Agent": "Openlib-App",
+            "User-Agent": "OpenlibExtended-App",
           },
         ),
         onReceiveProgress: (received, total) {

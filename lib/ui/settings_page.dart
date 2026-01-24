@@ -256,7 +256,7 @@ class SettingsPage extends ConsumerWidget {
             _buildSectionHeader(context, "About"),
             _buildSettingTile(
               context,
-              title: "About Openlib",
+              title: "About OpenlibExtended",
               icon: Icons.info_outline,
               onTap: () {
                 Navigator.push(context,

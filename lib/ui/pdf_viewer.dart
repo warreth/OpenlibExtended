@@ -26,7 +26,7 @@ Future<void> launchPdfViewer(
     required BuildContext context,
     required WidgetRef ref}) async {
   bool openWithExternalApp = ref.watch(openPdfWithExternalAppProvider);
-  
+
   // On desktop, always open with external app since flutter_pdfview is mobile-only
   if (PlatformUtils.isDesktop || openWithExternalApp) {
     try {
@@ -35,7 +35,9 @@ Future<void> launchPdfViewer(
     } catch (e) {
       // File doesn't exist or can't be accessed
       // ignore: use_build_context_synchronously
-      showSnackBar(context: context, message: "File not found. The download may have failed.");
+      showSnackBar(
+          context: context,
+          message: "File not found. The download may have failed.");
     }
   } else {
     Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
@@ -65,7 +67,7 @@ class _PdfViewState extends ConsumerState<PdfView> {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.primary,
-          title: const Text("Openlib"),
+          title: const Text("OpenlibExtended"),
           titleTextStyle: Theme.of(context).textTheme.displayLarge,
         ),
         body: Center(child: Text(error.toString())),
@@ -74,7 +76,7 @@ class _PdfViewState extends ConsumerState<PdfView> {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.primary,
-          title: const Text("Openlib"),
+          title: const Text("OpenlibExtended"),
           titleTextStyle: Theme.of(context).textTheme.displayLarge,
         ),
         body: Center(
@@ -171,7 +173,7 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
-        title: const Text("Openlib"),
+        title: const Text("OpenlibExtended"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
         actions: !useExternalViewer
             ? [
@@ -271,12 +273,12 @@ class _PdfViewerState extends ConsumerState<PdfViewer> {
       onPointerDown: (event) => _activePointers.add(event.pointer),
       onPointerUp: (event) {
         _activePointers.remove(event.pointer);
-        
+
         // Only handle navigation on single-finger taps
         if (_activePointers.isEmpty) {
           final screenWidth = MediaQuery.of(context).size.width;
           final tapPosition = event.position.dx;
-          
+
           // Divide screen into three zones: left (30%), center (40%), right (30%)
           if (tapPosition < screenWidth * 0.3) {
             // Left zone - previous page

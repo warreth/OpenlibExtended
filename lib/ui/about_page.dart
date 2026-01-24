@@ -46,7 +46,7 @@ class _AboutPageState extends State<AboutPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text("Openlib"),
+        title: const Text("OpenlibExtended"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
       ),
       body: SingleChildScrollView(
@@ -71,14 +71,20 @@ class _AboutPageState extends State<AboutPage> {
                 padding: EdgeInsets.only(left: 7, right: 7, top: 10),
                 child: Text(
                   "This is a forked version maintained by warreth for personal use and community updates.",
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.grey),
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey),
                 ),
               ),
               const Padding(
                 padding: EdgeInsets.only(left: 7, right: 7, top: 5),
                 child: Text(
                   "Original app by dstark5 (https://github.com/dstark5/Openlib).",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Colors.grey),
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.grey),
                 ),
               ),
               const Padding(

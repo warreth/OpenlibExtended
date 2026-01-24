@@ -164,7 +164,7 @@ class MyApp extends ConsumerWidget {
         );
       },
       debugShowCheckedModeBanner: false,
-      title: 'Openlib',
+      title: 'OpenlibExtended',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ref.watch(themeModeProvider),
@@ -280,7 +280,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ),
           ),
           content: Text(
-            'Openlib needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
+            'OpenlibExtended needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context)
@@ -360,7 +360,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               child: AppBar(
                 toolbarHeight: kToolbarHeight,
                 backgroundColor: Theme.of(context).colorScheme.surface,
-                title: const Text("Openlib"),
+                title: const Text("OpenlibExtended"),
                 titleTextStyle: Theme.of(context).textTheme.displayLarge,
               ),
             ),

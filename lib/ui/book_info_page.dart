@@ -48,7 +48,7 @@ class BookInfoPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text("Openlib"),
+        title: const Text("OpenlibExtended"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
         actions: [
           bookInfo.maybeWhen(data: (data) {

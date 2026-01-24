@@ -187,7 +187,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               size: 80, color: Theme.of(context).colorScheme.secondary),
           const SizedBox(height: 30),
           Text(
-            "Welcome to Openlib",
+            "Welcome to OpenlibExtended",
             style: Theme.of(context).textTheme.displayLarge,
             textAlign: TextAlign.center,
           ),
