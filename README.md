@@ -43,6 +43,7 @@
 - [ ] **Cloud Sync**: Sync your library and reading progress with Booklore.
 - [ ] **Enhanced Formats**: Native support for CBR, CBZ, and AZW3.
 - [ ] **Metadata Editor**: Fix and organize book details manually.
+- [ ] MacOs release
 
 ## Screenshots 🖼️
 
@@ -80,7 +81,7 @@ If you like the app, consider supporting the original source or the development 
 
 ## License 📜
 
-Licensed under [GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
+Licensed under [AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.html).
 
 ## Disclaimer ⚠️
 
