@@ -3,6 +3,7 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Package imports:
 import 'package:epub_view/epub_view.dart';
@@ -18,6 +19,9 @@ import 'package:openlib/state/state.dart'
         saveEpubState,
         getBookPosition,
         openEpubWithExternalAppProvider;
+import 'package:openlib/services/database.dart' show MyLibraryDb;
+import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/ui/components/reader_help_overlay.dart';
 
 Future<void> launchEpubViewer({
   required String fileName,
@@ -30,12 +34,14 @@ Future<void> launchEpubViewer({
 
     // Check if user wants external app
     if (openWithExternalApp) {
-      await OpenFile.open(path, linuxByProcess: true, type: "application/epub+zip");
+      await OpenFile.open(path,
+          linuxByProcess: true, type: "application/epub+zip");
     } else {
       try {
         // Use internal Epub Viewer for all platforms (epub_view supports desktop)
         // ignore: use_build_context_synchronously
-        Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (BuildContext context) {
           return EpubViewerWidget(fileName: fileName);
         }));
       } catch (e) {
@@ -46,7 +52,9 @@ Future<void> launchEpubViewer({
   } catch (e) {
     // File doesn't exist or can't be accessed
     // ignore: use_build_context_synchronously
-    showSnackBar(context: context, message: "File not found. The download may have failed.");
+    showSnackBar(
+        context: context,
+        message: "File not found. The download may have failed.");
   }
 }
 
@@ -111,133 +119,128 @@ class EpubViewer extends ConsumerStatefulWidget {
 
 class _EpubViewerState extends ConsumerState<EpubViewer> {
   late EpubController _epubReaderController;
-  String? epubConf;
-  final Set<int> _activePointers = {};
+  bool _showTutorial = false;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    // Initialize with standard options
     _epubReaderController = EpubController(
       document: EpubDocument.openFile(File(widget.filePath)),
+      // NOTE: We'll set CFI later in onDocumentLoaded because we need to fetch it async
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkTutorial();
+      _focusNode.requestFocus();
+    });
+  }
+
+  Future<void> _checkTutorial() async {
+    try {
+      final prefs = MyLibraryDb.instance;
+      final hasSeen = await prefs
+              .getPreference('hasSeenReaderTutorial')
+              .catchError((_) => 0) ??
+          0;
+
+      if (hasSeen == 0) {
+        if (mounted) setState(() => _showTutorial = true);
+        await prefs.savePreference('hasSeenReaderTutorial', 1);
+      }
+    } catch (e) {
+      debugPrint("Error checking tutorial: $e");
+    }
   }
 
   @override
   void deactivate() {
-    // Save EPUB state on all platforms (mobile and desktop)
-    saveEpubState(widget.fileName, epubConf, ref);
+    // Save EPUB state when leaving
+    final cfi = _epubReaderController.generateEpubCfi();
+    saveEpubState(widget.fileName, cfi, ref);
     super.deactivate();
   }
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _epubReaderController.dispose();
     super.dispose();
   }
 
-  void _navigateToPreviousChapter() {
-    final currentValue = _epubReaderController.currentValue;
-    if (currentValue != null && currentValue.chapterNumber > 0) {
-      _epubReaderController.jumpTo(index: currentValue.chapterNumber - 1);
-    }
-  }
-
-  void _navigateToNextChapter() {
-    final currentValue = _epubReaderController.currentValue;
-    if (currentValue != null) {
-      // Try to go to next chapter (will fail silently if at last chapter)
-      _epubReaderController.jumpTo(index: currentValue.chapterNumber + 1);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final position = ref.watch(getBookPosition(widget.fileName));
+    // Watch for saved position
+    final positionAsync = ref.watch(getBookPosition(widget.fileName));
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        // Use surface color in dark mode so it's not white
+        backgroundColor: isDarkMode
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.primary,
         title: const Text("Openlib"),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.tertiary),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       endDrawer: Drawer(
         child: EpubViewTableOfContents(controller: _epubReaderController),
       ),
-      body: position.when(
-        data: (data) {
-          return _buildTapNavigationWrapper(
-            EpubView(
-              onDocumentLoaded: (doc) {
-                Future.delayed(const Duration(milliseconds: 20), () {
-                  if (data != null && data.isNotEmpty) {
-                    _epubReaderController.gotoEpubCfi(data);
-                  }
-                });
+      // Use standard EpubView without interfering gestures first to ensure it works
+      body: Stack(
+        children: [
+          Focus(
+            focusNode: _focusNode,
+            autofocus: true,
+            child: positionAsync.when(
+              data: (savedCfi) {
+                return EpubView(
+                  controller: _epubReaderController,
+                  onDocumentLoaded: (document) {
+                    // Restore position if available
+                    if (savedCfi != null && savedCfi.isNotEmpty) {
+                      _epubReaderController.gotoEpubCfi(savedCfi);
+                    }
+                  },
+                  onChapterChanged: (value) {
+                    // Optional: auto-save on chapter change
+                    // saveEpubState(widget.fileName, _epubReaderController.generateEpubCfi(), ref);
+                  },
+                  builders: EpubViewBuilders<DefaultBuilderOptions>(
+                    options: DefaultBuilderOptions(
+                      textStyle: TextStyle(
+                        height: 1.25,
+                        fontSize: 16,
+                        color:
+                            isDarkMode ? const Color(0xfff5f5f5) : Colors.black,
+                      ),
+                    ),
+                    chapterDividerBuilder: (_) => const Divider(),
+                  ),
+                );
               },
-              onChapterChanged: (value) {
-                epubConf = _epubReaderController.generateEpubCfi();
-              },
-              builders: EpubViewBuilders<DefaultBuilderOptions>(
-                options: const DefaultBuilderOptions(),
-                chapterDividerBuilder: (_) => const Divider(),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
               ),
-              controller: _epubReaderController,
+              error: (err, stack) =>
+                  Center(child: Text("Error loading book: $err")),
             ),
-          );
-        },
-        error: (err, _) {
-          return _buildTapNavigationWrapper(
-            EpubView(
-              onChapterChanged: (value) {
-                epubConf = _epubReaderController.generateEpubCfi();
-              },
-              builders: EpubViewBuilders<DefaultBuilderOptions>(
-                options: const DefaultBuilderOptions(),
-                chapterDividerBuilder: (_) => const Divider(),
-              ),
-              controller: _epubReaderController,
+          ),
+          if (_showTutorial)
+            ReaderHelpOverlay(
+              isDesktop: PlatformUtils.isDesktop,
+              onDismiss: () => setState(() => _showTutorial = false),
             ),
-          );
-        },
-        loading: () {
-          return Center(
-            child: SizedBox(
-              width: 25,
-              height: 25,
-              child: CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
-          );
-        },
+        ],
       ),
-    );
-  }
-
-  Widget _buildTapNavigationWrapper(Widget child) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) => _activePointers.add(event.pointer),
-      onPointerUp: (event) {
-        _activePointers.remove(event.pointer);
-        
-        // Only handle navigation on single-finger taps
-        if (_activePointers.isEmpty) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final tapPosition = event.position.dx;
-          
-          // Divide screen into three zones: left (30%), center (40%), right (30%)
-          if (tapPosition < screenWidth * 0.3) {
-            // Left zone - previous chapter
-            _navigateToPreviousChapter();
-          } else if (tapPosition > screenWidth * 0.7) {
-            // Right zone - next chapter
-            _navigateToNextChapter();
-          }
-          // Center zone (30-70%) - no action, allows text selection
-        }
-      },
-      onPointerCancel: (event) => _activePointers.remove(event.pointer),
-      child: child, // Direct child, no overlay
     );
   }
 }

@@ -371,32 +371,40 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         ),
       ),
       bottomNavigationBar: SafeArea(
-        child: GNav(
-          backgroundColor: isDarkMode ? Colors.black : Colors.grey.shade200,
-          haptic: true,
-          tabBorderRadius: 50,
-          tabActiveBorder: Border.all(
-            color: Theme.of(context).colorScheme.secondary,
+        child: Container(
+          // Allow bottom bar to be light in light mode
+          color: isDarkMode ? const Color(0xFF141414) : Colors.white,
+          child: GNav(
+            backgroundColor:
+                isDarkMode ? const Color(0xFF141414) : Colors.white,
+            haptic: true,
+            tabBorderRadius: 50,
+            tabActiveBorder: Border.all(
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+            tabMargin: const EdgeInsets.fromLTRB(13, 12, 13, 12),
+            curve: Curves.fastLinearToSlowEaseIn,
+            duration: const Duration(milliseconds: 250),
+            gap: 8,
+            // Icons adapted for light/dark mode
+            color: isDarkMode ? Colors.white : Colors.black,
+            activeColor: Colors.white,
+            iconSize: 20,
+            tabBackgroundColor: Theme.of(context).colorScheme.secondary,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            tabs: const [
+              GButton(icon: Icons.trending_up, text: 'Home'),
+              GButton(icon: Icons.search, text: 'Search'),
+              GButton(
+                  icon: Icons.collections_bookmark,
+                  text: 'Library'), // Shortened text
+              GButton(icon: Icons.settings, text: 'Settings'),
+            ],
+            selectedIndex: selectedIndex,
+            onTabChange: (index) {
+              ref.read(selectedIndexProvider.notifier).state = index;
+            },
           ),
-          tabMargin: const EdgeInsets.fromLTRB(13, 6, 13, 2.5),
-          curve: Curves.fastLinearToSlowEaseIn,
-          duration: const Duration(milliseconds: 25),
-          gap: 5,
-          color: Colors.white,
-          activeColor: Colors.white,
-          iconSize: 19,
-          tabBackgroundColor: Theme.of(context).colorScheme.secondary,
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
-          tabs: const [
-            GButton(icon: Icons.trending_up, text: 'Home'),
-            GButton(icon: Icons.search, text: 'Search'),
-            GButton(icon: Icons.collections_bookmark, text: 'My Library'),
-            GButton(icon: Icons.build, text: 'Settings'),
-          ],
-          selectedIndex: selectedIndex,
-          onTabChange: (index) {
-            ref.read(selectedIndexProvider.notifier).state = index;
-          },
         ),
       ),
     );

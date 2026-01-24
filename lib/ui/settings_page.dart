@@ -10,7 +10,6 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlib/services/files.dart';
-import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/update_checker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -19,7 +18,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:openlib/services/database.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
-import 'package:openlib/ui/components/page_title_widget.dart';
 
 import 'package:openlib/state/state.dart'
     show
@@ -123,284 +121,125 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch useful providers
+    final themeMode = ref.watch(themeModeProvider);
+    final openPdfExternal = ref.watch(openPdfWithExternalAppProvider);
+    final openEpubExternal = ref.watch(openEpubWithExternalAppProvider);
+    final showManualDownload = ref.watch(showManualDownloadButtonProvider);
+
     MyLibraryDb dataBase = MyLibraryDb.instance;
+
     return Padding(
-      padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
+        physics: const BouncingScrollPhysics(),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const TitleText("Settings"),
-            const Padding(
-              padding: EdgeInsets.only(left: 5, right: 5, top: 10),
-              child: Text(
-                "Archive Instance",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            Text("Settings", style: Theme.of(context).textTheme.displayLarge),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "Library & Instances"),
+            _buildSettingCard(
+              context,
+              title: "Archive Instance",
+              child: const _InstanceSelectorWidget(),
             ),
-            const _InstanceSelectorWidget(),
-            _PaddedContainer(
-              onClick: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (BuildContext context) {
-                  return const InstancesPage();
-                }));
+            _buildSettingTile(
+              context,
+              title: "Manage Instances",
+              icon: Icons.dns,
+              onTap: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const InstancesPage()));
               },
-              children: [
-                Text(
-                  "Manage Instances",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ),
-                const Icon(Icons.settings),
-              ],
             ),
             const _AutoRankInstancesWidget(),
-            const Padding(
-              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
-              child: Text(
-                "General Settings",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            _PaddedContainer(
-              children: [
-                Text(
-                  "Dark Mode",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ),
-                Switch(
-                  // This bool value toggles the switch.
-                  value: ref.watch(themeModeProvider) == ThemeMode.dark,
-                  thumbColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? Colors.red
-                          : null),
-                  onChanged: (bool value) {
-                    ref.read(themeModeProvider.notifier).state =
-                        value == true ? ThemeMode.dark : ThemeMode.light;
-                    dataBase.savePreference('darkMode', value);
-                    // Only update system UI overlay on Android
-                    if (Platform.isAndroid) {
-                      SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-                          systemNavigationBarColor:
-                              value ? Colors.black : Colors.grey.shade200));
-                    }
-                  },
-                )
-              ],
-            ),
-            _PaddedContainer(
-              children: [
-                Text(
-                  "Open PDF with External Reader",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ),
-                Switch(
-                  // This bool value toggles the switch.
-                  value: ref.watch(openPdfWithExternalAppProvider),
-                  thumbColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? Colors.red
-                          : null),
-                  onChanged: (bool value) {
-                    ref.read(openPdfWithExternalAppProvider.notifier).state =
-                        value;
-                    dataBase.savePreference('openPdfwithExternalApp', value);
-                  },
-                )
-              ],
-            ),
-            _PaddedContainer(
-              children: [
-                Text(
-                  "Open Epub with External Reader",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ),
-                Switch(
-                  // This bool value toggles the switch.
-                  value: ref.watch(
-                    openEpubWithExternalAppProvider,
-                  ),
-                  thumbColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? Colors.red
-                          : null),
-                  onChanged: (bool value) {
-                    ref.read(openEpubWithExternalAppProvider.notifier).state =
-                        value;
-                    dataBase.savePreference('openEpubwithExternalApp', value);
-                  },
-                )
-              ],
-            ),
-            const Padding(
-              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
-              child: Text(
-                "Download Settings",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            _PaddedContainer(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Show Manual Download Button",
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.tertiary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Enable if background download doesn't work",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .tertiary
-                              .withAlpha(140),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: ref.watch(showManualDownloadButtonProvider),
-                  thumbColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? Colors.red
-                          : null),
-                  onChanged: (bool value) {
-                    ref.read(showManualDownloadButtonProvider.notifier).state =
-                        value;
-                    dataBase.savePreference('showManualDownloadButton', value);
-                  },
-                )
-              ],
-            ),
-            const Padding(
-              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
-              child: Text(
-                "Storage & Files",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            _PaddedContainer(
-                onClick: () async {
-                  final currentDirectory =
-                      await dataBase.getPreference('bookStorageDirectory');
-                  final internalDirectory =
-                      await getBookStorageDefaultDirectory;
-                  String? pickedDirectory =
-                      await FilePicker.platform.getDirectoryPath();
-                  if (pickedDirectory == null) {
-                    return;
-                  }
-                  await requestStoragePermission();
-
-                  // Only move books if current directory is the internal default
-                  // Don't move if already using an external directory
-                  if (currentDirectory == internalDirectory) {
-                    await moveLibraryFiles(currentDirectory, pickedDirectory);
-                  }
-
-                  // Save the new directory preference
-                  await dataBase.savePreference(
-                      'bookStorageDirectory', pickedDirectory);
-
-                  // Scan the new directory for existing books and add them to library
-                  await scanAndImportBooks(pickedDirectory, dataBase, ref);
-                },
-                children: [
-                  Text(
-                    "Change storage path",
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.tertiary,
-                    ),
-                  ),
-                  const Icon(Icons.folder),
-                ]),
-            _PaddedContainer(
-              onClick: () async {
-                try {
-                  final logger = AppLogger();
-                  await logger.exportLogs();
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to export logs: ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "General"),
+            _buildSwitchTile(
+              context,
+              title: "Dark Mode",
+              value: themeMode == ThemeMode.dark,
+              onChanged: (val) {
+                ref.read(themeModeProvider.notifier).state =
+                    val ? ThemeMode.dark : ThemeMode.light;
+                dataBase.savePreference('darkMode', val);
+                if (Platform.isAndroid) {
+                  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+                      systemNavigationBarColor:
+                          val ? Colors.black : Colors.grey.shade200));
                 }
               },
-              children: [
-                Text(
-                  "Export Logs (Last 5 Minutes)",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ),
-                const Icon(Icons.file_download),
-              ],
             ),
-            _PaddedContainer(
-              onClick: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (BuildContext context) {
-                  return const AboutPage();
-                }));
+            _buildSettingTile(
+              context,
+              title: "Storage Location",
+              subtitle: "Change where books are saved",
+              icon: Icons.folder,
+              onTap: () async {
+                final currentDirectory =
+                    await dataBase.getPreference('bookStorageDirectory');
+                final internalDirectory = await getBookStorageDefaultDirectory;
+                String? pickedDirectory =
+                    await FilePicker.platform.getDirectoryPath();
+                if (pickedDirectory == null) return;
+                await requestStoragePermission();
+
+                if (currentDirectory == internalDirectory) {
+                  await moveLibraryFiles(currentDirectory, pickedDirectory);
+                }
+
+                await dataBase.savePreference(
+                    'bookStorageDirectory', pickedDirectory);
+                await scanAndImportBooks(pickedDirectory, dataBase, ref);
               },
-              children: [
-                Text(
-                  "About",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ),
-              ],
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "Reader"),
+            _buildSwitchTile(
+              context,
+              title: "Open PDF externally",
+              subtitle: "Use your default PDF viewer",
+              value: openPdfExternal,
+              onChanged: (val) {
+                ref.read(openPdfWithExternalAppProvider.notifier).state = val;
+                dataBase.savePreference('openPdfwithExternalApp', val);
+              },
+            ),
+            _buildSwitchTile(
+              context,
+              title: "Open EPUB externally",
+              subtitle: "Use your default EPUB reader",
+              value: openEpubExternal,
+              onChanged: (val) {
+                ref.read(openEpubWithExternalAppProvider.notifier).state = val;
+                dataBase.savePreference('openEpubwithExternalApp', val);
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "Advanced"),
+            _buildSwitchTile(
+              context,
+              title: "Manual Download Button",
+              subtitle: "Show button to manually trigger downloads",
+              value: showManualDownload,
+              onChanged: (val) {
+                ref.read(showManualDownloadButtonProvider.notifier).state = val;
+                dataBase.savePreference('showManualDownloadButton', val);
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "About"),
+            _buildSettingTile(
+              context,
+              title: "About Openlib",
+              icon: Icons.info_outline,
+              onTap: () {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => const AboutPage()));
+              },
             ),
             const Padding(
               padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
@@ -413,40 +252,103 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
             const _UpdateSettingsWidget(),
+            const SizedBox(height: 40),
+            Center(
+              child: Text(
+                "Version 1.0.11+14",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.tertiary,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-}
 
-class _PaddedContainer extends StatelessWidget {
-  const _PaddedContainer({this.onClick, required this.children});
-
-  final VoidCallback? onClick;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-      child: InkWell(
-        onTap: onClick,
-        child: Container(
-          height: 61,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(5),
-            color: Theme.of(context).colorScheme.tertiaryContainer,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: children,
-            ),
-          ),
+      padding: const EdgeInsets.only(bottom: 10, left: 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSettingCard(BuildContext context,
+      {required String title, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingTile(BuildContext context,
+      {required String title,
+      String? subtitle,
+      IconData? icon,
+      required VoidCallback onTap}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        leading: icon != null
+            ? Icon(icon, color: Theme.of(context).colorScheme.secondary)
+            : null,
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: subtitle != null
+            ? Text(subtitle, style: const TextStyle(fontSize: 12))
+            : null,
+        trailing: const Icon(Icons.chevron_right),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile(BuildContext context,
+      {required String title,
+      String? subtitle,
+      required bool value,
+      required ValueChanged<bool> onChanged}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SwitchListTile(
+        value: value,
+        onChanged: onChanged,
+        activeColor: Theme.of(context).colorScheme.secondary,
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: subtitle != null
+            ? Text(subtitle, style: const TextStyle(fontSize: 12))
+            : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

@@ -192,7 +192,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   hintStyle: const TextStyle(
                       color: Colors.grey, fontWeight: FontWeight.bold),
                   hintText: "Search",
-                  fillColor: Theme.of(context).colorScheme.primary,
+                  // Remove explicit fillColor to use the theme default (Dark Grey in Dark Mode)
                 ),
                 onSubmitted: (String value) => onSubmit(context),
                 style: TextStyle(
