@@ -14,6 +14,8 @@
 [<img src="github_releases.png"
      alt="Get it on GitHub"
      height="110">](https://github.com/warreth/OpenlibExtended/releases)
+
+**[📖 Frequently Asked Questions (FAQ)](./FAQ.md)**
 </div>
 
 ## Features ✨
