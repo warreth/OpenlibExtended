@@ -16,7 +16,6 @@ import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
@@ -433,7 +432,8 @@ class UpdateCheckerService {
   }
 
   // Open/Install the downloaded update file with fallback mechanisms
-  Future<bool> openUpdateFile(String filePath, BuildContext context) async {
+  Future<bool> openUpdateFile(String filePath, BuildContext context,
+      {ReleaseInfo? release}) async {
     _logger.info("Opening update file", tag: "UpdateChecker", metadata: {
       "path": filePath,
     });
@@ -443,7 +443,8 @@ class UpdateCheckerService {
     if (!await file.exists()) {
       _logger.error("Update file does not exist", tag: "UpdateChecker");
       if (context.mounted) {
-        _showInstallErrorDialog(context, filePath, "Downloaded file not found");
+        _showInstallErrorDialog(context, filePath, "Downloaded file not found",
+            release: release);
       }
       return false;
     }
@@ -454,7 +455,8 @@ class UpdateCheckerService {
           tag: "UpdateChecker", metadata: {"size": fileSize});
       if (context.mounted) {
         _showInstallErrorDialog(context, filePath,
-            "Downloaded file appears to be corrupted (only ${_formatBytes(fileSize)})");
+            "Downloaded file appears to be corrupted (only ${_formatBytes(fileSize)})",
+            release: release);
       }
       return false;
     }
@@ -465,7 +467,8 @@ class UpdateCheckerService {
 
     if (Platform.isAndroid) {
       if (!context.mounted) return false;
-      return await _installApkWithFallbacks(filePath, context);
+      return await _installApkWithFallbacks(filePath, context,
+          release: release);
     } else if (Platform.isWindows) {
       await Process.start(filePath, [], mode: ProcessStartMode.detached);
       return true;
@@ -483,8 +486,8 @@ class UpdateCheckerService {
   }
 
   // Install APK on Android with multiple fallback methods
-  Future<bool> _installApkWithFallbacks(
-      String filePath, BuildContext context) async {
+  Future<bool> _installApkWithFallbacks(String filePath, BuildContext context,
+      {ReleaseInfo? release}) async {
     // Track errors from each method for user display
     List<String> attemptedMethods = [];
     List<String> errorMessages = [];
@@ -495,7 +498,8 @@ class UpdateCheckerService {
       _logger.warning("Install permission denied", tag: "UpdateChecker");
       if (context.mounted) {
         _showInstallErrorDialog(context, filePath,
-            "Permission to install apps was denied. You can still install manually.");
+            "Permission to install apps was denied. You can still install manually.",
+            release: release);
       }
       return false;
     }
@@ -532,8 +536,12 @@ class UpdateCheckerService {
                 label: "Manual Install",
                 onPressed: () {
                   if (context.mounted) {
-                    _showInstallFallbackDialog(context, filePath,
-                        attemptedMethods, ["May have failed silently"]);
+                    _showInstallFallbackDialog(
+                        context,
+                        filePath,
+                        attemptedMethods,
+                        ["May have failed silently"],
+                        release);
                   }
                 },
               ),
@@ -574,7 +582,7 @@ class UpdateCheckerService {
               onPressed: () {
                 if (context.mounted) {
                   _showInstallFallbackDialog(context, filePath,
-                      attemptedMethods, ["May have failed silently"]);
+                      attemptedMethods, ["May have failed silently"], release);
                 }
               },
             ),
@@ -618,8 +626,12 @@ class UpdateCheckerService {
                   label: "Manual Install",
                   onPressed: () {
                     if (context.mounted) {
-                      _showInstallFallbackDialog(context, filePath,
-                          attemptedMethods, ["May have failed silently"]);
+                      _showInstallFallbackDialog(
+                          context,
+                          filePath,
+                          attemptedMethods,
+                          ["May have failed silently"],
+                          release);
                     }
                   },
                 ),
@@ -651,14 +663,16 @@ class UpdateCheckerService {
 
     if (context.mounted) {
       await _showInstallFallbackDialog(
-          context, filePath, attemptedMethods, errorMessages);
+          context, filePath, attemptedMethods, errorMessages, release);
     }
     return false;
   }
 
   // Show fallback dialog with manual options when automatic installation fails
   Future<void> _showInstallFallbackDialog(BuildContext context, String filePath,
-      [List<String>? attemptedMethods, List<String>? errorMessages]) async {
+      [List<String>? attemptedMethods,
+      List<String>? errorMessages,
+      ReleaseInfo? release]) async {
     final fileName = filePath.split("/").last;
     final hasErrors = errorMessages != null && errorMessages.isNotEmpty;
     final hasMethods = attemptedMethods != null && attemptedMethods.isNotEmpty;
@@ -702,90 +716,90 @@ class UpdateCheckerService {
                 // Show attempted methods and errors for debugging
                 if (hasMethods || hasErrors) ...[
                   const SizedBox(height: 16),
-                  ExpansionTile(
-                    initiallyExpanded: false,
-                    tilePadding: EdgeInsets.zero,
-                    title: Text(
-                      "Technical Details",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(dialogContext).colorScheme.tertiary,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(dialogContext)
+                          .colorScheme
+                          .errorContainer
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(dialogContext)
+                            .colorScheme
+                            .error
+                            .withValues(alpha: 0.3),
                       ),
                     ),
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(dialogContext)
-                              .colorScheme
-                              .tertiaryContainer
-                              .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Installation Failed",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (hasMethods) ...[
-                              Text(
-                                "Methods tried:",
+                        const SizedBox(height: 8),
+                        if (hasMethods) ...[
+                          Text(
+                            "Methods tried:",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(dialogContext)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...attemptedMethods.map((method) => Text(
+                                "• $method",
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
                                   color: Theme.of(dialogContext)
                                       .colorScheme
-                                      .tertiary,
+                                      .onSurfaceVariant,
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              ...attemptedMethods.map((method) => Text(
-                                    "• $method",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Theme.of(dialogContext)
-                                          .colorScheme
-                                          .tertiary,
-                                    ),
-                                  )),
-                            ],
-                            if (hasErrors) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                "Errors encountered:",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red[300],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              ...errorMessages.asMap().entries.map((entry) {
-                                final index = entry.key;
-                                final error = entry.value;
-                                final methodName = hasMethods &&
-                                        index < attemptedMethods.length
+                              )),
+                        ],
+                        if (hasErrors) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            "Errors encountered:",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(dialogContext).colorScheme.error,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...errorMessages.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final error = entry.value;
+                            final methodName =
+                                hasMethods && index < attemptedMethods.length
                                     ? attemptedMethods[index]
                                     : "Method ${index + 1}";
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: SelectableText(
-                                    "$methodName: $error",
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontFamily: "monospace",
-                                      color: Theme.of(dialogContext)
-                                          .colorScheme
-                                          .error,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: SelectableText(
+                                "$methodName: $error",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: "monospace",
+                                  color:
+                                      Theme.of(dialogContext).colorScheme.error,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ],
@@ -804,143 +818,25 @@ class UpdateCheckerService {
                 ),
               ),
             ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                await _shareApkFile(filePath, context);
-              },
-              child: Text(
-                "Share APK",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(dialogContext).colorScheme.secondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                await _showApkLocationDialog(filePath, context);
-              },
-              child: Text(
-                "Show Location",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(dialogContext).colorScheme.secondary,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Share APK file using share_plus
-  Future<void> _shareApkFile(String filePath, BuildContext context) async {
-    try {
-      final result = await Share.shareXFiles(
-        [XFile(filePath)],
-        text: "Install Openlib update",
-      );
-      _logger.info("Share result", tag: "UpdateChecker", metadata: {
-        "status": result.status.name,
-      });
-    } catch (e) {
-      _logger.error("Failed to share APK",
-          tag: "UpdateChecker", metadata: {"error": e.toString()});
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Failed to share file: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Show dialog with APK file location for manual installation
-  Future<void> _showApkLocationDialog(
-      String filePath, BuildContext context) async {
-    await showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.folder_open,
-                  color: Theme.of(dialogContext).colorScheme.secondary),
-              const SizedBox(width: 10),
-              const Expanded(
+            if (release != null)
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  final url = getDownloadUrlForPlatform(release);
+                  final targetUrl = url ?? release.htmlUrl;
+                  final uri = Uri.parse(targetUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
                 child: Text(
-                  "APK Location",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "The APK file has been downloaded to:",
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(dialogContext).colorScheme.tertiaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SelectableText(
-                  filePath,
+                  "Download via Browser",
                   style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: "monospace",
-                    color: Theme.of(dialogContext).colorScheme.tertiary,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(dialogContext).colorScheme.secondary,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                "To install manually:\n"
-                "1. Open a file manager app\n"
-                "2. Navigate to this location\n"
-                "3. Tap on the APK file to install",
-                style: TextStyle(fontSize: 13),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: filePath));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Path copied to clipboard"),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              child: Text(
-                "Copy Path",
-                style: TextStyle(
-                  color: Theme.of(dialogContext).colorScheme.secondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                "OK",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(dialogContext).colorScheme.secondary,
-                ),
-              ),
-            ),
           ],
         );
       },
@@ -949,7 +845,8 @@ class UpdateCheckerService {
 
   // Show error dialog with fallback options
   Future<void> _showInstallErrorDialog(
-      BuildContext context, String filePath, String errorMessage) async {
+      BuildContext context, String filePath, String errorMessage,
+      {ReleaseInfo? release}) async {
     await showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -981,7 +878,8 @@ class UpdateCheckerService {
               TextButton(
                 onPressed: () async {
                   Navigator.of(dialogContext).pop();
-                  await _showInstallFallbackDialog(context, filePath);
+                  await _showInstallFallbackDialog(
+                      context, filePath, null, null, release);
                 },
                 child: Text(
                   "Try Manual Install",
@@ -1031,7 +929,7 @@ class UpdateCheckerService {
     // Open the downloaded file if successful
     if (downloadedFilePath != null && context.mounted) {
       try {
-        await openUpdateFile(downloadedFilePath!, context);
+        await openUpdateFile(downloadedFilePath!, context, release: release);
       } catch (e) {
         // Show error to user
         if (context.mounted) {
