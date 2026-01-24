@@ -321,8 +321,8 @@ jobs:
              mv AppDir/usr/bin/OpenlibExtended AppDir/usr/bin/openlibextended
           fi
 
-          cp assets/icons/appIcon.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
-          cp assets/icons/appIcon.png AppDir/openlibextended.png
+          cp assets/icons/appIcon_foreground.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
+          cp assets/icons/appIcon_foreground.png AppDir/openlibextended.png
 
           # Create desktop entry
           cat > AppDir/openlibextended.desktop << 'EOF'

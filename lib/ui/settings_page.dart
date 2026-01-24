@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/update_checker.dart';
@@ -295,14 +296,22 @@ class SettingsPage extends ConsumerWidget {
             ),
             const _UpdateSettingsWidget(),
             const SizedBox(height: 40),
-            Center(
-              child: Text(
-                "Version 1.0.11+14",
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.tertiary,
-                  fontSize: 12,
-                ),
-              ),
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Center(
+                    child: Text(
+                      "Version ${snapshot.data!.version}+${snapshot.data!.buildNumber}",
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.tertiary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
             const SizedBox(height: 20),
           ],
