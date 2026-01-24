@@ -52,7 +52,6 @@
 [<img src="screenshots/Screenshot_3.png" width=160>](screenshots/Screenshot_3.png)
 [<img src="screenshots/Screenshot_4.png" width=160>](screenshots/Screenshot_4.png)
 [<img src="screenshots/Screenshot_5.png" width=160>](screenshots/Screenshot_5.png)
-[<img src="screenshots/Screenshot_6.png" width=160>](screenshots/Screenshot_6.png)
 
 ## Installation 📦
 
