@@ -1,0 +1,63 @@
+name: "Feature Request"
+description: "Suggest a new feature or improvement for OpenlibExtended"
+title: "[Feature] <Concise description of your feature request>"
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: "Which platform(s) does this feature concern?"
+      multiple: true
+      options:
+        - iOS
+        - Android
+        - Windows
+        - Linux (please specify distro below)
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux Distribution (if applicable)
+      description: "If you selected Linux above, please tell us your distribution (e.g., Ubuntu 22.04, Fedora 39, etc)."
+      placeholder: "eg. Ubuntu 22.04"
+  - type: textarea
+    id: why_needed
+    attributes:
+      label: Why is this feature needed?
+      description: "Describe the problem this feature will solve or the motivation behind it."
+      placeholder: "Explain what this feature will help with or why the app needs it."
+    validations:
+      required: true
+  - type: textarea
+    id: describe_feature
+    attributes:
+      label: Feature Description
+      description: "Describe your feature in detail. How should it work? Any specifics?"
+      placeholder: "What should this feature do? Feel free to provide usage examples or workflow."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: "Have you considered alternative solutions or features? Please describe them."
+      placeholder: "Describe any alternative approaches you have considered."
+    validations:
+      required: false
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context/Screenshots
+      description: "If relevant, add any other existing context or screenshots to better illustrate your proposal."
+      placeholder: "Paste screenshots or describe additional relevant context."
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: "I have searched existing issues for similar feature requests."
+          required: true

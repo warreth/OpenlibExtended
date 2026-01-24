@@ -4,16 +4,18 @@
 
 # OpenlibExtended
 
-**The ultimate open-source client for Anna's Archive. Download, organize, and read your favorite books on any device.**
+**The ultimate open-source cross-platform client for Anna's Archive. <br/> Download, organize, and read your favorite books on any device.**
 
 [![made-with-flutter](https://img.shields.io/badge/Made%20with-Flutter-4361ee.svg?style=for-the-badge)](https://flutter.dev/)
-[![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-e63946.svg?style=for-the-badge)](https://opensource.org/licenses/)
+[![AGPLv3 License](https://img.shields.io/badge/License-AGPL%20v3-e63946.svg?style=for-the-badge)](https://opensource.org/licenses/)
 [![Latest release](https://img.shields.io/github/release/warreth/OpenlibExtended.svg?style=for-the-badge)](https://github.com/warreth/OpenlibExtended/releases)
 [![Downloads](https://img.shields.io/github/downloads/warreth/OpenlibExtended/total.svg?style=for-the-badge)](https://github.com/warreth/OpenlibExtended/releases)
 
 [<img src="github_releases.png"
      alt="Get it on GitHub"
      height="110">](https://github.com/warreth/OpenlibExtended/releases)
+
+**[📖 Frequently Asked Questions (FAQ)](./FAQ.md)**
 </div>
 
 ## Features ✨
@@ -43,6 +45,7 @@
 - [ ] **Cloud Sync**: Sync your library and reading progress with Booklore.
 - [ ] **Enhanced Formats**: Native support for CBR, CBZ, and AZW3.
 - [ ] **Metadata Editor**: Fix and organize book details manually.
+- [ ] **MacOs release**
 
 ## Screenshots 🖼️
 
@@ -51,9 +54,6 @@
 [<img src="screenshots/Screenshot_3.png" width=160>](screenshots/Screenshot_3.png)
 [<img src="screenshots/Screenshot_4.png" width=160>](screenshots/Screenshot_4.png)
 [<img src="screenshots/Screenshot_5.png" width=160>](screenshots/Screenshot_5.png)
-[<img src="screenshots/Screenshot_6.png" width=160>](screenshots/Screenshot_6.png)
-[<img src="screenshots/Screenshot_7.png" width=160>](screenshots/Screenshot_7.png)
-[<img src="screenshots/Screenshot_8.png" width=160>](screenshots/Screenshot_8.png)
 
 ## Installation 📦
 
@@ -80,7 +80,7 @@ If you like the app, consider supporting the original source or the development 
 
 ## License 📜
 
-Licensed under [GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
+Licensed under [AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.html).
 
 ## Disclaimer ⚠️
 
