@@ -1,0 +1,87 @@
+name: "Bug Report"
+description: "Report a problem with OpenlibExtended"
+title: "[Bug] <Short summary of the problem>"
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: "Which platform did this bug occur on?"
+      options:
+        - iOS
+        - Android
+        - Windows
+        - Linux (please specify distro below)
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux Distribution (if applicable)
+      description: "If you selected Linux above, specify your distribution (e.g., Ubuntu 22.04, Fedora 39)."
+      placeholder: "eg. Ubuntu 22.04"
+  - type: input
+    id: version
+    attributes:
+      label: App Version
+      description: "Which version of the app are you using? (see: Settings > About)"
+      placeholder: "eg. 1.2.3"
+    validations:
+      required: true
+  - type: checkboxes
+    id: latest_version
+    attributes:
+      label: Are you using the latest version?
+      options:
+        - label: "I am using the latest version of OpenlibExtended."
+          required: true
+  - type: textarea
+    id: describe_problem
+    attributes:
+      label: Problem Description
+      description: "Describe the bug you encountered. What did you expect to happen? What actually happened? Please be as detailed as possible."
+      placeholder: "Include steps to reproduce, expected and actual results."
+    validations:
+      required: true
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: "List the exact steps to reproduce the problem, if possible."
+      placeholder: "1. Go to ...\n2. Click on ...\n3. See error ..."
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log File
+      description: "Please upload a .txt file containing your logs from the last 5 minutes."
+      placeholder: "Drag and drop your .txt log file here."
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot(s)
+      description: "If applicable, attach a screenshot to help explain your problem."
+      placeholder: "Drag and drop screenshot files, or paste them here."
+    validations:
+      required: false
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: "Any other information, links, reports, or context about the problem."
+      placeholder: "e.g., network conditions, device model, relevant settings."
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: "I have searched existing issues and this bug has not been reported before."
+          required: true
+        - label: "I have provided a log file and, if possible, a screenshot."
+          required: true
