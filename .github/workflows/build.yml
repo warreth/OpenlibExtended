@@ -148,10 +148,10 @@ jobs:
         run: |
           mkdir -p artifacts
           # Naming convention: contains "android" and architecture keywords for update_checker detection
-          cp build/app/outputs/flutter-apk/app-release.apk artifacts/openlib-android-universal-${{ needs.prepare.outputs.version }}.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk artifacts/openlib-android-arm64-${{ needs.prepare.outputs.version }}.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/openlib-android-armeabi-v7a-${{ needs.prepare.outputs.version }}.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk artifacts/openlib-android-x86_64-${{ needs.prepare.outputs.version }}.apk || true
+          cp build/app/outputs/flutter-apk/app-release.apk artifacts/openlibextended-android-universal-${{ needs.prepare.outputs.version }}.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk artifacts/openlibextended-android-arm64-${{ needs.prepare.outputs.version }}.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/openlibextended-android-armeabi-v7a-${{ needs.prepare.outputs.version }}.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk artifacts/openlibextended-android-x86_64-${{ needs.prepare.outputs.version }}.apk || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -200,7 +200,7 @@ jobs:
           mkdir -p artifacts
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r artifacts/openlib-ios-${{ needs.prepare.outputs.version }}.ipa Payload
+          zip -r artifacts/openlibextended-ios-${{ needs.prepare.outputs.version }}.ipa Payload
           rm -rf Payload
 
       - name: Upload artifacts
@@ -245,13 +245,13 @@ jobs:
           # Create Inno Setup script
           @"
           [Setup]
-          AppName=OpenLibExtended
+          AppName=OpenlibExtended
           AppVersion=${{ needs.prepare.outputs.version }}
           AppPublisher=warreth
-          DefaultDirName={autopf}\OpenLibExtended
-          DefaultGroupName=OpenLibExtended
+          DefaultDirName={autopf}\OpenlibExtended
+          DefaultGroupName=OpenlibExtended
           OutputDir=artifacts
-          OutputBaseFilename=openlib-windows-x64-${{ needs.prepare.outputs.version }}
+          OutputBaseFilename=openlibextended-windows-x64-${{ needs.prepare.outputs.version }}
           Compression=lzma
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64compatible
@@ -260,11 +260,11 @@ jobs:
           Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
           [Icons]
-          Name: "{group}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
-          Name: "{commondesktop}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
+          Name: "{group}\OpenlibExtended"; Filename: "{app}\OpenlibExtended.exe"
+          Name: "{commondesktop}\OpenlibExtended"; Filename: "{app}\OpenlibExtended.exe"
 
           [Run]
-          Filename: "{app}\OpenLibExtended.exe"; Description: "Launch OpenLibExtended"; Flags: nowait postinstall skipifsilent
+          Filename: "{app}\OpenlibExtended.exe"; Description: "Launch OpenlibExtended"; Flags: nowait postinstall skipifsilent
           "@ | Out-File -FilePath "installer.iss" -Encoding UTF8
 
           mkdir artifacts
@@ -316,15 +316,20 @@ jobs:
           # Create AppDir structure
           mkdir -p AppDir/usr/{bin,lib,share/applications,share/icons/hicolor/256x256/apps}
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
+          # Rename the binary in AppDir if created with old case, mostly for safety but check build output first
+          if [ -f "AppDir/usr/bin/OpenlibExtended" ]; then
+             mv AppDir/usr/bin/OpenlibExtended AppDir/usr/bin/openlibextended
+          fi
+
           cp assets/icons/appIcon.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
           cp assets/icons/appIcon.png AppDir/openlibextended.png
 
           # Create desktop entry
           cat > AppDir/openlibextended.desktop << 'EOF'
           [Desktop Entry]
-          Name=OpenLibExtended
+          Name=OpenlibExtended
           Comment=Download and read books from shadow library
-          Exec=OpenLibExtended
+          Exec=openlibextended
           Icon=openlibextended
           Type=Application
           Categories=Education;Literature;
@@ -339,17 +344,17 @@ jobs:
           HERE=${SELF%/*}
           export PATH="${HERE}/usr/bin/:${PATH}"
           export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/OpenLibExtended" "$@"
+          exec "${HERE}/usr/bin/openlibextended" "$@"
           EOF
           chmod +x AppDir/AppRun
 
           # Build AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/openlib-linux-x64-${{ needs.prepare.outputs.version }}.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.AppImage
 
       - name: Create tar.gz archive
         run: |
           cd build/linux/x64/release/bundle
-          tar -czvf ${{ github.workspace }}/artifacts/openlib-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz *
+          tar -czvf ${{ github.workspace }}/artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz *
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -380,12 +385,12 @@ jobs:
       - name: Extract Linux bundle
         run: |
           mkdir -p build/linux/x64/release/bundle
-          tar -xzf linux-artifacts/openlib-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz -C build/linux/x64/release/bundle
+          tar -xzf linux-artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz -C build/linux/x64/release/bundle
 
       - name: Create Flatpak manifest
         run: |
-          cat > com.app.openlibextended.yml << EOF
-          app-id: com.app.openlibextended
+          cat > dev.wath.openlibextended.yml << EOF
+          app-id: dev.wath.openlibextended
           runtime: org.freedesktop.Platform
           runtime-version: '24.08'
           sdk: org.freedesktop.Sdk
@@ -402,7 +407,7 @@ jobs:
               buildsystem: simple
               build-commands:
                 - cp -r bundle /app/
-                - ln -s /app/bundle/OpenLibExtended /app/bin/openlibextended
+                - ln -s /app/bundle/OpenlibExtended /app/bin/openlibextended
               sources:
                 - type: dir
                   path: build/linux/x64/release/bundle
@@ -412,8 +417,8 @@ jobs:
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: openlib-linux-${{ needs.prepare.outputs.version }}.flatpak
-          manifest-path: com.app.openlibextended.yml
+          bundle: openlibextended-linux-${{ needs.prepare.outputs.version }}.flatpak
+          manifest-path: dev.wath.openlibextended.yml
           cache-key: flatpak-builder-${{ github.sha }}
 
       - name: Upload artifacts
