@@ -267,7 +267,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               title: const Text("Enable Auto-Updates"),
               subtitle: const Text(
                   "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
-              activeColor: Theme.of(context).colorScheme.secondary,
+              activeThumbColor: Theme.of(context).colorScheme.secondary,
               activeTrackColor:
                   Theme.of(context).colorScheme.secondary.withOpacity(0.5),
               inactiveThumbColor: Colors.grey,

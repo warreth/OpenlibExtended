@@ -395,7 +395,7 @@ class SettingsPage extends ConsumerWidget {
       child: SwitchListTile(
         value: value,
         onChanged: onChanged,
-        activeColor: Theme.of(context).colorScheme.secondary,
+        activeThumbColor: Theme.of(context).colorScheme.secondary,
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: subtitle != null
             ? Text(subtitle, style: const TextStyle(fontSize: 12))
