@@ -20,10 +20,17 @@ OpenlibExtended is an open source app for downloading and reading books from sha
 - Run the installer
 
 **Linux:**  
-- Download the appropriate AppImage, or Flatpak from [Releases](https://github.com/warreth/OpenlibExtended/releases).
 - Run/install according to your distro.
 - You can also install the app from [flathub](https://flathub.org/)
-
+- AppImage from from GitHub [Releases](https://github.com/warreth/OpenlibExtended/releases)
+  - Install via [AppMan](https://github.com/ivan-hc/AppMan) (rootless)
+    ```bash
+    appman -i openlibextended
+    ```
+  - Install via [AM](https://github.com/ivan-hc/AM)
+    ```bash
+    am -i openlibextended
+    ```
 ---
 
 ## Where does OpenlibExtended get its books from?
