@@ -129,11 +129,11 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
             cat > android/key.properties <<EOF
-storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
-keyAlias=$KEY_ALIAS
-storePassword=$STORE_PASSWORD
-keyPassword=$KEY_PASSWORD
-EOF
+            storeFile=$GITHUB_WORKSPACE/android/app/upload-keystore.jks
+            keyAlias=$KEY_ALIAS
+            storePassword=$STORE_PASSWORD
+            keyPassword=$KEY_PASSWORD
+            EOF
           fi
 
       - name: Get dependencies
@@ -242,28 +242,28 @@ EOF
         run: |
           choco install innosetup -y
           @"
-[Setup]
-AppName=OpenlibExtended
-AppVersion=${{ needs.prepare.outputs.version }}
-AppPublisher=warreth
-DefaultDirName={autopf}\OpenlibExtended
-DefaultGroupName=OpenlibExtended
-OutputDir=artifacts
-OutputBaseFilename=openlibextended-windows-x64-${{ needs.prepare.outputs.version }}
-Compression=lzma
-SolidCompression=yes
-ArchitecturesInstallIn64BitMode=x64compatible
+          [Setup]
+          AppName=OpenlibExtended
+          AppVersion=${{ needs.prepare.outputs.version }}
+          AppPublisher=warreth
+          DefaultDirName={autopf}\OpenlibExtended
+          DefaultGroupName=OpenlibExtended
+          OutputDir=artifacts
+          OutputBaseFilename=openlibextended-windows-x64-${{ needs.prepare.outputs.version }}
+          Compression=lzma
+          SolidCompression=yes
+          ArchitecturesInstallIn64BitMode=x64compatible
 
-[Files]
-Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+          [Files]
+          Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
-[Icons]
-Name: "{group}\OpenlibExtended"; Filename: "{app}\OpenlibExtended.exe"
-Name: "{commondesktop}\OpenlibExtended"; Filename: "{app}\OpenlibExtended.exe"
+          [Icons]
+          Name: "{group}\OpenlibExtended"; Filename: "{app}\OpenlibExtended.exe"
+          Name: "{commondesktop}\OpenlibExtended"; Filename: "{app}\OpenlibExtended.exe"
 
-[Run]
-Filename: "{app}\OpenlibExtended.exe"; Description: "Launch OpenlibExtended"; Flags: nowait postinstall skipifsilent
-"@ | Out-File -FilePath "installer.iss" -Encoding UTF8
+          [Run]
+          Filename: "{app}\OpenlibExtended.exe"; Description: "Launch OpenlibExtended"; Flags: nowait postinstall skipifsilent
+          "@ | Out-File -FilePath "installer.iss" -Encoding UTF8
           mkdir artifacts
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
@@ -313,25 +313,25 @@ Filename: "{app}\OpenlibExtended.exe"; Description: "Launch OpenlibExtended"; Fl
           fi
           cp assets/icons/appIcon_foreground.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
           cp assets/icons/appIcon_foreground.png AppDir/openlibextended.png
-          cat > AppDir/openlibextended.desktop <<'EOF'
-[Desktop Entry]
-Name=OpenlibExtended
-Comment=Download and read books from shadow library
-Exec=openlibextended
-Icon=openlibextended
-Type=Application
-Categories=Education;Literature;
-Keywords=books;library;epub;pdf;reader;
-EOF
+          cat > AppDir/openlibextended.desktop << 'EOF'
+          [Desktop Entry]
+          Name=OpenlibExtended
+          Comment=Download and read books from shadow library
+          Exec=openlibextended
+          Icon=openlibextended
+          Type=Application
+          Categories=Education;Literature;
+          Keywords=books;library;epub;pdf;reader;
+          EOF
           cp AppDir/openlibextended.desktop AppDir/usr/share/applications/
-          cat > AppDir/AppRun <<'EOF'
-#!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=${SELF%/*}
-export PATH="${HERE}/usr/bin/:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
-exec "${HERE}/usr/bin/openlibextended" "$@"
-EOF
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin/:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/openlibextended" "$@"
+          EOF
           chmod +x AppDir/AppRun
           ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.AppImage
 
@@ -372,30 +372,30 @@ EOF
 
       - name: Create Flatpak manifest
         run: |
-          cat > dev.wath.openlibextended.yml <<EOF
-app-id: dev.wath.openlibextended
-runtime: org.freedesktop.Platform
-runtime-version: '24.08'
-sdk: org.freedesktop.Sdk
-command: openlibextended
-finish-args:
-  - --share=ipc
-  - --socket=fallback-x11
-  - --socket=wayland
-  - --device=dri
-  - --share=network
-  - --filesystem=home
-modules:
-  - name: openlibextended
-    buildsystem: simple
-    build-commands:
-      - cp -r bundle /app/
-      - ln -s /app/bundle/OpenlibExtended /app/bin/openlibextended
-    sources:
-      - type: dir
-        path: build/linux/x64/release/bundle
-        dest: bundle
-EOF
+          cat > dev.wath.openlibextended.yml << EOF
+          app-id: dev.wath.openlibextended
+          runtime: org.freedesktop.Platform
+          runtime-version: '24.08'
+          sdk: org.freedesktop.Sdk
+          command: openlibextended
+          finish-args:
+            - --share=ipc
+            - --socket=fallback-x11
+            - --socket=wayland
+            - --device=dri
+            - --share=network
+            - --filesystem=home
+          modules:
+            - name: openlibextended
+              buildsystem: simple
+              build-commands:
+                - cp -r bundle /app/
+                - ln -s /app/bundle/OpenlibExtended /app/bin/openlibextended
+              sources:
+                - type: dir
+                  path: build/linux/x64/release/bundle
+                  dest: bundle
+          EOF
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
