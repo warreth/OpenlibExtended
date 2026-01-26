@@ -128,13 +128,14 @@ jobs:
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-            cat > android/key.properties << EOF
-        storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
-        keyAlias=$KEY_ALIAS
-        storePassword=$STORE_PASSWORD
-        keyPassword=$KEY_PASSWORD
-        EOF
-          fi
+            cat > android/key.properties <<EOF
+          storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
+          keyAlias=$KEY_ALIAS
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          EOF
+              fi
+
 
       - name: Get dependencies
         run: flutter pub get
