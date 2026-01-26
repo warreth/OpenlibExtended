@@ -134,7 +134,7 @@ jobs:
           storePassword=$STORE_PASSWORD
           keyPassword=$KEY_PASSWORD
           EOF
-              fi
+          fi
 
 
       - name: Get dependencies
