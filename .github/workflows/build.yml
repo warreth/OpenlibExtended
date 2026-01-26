@@ -39,12 +39,16 @@ on:
         required: false
         default: false
         type: boolean
+      upload_to_release:
+        description: "Upload artifacts to GitHub Release (if tag exists)"
+        required: false
+        default: false
+        type: boolean
 
 env:
   FLUTTER_VERSION: "3.38.6"
 
 jobs:
-  # Shared setup job to prepare version info
   prepare:
     name: Prepare Build
     runs-on: ubuntu-latest
@@ -72,7 +76,8 @@ jobs:
             TAG_VERSION="${TAG_VERSION}.0"
           fi
 
-          if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          # Accept prereleases like 1.4.1-beta1
+          if [[ ! "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
             echo "Error: Invalid version format: $TAG_VERSION"
             exit 1
           fi
@@ -82,7 +87,6 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "Version: $TAG_VERSION+$BUILD_NUMBER"
 
-  # Android Build Job
   build-android:
     name: Build Android
     needs: prepare
@@ -125,11 +129,11 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
             cat > android/key.properties << EOF
-          storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
-          keyAlias=$KEY_ALIAS
-          storePassword=$STORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          EOF
+        storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
+        keyAlias=$KEY_ALIAS
+        storePassword=$STORE_PASSWORD
+        keyPassword=$KEY_PASSWORD
+        EOF
           fi
 
       - name: Get dependencies
@@ -147,7 +151,6 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          # Naming convention: contains "android" and architecture keywords for update_checker detection
           cp build/app/outputs/flutter-apk/app-release.apk artifacts/openlibextended-android-universal-${{ needs.prepare.outputs.version }}.apk
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk artifacts/openlibextended-android-arm64-${{ needs.prepare.outputs.version }}.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/openlibextended-android-armeabi-v7a-${{ needs.prepare.outputs.version }}.apk
@@ -160,7 +163,6 @@ jobs:
           path: artifacts/*.apk
           retention-days: 7
 
-  # iOS Build Job
   build-ios:
     name: Build iOS
     needs: prepare
@@ -210,7 +212,6 @@ jobs:
           path: artifacts/*.ipa
           retention-days: 7
 
-  # Windows Build Job
   build-windows:
     name: Build Windows
     needs: prepare
@@ -239,10 +240,7 @@ jobs:
 
       - name: Create installer with Inno Setup
         run: |
-          # Download Inno Setup
           choco install innosetup -y
-
-          # Create Inno Setup script
           @"
           [Setup]
           AppName=OpenlibExtended
@@ -266,7 +264,6 @@ jobs:
           [Run]
           Filename: "{app}\OpenlibExtended.exe"; Description: "Launch OpenlibExtended"; Flags: nowait postinstall skipifsilent
           "@ | Out-File -FilePath "installer.iss" -Encoding UTF8
-
           mkdir artifacts
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
@@ -277,7 +274,6 @@ jobs:
           path: artifacts/*.exe
           retention-days: 7
 
-  # Linux Build Job
   build-linux:
     name: Build Linux
     needs: prepare
@@ -308,23 +304,15 @@ jobs:
       - name: Create AppImage
         run: |
           mkdir -p artifacts
-
-          # Download appimagetool
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
-
-          # Create AppDir structure
           mkdir -p AppDir/usr/{bin,lib,share/applications,share/icons/hicolor/256x256/apps}
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
-          # Rename the binary in AppDir if created with old case, mostly for safety but check build output first
           if [ -f "AppDir/usr/bin/OpenlibExtended" ]; then
              mv AppDir/usr/bin/OpenlibExtended AppDir/usr/bin/openlibextended
           fi
-
           cp assets/icons/appIcon_foreground.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
           cp assets/icons/appIcon_foreground.png AppDir/openlibextended.png
-
-          # Create desktop entry
           cat > AppDir/openlibextended.desktop << 'EOF'
           [Desktop Entry]
           Name=OpenlibExtended
@@ -336,8 +324,6 @@ jobs:
           Keywords=books;library;epub;pdf;reader;
           EOF
           cp AppDir/openlibextended.desktop AppDir/usr/share/applications/
-
-          # Create AppRun
           cat > AppDir/AppRun << 'EOF'
           #!/bin/bash
           SELF=$(readlink -f "$0")
@@ -347,8 +333,6 @@ jobs:
           exec "${HERE}/usr/bin/openlibextended" "$@"
           EOF
           chmod +x AppDir/AppRun
-
-          # Build AppImage
           ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.AppImage
 
       - name: Create tar.gz archive
@@ -363,7 +347,6 @@ jobs:
           path: artifacts/*
           retention-days: 7
 
-  # Flatpak Build Job (optional, complex)
   build-flatpak:
     name: Build Flatpak
     needs: [prepare, build-linux]
@@ -428,11 +411,10 @@ jobs:
           path: "*.flatpak"
           retention-days: 7
 
-  # Release job - uploads artifacts to GitHub release
   release:
     name: Upload to Release
     needs: [prepare, build-android, build-ios, build-windows, build-linux]
-    if: ${{ always() && github.event_name == 'release' }}
+    if: ${{ (github.event_name == 'release') || (inputs.upload_to_release == true) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -446,7 +428,16 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/ || echo "No artifacts found"
 
+      - name: Check if tag exists
+        id: tagcheck
+        run: |
+          tag="v${{ needs.prepare.outputs.version }}"
+          if git ls-remote --tags origin | grep -q "refs/tags/$tag"; then
+            echo "upload_ok=true" >> $GITHUB_OUTPUT
+          else
+            echo "upload_ok=false" >> $GITHUB_OUTPUT
       - name: Upload to Release
+        if: steps.tagcheck.outputs.upload_ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: |
