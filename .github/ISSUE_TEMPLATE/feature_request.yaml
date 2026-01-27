@@ -10,6 +10,7 @@ body:
       description: "Which platform(s) does this feature concern?"
       multiple: true
       options:
+        - Any
         - iOS
         - Android
         - Windows
