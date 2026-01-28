@@ -3,8 +3,19 @@ import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:openlib/services/instance_manager.dart';
 
 class BookInfoWidget extends StatelessWidget {
+  /// Returns the current fastest Anna's Archive domain for the given md5.
+  static Future<String> _getCurrentAAUrl(String md5) async {
+    final instance = await InstanceManager().getCurrentInstance();
+    final baseUrl = instance.baseUrl.endsWith('/')
+        ? instance.baseUrl.substring(0, instance.baseUrl.length - 1)
+        : instance.baseUrl;
+    return "$baseUrl/md5/$md5";
+  }
+
   final Widget child;
   final dynamic data;
 
@@ -65,12 +76,61 @@ class BookInfoWidget extends StatelessWidget {
                 },
               ),
             ),
-            _TopPaddedText(
-              text: data.title,
-              fontSize: 19,
-              topPadding: 15,
-              color: Theme.of(context).colorScheme.tertiary,
-              maxLines: 7,
+            // Title row with AA button inline
+            Padding(
+              padding: const EdgeInsets.only(top: 15, bottom: 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      data.title,
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        color: Theme.of(context).colorScheme.tertiary,
+                        letterSpacing: 0.5,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  FutureBuilder<String>(
+                    future: _getCurrentAAUrl(data.md5),
+                    builder: (context, snapshot) {
+                      return OutlinedButton.icon(
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text("Open in site",
+                            style: TextStyle(fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              Theme.of(context).colorScheme.tertiary,
+                          side: BorderSide(
+                              color: Theme.of(context).colorScheme.tertiary),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: snapshot.hasData
+                            ? () async {
+                                final aaUrl = snapshot.data!;
+                                if (await canLaunchUrl(Uri.parse(aaUrl))) {
+                                  await launchUrl(Uri.parse(aaUrl),
+                                      mode: LaunchMode.externalApplication);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            "Could not open Anna's Archive.")),
+                                  );
+                                }
+                              }
+                            : null,
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
             _TopPaddedText(
               text: data.publisher ?? "unknown",
