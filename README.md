@@ -5,6 +5,7 @@
 # OpenlibExtended
 
 **The ultimate open-source cross-platform client for Anna's Archive. <br/> Download, organize, and read your favorite books on any device.**
+> Fork from [openlib](https://github.com/dstark5/Openlib) with more features and desktop support!
 
 [![made-with-flutter](https://img.shields.io/badge/Made%20with-Flutter-4361ee.svg?style=for-the-badge)](https://flutter.dev/)
 [![AGPLv3 License](https://img.shields.io/badge/License-AGPL%20v3-e63946.svg?style=for-the-badge)](https://opensource.org/licenses/)
