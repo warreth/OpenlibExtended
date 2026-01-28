@@ -383,7 +383,7 @@ jobs:
   release:
     name: Upload to Release
     needs: [prepare, build-android, build-ios, build-windows, build-linux, build-flatpak]
-    if: ${{ (github.event_name == 'release') || (inputs.upload_to_release == true) }}
+    if: ${{ github.event_name == 'release' || github.event.inputs.upload_to_release == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
