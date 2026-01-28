@@ -262,32 +262,107 @@ class DownloadManager {
   }
 
   Future<void> resumeDownload(String taskId) async {
-    if (_activeDownloads.containsKey(taskId)) {
-      final task = _activeDownloads[taskId]!;
-      if (task.status == DownloadStatus.paused ||
-          task.status == DownloadStatus.failed) {
-        final newToken = CancelToken();
-        _activeDownloads[taskId] = task.copyWith(
-          status: DownloadStatus.queued,
-          cancelToken: newToken,
-          errorMessage: null,
-        );
-        _notifyListeners();
+    if (!_activeDownloads.containsKey(taskId)) return;
+    final task = _activeDownloads[taskId]!;
 
-        if (task.mirrors.isNotEmpty) {
-          _startDownload(task);
-        } else if (task.mirrorUrl != null) {
-          _startDownloadWithMirrorUrl(
-              _activeDownloads[taskId]!, task.mirrorUrl!);
-        } else {
-          _startDownload(task);
-        }
+    if (task.status == DownloadStatus.paused) {
+      _logger.info('Resuming download: ${task.title}', tag: 'DownloadManager');
+      final newToken = CancelToken();
+      // Update the task in the map
+      _activeDownloads[taskId] = task.copyWith(
+        status: DownloadStatus.queued,
+        cancelToken: newToken,
+        errorMessage: null,
+      );
+      _notifyListeners();
+
+      // Get the updated task to start the download
+      final taskToStart = _activeDownloads[taskId]!;
+      if (taskToStart.mirrors.isNotEmpty) {
+        _startDownload(taskToStart);
+      } else if (taskToStart.mirrorUrl != null) {
+        _startDownloadWithMirrorUrl(taskToStart, taskToStart.mirrorUrl!);
+      } else {
+        _startDownload(taskToStart);
       }
     }
   }
 
   Future<void> retryDownload(String taskId) async {
-    await resumeDownload(taskId);
+    if (!_activeDownloads.containsKey(taskId)) return;
+    final task = _activeDownloads[taskId]!;
+
+    if (task.status == DownloadStatus.failed) {
+      _logger.info('Retrying download from beginning: ${task.title}',
+          tag: 'DownloadManager');
+
+      // 1. Delete the existing file to force a restart
+      try {
+        String bookFileName = generateBookFileName(
+          title: task.title,
+          author: task.author,
+          info: task.info,
+          format: task.format,
+          md5: task.md5,
+        );
+        String filePath = await _getFilePath(bookFileName);
+        final file = File(filePath);
+        if (await file.exists()) {
+          await file.delete();
+          _logger.info('Deleted partial file at: $filePath',
+              tag: 'DownloadManager');
+        }
+      } catch (e) {
+        _logger.error('Error deleting partial file for retry: $e',
+            tag: 'DownloadManager');
+      }
+
+      // 2. Reset progress and re-queue the download
+      final newToken = CancelToken();
+      _activeDownloads[taskId] = task.copyWith(
+        status: DownloadStatus.queued,
+        cancelToken: newToken,
+        errorMessage: null,
+        progress: 0.0,
+        downloadedBytes: 0,
+        totalBytes: 0,
+      );
+      _notifyListeners();
+
+      // 3. Start the download process again
+      final taskToStart = _activeDownloads[taskId]!;
+      if (taskToStart.mirrors.isNotEmpty) {
+        _startDownload(taskToStart);
+      } else if (taskToStart.mirrorUrl != null) {
+        _startDownloadWithMirrorUrl(taskToStart, taskToStart.mirrorUrl!);
+      } else {
+        _startDownload(taskToStart);
+      }
+    }
+  }
+
+  Future<void> restartDownloadWithMirrors(
+      String taskId, List<String> mirrors) async {
+    if (!_activeDownloads.containsKey(taskId)) return;
+    final oldTask = _activeDownloads[taskId]!;
+
+    _logger.info('Restarting download with new mirrors: ${oldTask.title}',
+        tag: 'DownloadManager');
+
+    // Reset and update the task in one go
+    final updatedTask = oldTask.copyWith(
+      status: DownloadStatus.queued,
+      mirrors: mirrors,
+      errorMessage: null,
+      progress: 0.0,
+      downloadedBytes: 0,
+      totalBytes: 0,
+      cancelToken: CancelToken(),
+    );
+    _activeDownloads[taskId] = updatedTask;
+    _notifyListeners(); // Notify UI of the change
+
+    _startDownload(updatedTask); // Start the download process
   }
 
   Future<void> _startDownload(DownloadTask task) async {
@@ -554,11 +629,22 @@ class DownloadManager {
             tag: 'DownloadManager');
       }
 
-      Response response = await dio.get(
-        url,
-        options: options,
-        cancelToken: cancelToken,
-      );
+      Response response;
+      try {
+        response = await dio.get(
+          url,
+          options: options,
+          cancelToken: cancelToken,
+        );
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 416) {
+          _logger.warning(
+              'Received 416 (Range Not Satisfiable). Assuming download is complete.',
+              tag: 'DownloadManager');
+          return true; // Proceed to verification
+        }
+        rethrow;
+      }
 
       int contentLength = 0;
       if (response.headers.value('content-length') != null) {

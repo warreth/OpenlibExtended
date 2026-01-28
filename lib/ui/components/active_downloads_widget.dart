@@ -185,6 +185,7 @@ class _DownloadItem extends ConsumerStatefulWidget {
 class _DownloadItemState extends ConsumerState<_DownloadItem> {
   // Track if auto-verification has been triggered
   bool _autoVerificationTriggered = false;
+  bool _isVerifying = false;
 
   @override
   void initState() {
@@ -204,7 +205,7 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
 
   // Automatically trigger verification when manual verification is required
   void _checkAndTriggerAutoVerification() {
-    if (_autoVerificationTriggered) return;
+    if (_autoVerificationTriggered || _isVerifying) return;
 
     final task = widget.task;
     if (task.status == DownloadStatus.failed &&
@@ -223,7 +224,13 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
   // Open webview for manual verification with visible countdown/CAPTCHA
   Future<void> _triggerVerification() async {
     final task = widget.task;
-    if (task.mirrorUrl == null) return;
+    if (task.mirrorUrl == null || _isVerifying) return;
+
+    if (mounted) {
+      setState(() {
+        _isVerifying = true;
+      });
+    }
 
     final downloadManager = ref.read(downloadManagerProvider);
 
@@ -238,10 +245,13 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
     );
 
     if (mirrors != null && mirrors.isNotEmpty && mounted) {
-      // Update task with fetched mirrors and restart download
-      final updatedTask = task.copyWith(mirrors: mirrors);
-      downloadManager.removeDownload(task.id);
-      await downloadManager.addDownload(updatedTask);
+      await downloadManager.restartDownloadWithMirrors(task.id, mirrors);
+    }
+
+    if (mounted) {
+      setState(() {
+        _isVerifying = false;
+      });
     }
   }
 
@@ -467,45 +477,31 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                     ),
                     const SizedBox(width: 8),
                     TextButton(
-                      onPressed: () async {
-                        // Open webview for manual verification with full page visibility
-                        if (task.mirrorUrl != null) {
-                          final List<String>? mirrors = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (BuildContext context) => Webview(
-                                url: task.mirrorUrl!,
-                                showOverlay:
-                                    false, // Show full page for CAPTCHA
-                              ),
-                            ),
-                          );
-
-                          if (mirrors != null &&
-                              mirrors.isNotEmpty &&
-                              context.mounted) {
-                            // Update task with fetched mirrors and restart download
-                            final updatedTask = task.copyWith(mirrors: mirrors);
-                            downloadManager.removeDownload(task.id);
-                            await downloadManager.addDownload(updatedTask);
-                          }
-                        }
-                      },
+                      onPressed: _isVerifying ? null : _triggerVerification,
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.orange,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 4),
-                        minimumSize: Size.zero,
+                        minimumSize: const Size(40, 24),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Text(
-                        'Verify',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: _isVerifying
+                          ? const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Verify',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ],
                 ),
