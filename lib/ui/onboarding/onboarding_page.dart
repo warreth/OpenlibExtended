@@ -9,6 +9,7 @@ import 'package:openlib/services/files.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/settings_page.dart' show scanAndImportBooks;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
@@ -23,14 +24,26 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   String _storagePath = '';
   bool _enableAutoUpdate = true;
   bool _enableNotifications = false;
-
-  // Total pages
-  final int _totalPages = 5;
+  final TextEditingController _donationKeyController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadDefaultStorage();
+    _loadDonationKey();
+  }
+
+  Future<void> _loadDonationKey() async {
+    final db = MyLibraryDb.instance;
+    final key = await db.getPreference('donationKey');
+    if (key != null && key.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _donationKeyController.text = key;
+        });
+        ref.read(donationKeyProvider.notifier).state = key;
+      }
+    }
   }
 
   Future<void> _loadDefaultStorage() async {
@@ -57,7 +70,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
 
     // Page count adjusted for platform
-    final platformPages = (Platform.isAndroid || Platform.isIOS) ? 5 : 4;
+    final platformPages = (Platform.isAndroid || Platform.isIOS) ? 7 : 6;
 
     if (_currentPage < platformPages - 1) {
       _pageController.nextPage(
@@ -74,6 +87,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     await db.savePreference('onboardingCompleted', 1);
     await db.savePreference('bookStorageDirectory', _storagePath);
     await db.savePreference('enableAutoUpdate', _enableAutoUpdate ? 1 : 0);
+    await db.savePreference('donationKey', _donationKeyController.text);
 
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -116,6 +130,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       _buildWelcomePage(),
       _buildStoragePage(),
       _buildUpdatePage(),
+      _buildDonationPage(),
+      _buildSponsorPage(),
       if (showNotificationPage) _buildNotificationPage(),
       _buildThemePage(),
     ];
@@ -286,6 +302,64 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                 }
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonationPage() {
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.favorite, size: 60, color: Colors.red),
+          const SizedBox(height: 20),
+          Text("Support Anna's Archive",
+              style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 20),
+          const Text(
+            "Donating to Anna's Archive provides faster downloads and helps them keep the service running for everyone. You can enter your secret key below.",
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _donationKeyController,
+            decoration: const InputDecoration(
+              labelText: "Anna's Archive Secret Key",
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              ref.read(donationKeyProvider.notifier).state = value;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSponsorPage() {
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.code, size: 60),
+          const SizedBox(height: 20),
+          Text("Support This App",
+              style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 30),
+          const Text(
+            "If you enjoy this app, consider supporting its development. It helps me dedicate more time to making it better!",
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () =>
+                launchUrl(Uri.parse('https://github.com/sponsors/warreth')),
+            icon: const Icon(Icons.open_in_new),
+            label: const Text("Sponsor on GitHub"),
           ),
         ],
       ),

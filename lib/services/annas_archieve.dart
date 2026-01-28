@@ -1,5 +1,6 @@
 // Dart imports:
 import 'dart:async';
+import 'dart:convert';
 
 // Package imports:
 import 'package:dio/dio.dart';
@@ -285,7 +286,7 @@ class AnnasArchieve {
   // _bookInfoParser FUNCTION (Detail Page - Fixed 'unable to get data' error)
   // --------------------------------------------------------------------
   Future<BookInfoData?> _bookInfoParser(
-      resData, url, String currentBaseUrl, String? donationKey) async {
+      resData, url, String currentBaseUrl) async {
     var document = parse(resData.toString());
     final main = document.querySelector('div.main-inner');
     if (main == null) return null;
@@ -293,23 +294,11 @@ class AnnasArchieve {
     // --- Mirror Link Extraction ---
     String? mirror;
 
-    if (donationKey != null && donationKey.isNotEmpty) {
-      final fastDownloadLinks =
-          main.querySelectorAll('ul.list-inside a[href*="/fast_download/"]');
-      if (fastDownloadLinks.isNotEmpty &&
-          fastDownloadLinks.first.attributes['href'] != null) {
-        mirror =
-            "$currentBaseUrl${fastDownloadLinks.first.attributes['href']!}?key=$donationKey";
-      }
-    }
-
-    if (mirror == null) {
-      final slowDownloadLinks =
-          main.querySelectorAll('ul.list-inside a[href*="/slow_download/"]');
-      if (slowDownloadLinks.isNotEmpty &&
-          slowDownloadLinks.first.attributes['href'] != null) {
-        mirror = currentBaseUrl + slowDownloadLinks.first.attributes['href']!;
-      }
+    final slowDownloadLinks =
+        main.querySelectorAll('ul.list-inside a[href*="/slow_download/"]');
+    if (slowDownloadLinks.isNotEmpty &&
+        slowDownloadLinks.first.attributes['href'] != null) {
+      mirror = currentBaseUrl + slowDownloadLinks.first.attributes['href']!;
     }
     // --------------------------------
 
@@ -500,6 +489,45 @@ class AnnasArchieve {
     }
   }
 
+  Future<String?> getFastDownloadUrl(String md5, String key) async {
+    _logger.info('Fetching fast download URL',
+        tag: 'AnnasArchive', metadata: {'md5': md5});
+
+    try {
+      final url = await _requestWithRetry<String>((currentBaseUrl) async {
+        final fastDownloadUrl =
+            '$currentBaseUrl/dyn/api/fast_download.json?md5=$md5&key=$key';
+        _logger.debug('Calling fast download API',
+            tag: 'AnnasArchive', metadata: {'url': fastDownloadUrl});
+
+        final response = await dio.get(fastDownloadUrl,
+            options: Options(headers: defaultDioHeaders));
+
+        if (response.statusCode == 200 || response.statusCode == 204) {
+          final data = jsonDecode(response.data.toString());
+          if (data['download_url'] != null) {
+            _logger.info('Fast download URL obtained', tag: 'AnnasArchive');
+            return data['download_url'];
+          } else {
+            _logger.warning('Fast download URL not found in response',
+                tag: 'AnnasArchive', metadata: {'error': data['error']});
+            throw Exception(data['error'] ?? 'Fast download URL not found');
+          }
+        } else {
+          _logger.error('Fast download API request failed',
+              tag: 'AnnasArchive',
+              metadata: {'status': response.statusCode});
+          throw Exception('Failed to get fast download URL');
+        }
+      });
+      return url;
+    } catch (e) {
+      _logger.error('Failed to get fast download URL',
+          tag: 'AnnasArchive', error: e.toString());
+      return null;
+    }
+  }
+
   Future<BookInfoData> bookInfo(
       {required String url, String? donationKey}) async {
     _logger.info('Fetching book info',
@@ -538,9 +566,15 @@ class AnnasArchieve {
           );
         }
 
-        BookInfoData? data = await _bookInfoParser(
-            response.data, adjustedUrl, currentBaseUrl, donationKey);
+        BookInfoData? data =
+            await _bookInfoParser(response.data, adjustedUrl, currentBaseUrl);
         if (data != null) {
+          if (donationKey != null && donationKey.isNotEmpty) {
+            final fastUrl = await getFastDownloadUrl(data.md5, donationKey);
+            if (fastUrl != null) {
+              data.mirror = fastUrl;
+            }
+          }
           return data;
         } else {
           throw NetworkError(
