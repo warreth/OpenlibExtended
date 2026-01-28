@@ -382,7 +382,7 @@ jobs:
 
   release:
     name: Upload to Release
-    needs: [prepare, build-android, build-ios, build-windows, build-linux]
+    needs: [prepare]
     if: ${{ (github.event_name == 'release') || (inputs.upload_to_release == true) }}
     runs-on: ubuntu-latest
     permissions:
@@ -405,6 +405,7 @@ jobs:
             echo "upload_ok=true" >> $GITHUB_OUTPUT
           else
             echo "upload_ok=false" >> $GITHUB_OUTPUT
+
       - name: Upload to Release
         if: steps.tagcheck.outputs.upload_ok == 'true'
         uses: softprops/action-gh-release@v2
