@@ -35,6 +35,8 @@ class ActiveDownloadsWidget extends ConsumerWidget {
         return 'Finding mirror...';
       case DownloadStatus.downloading:
         return 'Downloading';
+      case DownloadStatus.paused:
+        return 'Paused';
       case DownloadStatus.verifying:
         return 'Verifying';
       case DownloadStatus.completed:
@@ -329,7 +331,42 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
               if (task.status == DownloadStatus.downloading ||
                   task.status == DownloadStatus.downloadingMirrors ||
                   task.status == DownloadStatus.fetchingMirrors ||
-                  task.status == DownloadStatus.queued)
+                  task.status == DownloadStatus.queued) ...[
+                IconButton(
+                  icon: Icon(
+                    Icons.pause_rounded,
+                    size: 20,
+                    color:
+                        Theme.of(context).colorScheme.tertiary.withAlpha(170),
+                  ),
+                  onPressed: () {
+                    downloadManager.pauseDownload(task.id);
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Pause download',
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (task.status == DownloadStatus.paused) ...[
+                IconButton(
+                  icon: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 20,
+                    color:
+                        Theme.of(context).colorScheme.tertiary.withAlpha(170),
+                  ),
+                  onPressed: () {
+                    downloadManager.resumeDownload(task.id);
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Resume download',
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (task.status != DownloadStatus.completed &&
+                  task.status != DownloadStatus.failed)
                 IconButton(
                   icon: Icon(
                     Icons.close_rounded,
@@ -347,7 +384,8 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
             ],
           ),
           const SizedBox(height: 10),
-          if (task.status == DownloadStatus.downloading) ...[
+          if (task.status == DownloadStatus.downloading ||
+              task.status == DownloadStatus.paused) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
@@ -503,6 +541,27 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () {
+                        downloadManager.retryDownload(task.id);
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Retry',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -545,6 +604,12 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
           size: 18,
           color: _getStatusColor(status, context),
         );
+      case DownloadStatus.paused:
+        return Icon(
+          Icons.pause_rounded,
+          size: 18,
+          color: _getStatusColor(status, context),
+        );
       case DownloadStatus.verifying:
         return SizedBox(
           width: 16,
@@ -583,6 +648,8 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
       case DownloadStatus.downloadingMirrors:
       case DownloadStatus.downloading:
         return Theme.of(context).colorScheme.secondary;
+      case DownloadStatus.paused:
+        return Colors.amber;
       case DownloadStatus.verifying:
         return Colors.blue;
       case DownloadStatus.completed:
