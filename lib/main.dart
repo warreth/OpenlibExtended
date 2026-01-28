@@ -38,6 +38,7 @@ import 'package:openlib/state/state.dart'
         autoRankInstancesProvider,
         userAgentProvider,
         cookieProvider,
+        donationKeyProvider,
         selectedTypeState,
         selectedSortState,
         selectedFileTypeState,
@@ -111,6 +112,11 @@ void main(List<String> args) async {
           .catchError((e) => 'All') as String? ??
       'All';
 
+  String savedDonationKey = await dataBase
+          .getPreference('donationKey')
+          .catchError((e) => '') as String? ??
+      '';
+
   // Check onboarding status
   bool onboardingCompleted = await dataBase
           .getPreference('onboardingCompleted')
@@ -136,6 +142,7 @@ void main(List<String> args) async {
             .overrideWith((ref) => openEpubwithExternalapp),
         showManualDownloadButtonProvider
             .overrideWith((ref) => showManualDownloadButton),
+        donationKeyProvider.overrideWith((ref) => savedDonationKey),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
         selectedTypeState.overrideWith((ref) => savedType),
