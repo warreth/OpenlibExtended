@@ -388,6 +388,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Debug Event Name & Inputs
+        run: |
+          echo "github.event_name = ${{ github.event_name }}"
+          echo "github.event.inputs.upload_to_release = ${{ github.event.inputs.upload_to_release }}"
+          echo "prepare.outputs.version = ${{ needs.prepare.outputs.version }}"
+          echo "Job matrix: build-android, build-ios, build-windows, build-linux, build-flatpak"
+          echo "build-android result: ${{ needs.build-android.result }}"
+          echo "build-ios result: ${{ needs.build-ios.result }}"
+          echo "build-windows result: ${{ needs.build-windows.result }}"
+          echo "build-linux result: ${{ needs.build-linux.result }}"
+          echo "build-flatpak result: ${{ needs.build-flatpak.result }}"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
