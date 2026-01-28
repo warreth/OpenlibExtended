@@ -176,20 +176,30 @@ class UpdateCheckerService {
         );
       }
 
-      // Get the latest release
-      final latestRelease = filteredReleases.first;
+      // Find the latest release that is newer than the current version
+      ReleaseInfo? latestNewerRelease;
+      for (final release in filteredReleases) {
+        if (_isNewerVersion(currentVersion, release.version)) {
+          latestNewerRelease = release;
+          break;
+        }
+      }
 
-      // Compare versions
-      final isNewer = _isNewerVersion(currentVersion, latestRelease.version);
+      if (latestNewerRelease == null) {
+        return UpdateCheckResult(
+          updateAvailable: false,
+          currentVersion: currentVersion,
+        );
+      }
 
       _logger.info("Update check completed", tag: "UpdateChecker", metadata: {
-        "latestVersion": latestRelease.version,
-        "updateAvailable": isNewer,
+        "latestVersion": latestNewerRelease.version,
+        "updateAvailable": true,
       });
 
       return UpdateCheckResult(
-        updateAvailable: isNewer,
-        latestRelease: isNewer ? latestRelease : null,
+        updateAvailable: true,
+        latestRelease: latestNewerRelease,
         currentVersion: currentVersion,
       );
     } catch (e, stackTrace) {
@@ -217,10 +227,14 @@ class UpdateCheckerService {
   }
 
   // Compare two semantic versions
+  // Compare two semantic versions, including pre-release tags
   bool _isNewerVersion(String current, String latest) {
     try {
-      final currentParts = current.split(".").map(int.parse).toList();
-      final latestParts = latest.split(".").map(int.parse).toList();
+      // Split out pre-release tags
+      final currentMain = current.split('-')[0];
+      final latestMain = latest.split('-')[0];
+      final currentParts = currentMain.split('.').map(int.parse).toList();
+      final latestParts = latestMain.split('.').map(int.parse).toList();
 
       // Pad with zeros if needed
       while (currentParts.length < 3) {
@@ -233,6 +247,24 @@ class UpdateCheckerService {
       for (int i = 0; i < 3; i++) {
         if (latestParts[i] > currentParts[i]) return true;
         if (latestParts[i] < currentParts[i]) return false;
+      }
+
+      // If main versions are equal, handle pre-release tags
+      final currentIsPre = current.contains('-');
+      final latestIsPre = latest.contains('-');
+      if (!currentIsPre && latestIsPre) {
+        // Current is stable, latest is pre-release: not newer
+        return false;
+      } else if (currentIsPre && !latestIsPre) {
+        // Current is pre-release, latest is stable: newer
+        return true;
+      } else if (currentIsPre && latestIsPre) {
+        // Both are pre-releases: compare tags lexically
+        final currentTag =
+            current.split('-').length > 1 ? current.split('-')[1] : '';
+        final latestTag =
+            latest.split('-').length > 1 ? latest.split('-')[1] : '';
+        return latestTag.compareTo(currentTag) > 0;
       }
       return false;
     } catch (e) {

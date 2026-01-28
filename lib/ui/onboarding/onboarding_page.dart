@@ -23,6 +23,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   int _currentPage = 0;
   String _storagePath = '';
   bool _enableAutoUpdate = true;
+  bool _enableBetaUpdates = false;
   bool _enableNotifications = false;
   final TextEditingController _donationKeyController = TextEditingController();
 
@@ -31,6 +32,21 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     super.initState();
     _loadDefaultStorage();
     _loadDonationKey();
+    _loadBetaUpdatesPref();
+  }
+
+  Future<void> _loadBetaUpdatesPref() async {
+    final db = MyLibraryDb.instance;
+    try {
+      final value = await db.getPreference('includePrereleaseUpdates');
+      if (mounted) {
+        setState(() {
+          _enableBetaUpdates = value == 1;
+        });
+      }
+    } catch (_) {
+      // default false
+    }
   }
 
   Future<void> _loadDonationKey() async {
@@ -87,6 +103,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     await db.savePreference('onboardingCompleted', 1);
     await db.savePreference('bookStorageDirectory', _storagePath);
     await db.savePreference('enableAutoUpdate', _enableAutoUpdate ? 1 : 0);
+    await db.savePreference(
+        'includePrereleaseUpdates', _enableBetaUpdates ? 1 : 0);
     await db.savePreference('donationKey', _donationKeyController.text);
 
     if (mounted) {
@@ -279,28 +297,52 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.withOpacity(0.3)),
             ),
-            child: SwitchListTile(
-              title: const Text("Enable Auto-Updates"),
-              subtitle: const Text(
-                  "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
-              activeThumbColor: Theme.of(context).colorScheme.secondary,
-              activeTrackColor:
-                  Theme.of(context).colorScheme.secondary.withOpacity(0.5),
-              inactiveThumbColor: Colors.grey,
-              inactiveTrackColor: Colors.grey.withOpacity(0.5),
-              value: _enableAutoUpdate,
-              onChanged: (val) async {
-                setState(() {
-                  _enableAutoUpdate = val;
-                });
-                if (val && Platform.isAndroid) {
-                  // Request install permission if they enable it
-                  final status = await Permission.requestInstallPackages.status;
-                  if (!status.isGranted) {
-                    await Permission.requestInstallPackages.request();
-                  }
-                }
-              },
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text("Enable Auto-Updates"),
+                  subtitle: const Text(
+                      "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
+                  activeThumbColor: Theme.of(context).colorScheme.secondary,
+                  activeTrackColor:
+                      Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+                  inactiveThumbColor: Colors.grey,
+                  inactiveTrackColor: Colors.grey.withOpacity(0.5),
+                  value: _enableAutoUpdate,
+                  onChanged: (val) async {
+                    setState(() {
+                      _enableAutoUpdate = val;
+                    });
+                    if (val && Platform.isAndroid) {
+                      // Request install permission if they enable it
+                      final status =
+                          await Permission.requestInstallPackages.status;
+                      if (!status.isGranted) {
+                        await Permission.requestInstallPackages.request();
+                      }
+                    }
+                  },
+                ),
+                Divider(),
+                SwitchListTile(
+                  title: const Text("Enable Beta Updates"),
+                  subtitle: const Text(
+                      "Get pre-release versions (beta updates) when available."),
+                  activeThumbColor: Colors.orange,
+                  activeTrackColor: Colors.orangeAccent,
+                  inactiveThumbColor: Colors.grey,
+                  inactiveTrackColor: Colors.grey.withOpacity(0.5),
+                  value: _enableBetaUpdates,
+                  onChanged: (val) async {
+                    setState(() {
+                      _enableBetaUpdates = val;
+                    });
+                    final db = MyLibraryDb.instance;
+                    await db.savePreference(
+                        'includePrereleaseUpdates', val ? 1 : 0);
+                  },
+                ),
+              ],
             ),
           ),
         ],
