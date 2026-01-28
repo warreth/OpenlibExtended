@@ -382,7 +382,7 @@ jobs:
 
   release:
     name: Upload to Release
-    needs: [prepare]
+    needs: [prepare, build-android, build-ios, build-windows, build-linux, build-flatpak]
     if: ${{ (github.event_name == 'release') || (inputs.upload_to_release == true) }}
     runs-on: ubuntu-latest
     permissions:
@@ -400,11 +400,14 @@ jobs:
       - name: Check if tag exists
         id: tagcheck
         run: |
+          set -e
           tag="v${{ needs.prepare.outputs.version }}"
+          echo "Looking for git tag: $tag"
           if git ls-remote --tags origin | grep -q "refs/tags/$tag"; then
             echo "upload_ok=true" >> $GITHUB_OUTPUT
           else
             echo "upload_ok=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload to Release
         if: steps.tagcheck.outputs.upload_ok == 'true'
