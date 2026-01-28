@@ -292,25 +292,21 @@ jobs:
           fi
           cp assets/icons/appIcon_foreground.png AppDir/usr/share/icons/hicolor/256x256/apps/openlibextended.png
           cp assets/icons/appIcon_foreground.png AppDir/openlibextended.png
-          cat > AppDir/openlibextended.desktop << 'EOF'
-          [Desktop Entry]
-          Name=OpenlibExtended
-          Comment=Download and read books from shadow library
-          Exec=openlibextended
-          Icon=openlibextended
-          Type=Application
-          Categories=Education;Literature;
-          Keywords=books;library;epub;pdf;reader;
-          EOF
-          cp AppDir/openlibextended.desktop AppDir/usr/share/applications/
-          cat > AppDir/AppRun << 'EOF'
-          #!/bin/bash
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin/:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/openlibextended" "$@"
-          EOF
+          echo "[Desktop Entry]" > AppDir/openlibextended.desktop
+          echo "Name=OpenlibExtended" >> AppDir/openlibextended.desktop
+          echo "Comment=Download and read books from shadow library" >> AppDir/openlibextended.desktop
+          echo "Exec=openlibextended" >> AppDir/openlibextended.desktop
+          echo "Icon=openlibextended" >> AppDir/openlibextended.desktop
+          echo "Type=Application" >> AppDir/openlibextended.desktop
+          echo "Categories=Education;Literature;" >> AppDir/openlibextended.desktop
+          echo "Keywords=books;library;epub;pdf;reader;" >> AppDir/openlibextended.desktop
+          
+          echo "#!/bin/bash" > AppDir/AppRun
+          echo "SELF=\$(readlink -f \"\$0\")" >> AppDir/AppRun
+          echo "HERE=\${SELF%/*}" >> AppDir/AppRun
+          echo "export PATH=\"\${HERE}/usr/bin/:\${PATH}\"" >> AppDir/AppRun
+          echo "export LD_LIBRARY_PATH=\"\${HERE}/usr/lib/:\${LD_LIBRARY_PATH}\"" >> AppDir/AppRun
+          echo "exec \"\${HERE}/usr/bin/openlibextended\" \"\$@\"" >> AppDir/AppRun
           chmod +x AppDir/AppRun
           ARCH=x86_64 ./appimagetool-x86_64.AppImage --no-appstream AppDir artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.AppImage
       - name: Create tar.gz archive
@@ -348,30 +344,28 @@ jobs:
           tar -xzf linux-artifacts/openlibextended-linux-x64-${{ needs.prepare.outputs.version }}.tar.gz -C build/linux/x64/release/bundle
       - name: Create Flatpak manifest
         run: |
-          cat > dev.wath.openlibextended.yml << EOF
-          app-id: dev.wath.openlibextended
-          runtime: org.freedesktop.Platform
-          runtime-version: '24.08'
-          sdk: org.freedesktop.Sdk
-          command: openlibextended
-          finish-args:
-            - --share=ipc
-            - --socket=fallback-x11
-            - --socket=wayland
-            - --device=dri
-            - --share=network
-            - --filesystem=home
-          modules:
-            - name: openlibextended
-              buildsystem: simple
-              build-commands:
-                - cp -r bundle /app/
-                - ln -s /app/bundle/OpenlibExtended /app/bin/openlibextended
-              sources:
-                - type: dir
-                  path: build/linux/x64/release/bundle
-                  dest: bundle
-          EOF
+          echo "app-id: dev.wath.openlibextended" > dev.wath.openlibextended.yml
+          echo "runtime: org.freedesktop.Platform" >> dev.wath.openlibextended.yml
+          echo "runtime-version: '24.08'" >> dev.wath.openlibextended.yml
+          echo "sdk: org.freedesktop.Sdk" >> dev.wath.openlibextended.yml
+          echo "command: openlibextended" >> dev.wath.openlibextended.yml
+          echo "finish-args:" >> dev.wath.openlibextended.yml
+          echo "  - --share=ipc" >> dev.wath.openlibextended.yml
+          echo "  - --socket=fallback-x11" >> dev.wath.openlibextended.yml
+          echo "  - --socket=wayland" >> dev.wath.openlibextended.yml
+          echo "  - --device=dri" >> dev.wath.openlibextended.yml
+          echo "  - --share=network" >> dev.wath.openlibextended.yml
+          echo "  - --filesystem=home" >> dev.wath.openlibextended.yml
+          echo "modules:" >> dev.wath.openlibextended.yml
+          echo "  - name: openlibextended" >> dev.wath.openlibextended.yml
+          echo "    buildsystem: simple" >> dev.wath.openlibextended.yml
+          echo "    build-commands:" >> dev.wath.openlibextended.yml
+          echo "      - cp -r bundle /app/" >> dev.wath.openlibextended.yml
+          echo "      - ln -s /app/bundle/OpenlibExtended /app/bin/openlibextended" >> dev.wath.openlibextended.yml
+          echo "    sources:" >> dev.wath.openlibextended.yml
+          echo "      - type: dir" >> dev.wath.openlibextended.yml
+          echo "        path: build/linux/x64/release/bundle" >> dev.wath.openlibextended.yml
+          echo "        dest: bundle" >> dev.wath.openlibextended.yml
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
