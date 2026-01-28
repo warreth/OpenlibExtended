@@ -390,7 +390,7 @@ class UpdateCheckerService {
     return result.isGranted;
   }
 
-  // Download update file with progress tracking
+  // Download update file with progress tracking and move to install dir (Linux/Windows)
   Future<String?> downloadUpdate({
     required ReleaseInfo release,
     required Function(double progress, int downloaded, int total) onProgress,
@@ -407,23 +407,23 @@ class UpdateCheckerService {
       final dio = Dio();
       final downloadsDir = await _getDownloadsDirectory();
       final fileExtension = _getFileExtension();
-      final fileName = "openlib_${release.version}.$fileExtension";
-      final filePath = "${downloadsDir.path}/$fileName";
+      final tempFileName = "openlib_update_temp.$fileExtension";
+      final tempFilePath = "${downloadsDir.path}/$tempFileName";
 
       _logger.info("Starting update download", tag: "UpdateChecker", metadata: {
         "url": downloadUrl,
-        "destination": filePath,
+        "destination": tempFilePath,
       });
 
-      // Delete existing file if present
-      final existingFile = File(filePath);
+      // Delete existing temp file if present
+      final existingFile = File(tempFilePath);
       if (await existingFile.exists()) {
         await existingFile.delete();
       }
 
       await dio.download(
         downloadUrl,
-        filePath,
+        tempFilePath,
         cancelToken: cancelToken,
         options: Options(
           headers: {
@@ -440,24 +440,86 @@ class UpdateCheckerService {
 
       dio.close();
 
-      // Make file executable on Linux
-      if (Platform.isLinux) {
-        await Process.run("chmod", ["+x", filePath]);
+      // Determine install directory and target filename
+      String installDirPath;
+      String targetFileName;
+      if (Platform.isWindows) {
+        // Use the directory of the running executable
+        installDirPath = File(Platform.resolvedExecutable).parent.path;
+        targetFileName = "openlib.exe";
+      } else if (Platform.isLinux) {
+        installDirPath = File(Platform.resolvedExecutable).parent.path;
+        targetFileName = "openlib.AppImage";
+      } else {
+        // For other platforms, just return the temp file path
+        if (Platform.isMacOS || Platform.isIOS || Platform.isAndroid) {
+          // No special move needed
+          if (Platform.isLinux) {
+            await Process.run("chmod", ["+x", tempFilePath]);
+          }
+          return tempFilePath;
+        }
+        return tempFilePath;
       }
 
-      _logger.info("Update downloaded successfully",
+      final targetFilePath = "$installDirPath/$targetFileName";
+
+      // Remove old versioned executables in the install dir
+      final dir = Directory(installDirPath);
+      final files = dir.listSync();
+      for (final f in files) {
+        if (f is File) {
+          final name = f.path.split(Platform.pathSeparator).last;
+          if ((Platform.isWindows &&
+                  name.startsWith("openlib_") &&
+                  name.endsWith(".exe")) ||
+              (Platform.isLinux &&
+                  name.startsWith("openlib_") &&
+                  name.endsWith(".AppImage"))) {
+            try {
+              await f.delete();
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Move the downloaded file to the install directory, overwrite if exists
+      final tempFile = File(tempFilePath);
+      final targetFile = File(targetFilePath);
+      if (await targetFile.exists()) {
+        await targetFile.delete();
+      }
+      try {
+        await tempFile.rename(targetFilePath);
+      } on FileSystemException catch (e) {
+        // errno=18 is EXDEV (cross-device link)
+        if (e.osError != null && e.osError!.errorCode == 18) {
+          // Fallback: copy then delete
+          await tempFile.copy(targetFilePath);
+          await tempFile.delete();
+        } else {
+          rethrow;
+        }
+      }
+
+      // Make file executable on Linux
+      if (Platform.isLinux) {
+        await Process.run("chmod", ["+x", targetFilePath]);
+      }
+
+      _logger.info("Update moved to install directory",
           tag: "UpdateChecker",
           metadata: {
-            "path": filePath,
+            "path": targetFilePath,
           });
 
-      return filePath;
+      return targetFilePath;
     } catch (e, stackTrace) {
       if (e is DioException && e.type == DioExceptionType.cancel) {
         _logger.info("Update download cancelled", tag: "UpdateChecker");
         return null;
       }
-      _logger.error("Failed to download update",
+      _logger.error("Failed to download/move update",
           tag: "UpdateChecker", error: e, stackTrace: stackTrace);
       rethrow;
     }
@@ -501,11 +563,14 @@ class UpdateCheckerService {
       if (!context.mounted) return false;
       return await _installApkWithFallbacks(filePath, context,
           release: release);
-    } else if (Platform.isWindows) {
-      await Process.start(filePath, [], mode: ProcessStartMode.detached);
-      return true;
-    } else if (Platform.isLinux) {
-      await Process.start(filePath, [], mode: ProcessStartMode.detached);
+    } else if (Platform.isWindows || Platform.isLinux) {
+      // Always use the non-versioned filename in the install dir
+      String installDirPath = File(Platform.resolvedExecutable).parent.path;
+      String targetFileName =
+          Platform.isWindows ? "openlib.exe" : "openlib.AppImage";
+      String targetFilePath = "$installDirPath/$targetFileName";
+      // Launch the new executable
+      await Process.start(targetFilePath, [], mode: ProcessStartMode.detached);
       return true;
     } else if (Platform.isMacOS) {
       await OpenFile.open(filePath, type: "application/x-apple-diskimage");
