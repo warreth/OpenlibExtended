@@ -28,7 +28,6 @@ class TrendingPage extends ConsumerWidget {
           return Padding(
             padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
             child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.all(5),

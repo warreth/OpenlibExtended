@@ -27,7 +27,6 @@ class BookInfoWidget extends StatelessWidget {
         ? "No Description available"
         : data.description.toString();
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
       scrollDirection: Axis.vertical,
       child: Padding(
         padding: const EdgeInsets.only(left: 15, right: 15, top: 10),

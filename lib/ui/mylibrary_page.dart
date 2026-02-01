@@ -120,7 +120,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
               padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
               child: CustomScrollView(
                 controller: _scrollController,
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: <Widget>[
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 8),

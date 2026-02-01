@@ -50,7 +50,6 @@ class _AboutPageState extends State<AboutPage> {
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
       ),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.vertical,
         child: Padding(
           padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
