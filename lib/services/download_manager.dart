@@ -132,6 +132,7 @@ class DownloadManager {
 
   Future<void> initialize() async {
     await _notificationService.initialize();
+    await _notificationService.cancelAllNotifications();
     _logger.info('DownloadManager initialized', tag: 'DownloadManager');
   }
 
@@ -387,8 +388,7 @@ class DownloadManager {
       }
       _logger.warning('No mirrors available for: ${task.title}',
           tag: 'DownloadManager');
-      _updateTaskStatus(task.id, DownloadStatus.failed,
-          errorMessage: 'No mirrors available!');
+      _handleDownloadFailure(task.id, 'No mirrors available!');
       return;
     }
 
@@ -724,6 +724,8 @@ class DownloadManager {
       body: 'Failed: $message',
       progress: -1,
     );
+    await Future.delayed(_notificationClearDelay);
+    await _notificationService.cancelNotification(taskId.hashCode);
   }
 
   Future<void> _finalizeDownload(
@@ -804,6 +806,7 @@ class DownloadManager {
   }
 
   void removeDownload(String taskId) {
+    _notificationService.cancelNotification(taskId.hashCode);
     _activeDownloads.remove(taskId);
     _notifyListeners();
   }
