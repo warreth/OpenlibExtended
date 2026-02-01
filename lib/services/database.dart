@@ -1,4 +1,9 @@
+// Dart imports:
+import 'dart:io';
+
 // Package imports:
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 // Project imports:
@@ -74,8 +79,17 @@ class MyLibraryDb {
   }
 
   Future<Database> _initDatabase() async {
-    final databasePath = await getDatabasesPath();
-    final path = '$databasePath/mylibrary.db';
+    String databasePath;
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      final directory = await getApplicationSupportDirectory();
+      databasePath = directory.path;
+      try {
+        await Directory(databasePath).create(recursive: true);
+      } catch (_) {}
+    } else {
+      databasePath = await getDatabasesPath();
+    }
+    final path = join(databasePath, 'mylibrary.db');
 
     return await openDatabase(
       path,
