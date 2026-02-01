@@ -28,6 +28,9 @@ class MyBook {
       required this.description,
       this.fileName});
 
+  // Getter for compatibility with BookInfoWidget which expects 'md5'
+  String get md5 => id;
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
