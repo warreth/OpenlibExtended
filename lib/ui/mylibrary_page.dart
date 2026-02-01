@@ -45,7 +45,8 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
 
   void _onScroll() {
     // Trigger refresh when scrolled to bottom on desktop
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 50) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 50) {
       if (!_hasTriggeredRefresh && !_isRefreshing) {
         _hasTriggeredRefresh = true;
         _refreshLibrary();
@@ -57,11 +58,11 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
 
   Future<void> _refreshLibrary() async {
     if (_isRefreshing) return;
-    
+
     setState(() {
       _isRefreshing = true;
     });
-    
+
     try {
       // Sync library with disk (remove missing files, add new ones)
       await syncLibraryWithDisk();
@@ -163,7 +164,8 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Theme.of(context).colorScheme.secondary,
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
                                   ),
                                 )
                               : Text(
@@ -207,12 +209,15 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: Theme.of(context).colorScheme.secondary,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .secondary,
                                     ),
                                   )
                                 : Icon(
                                     Icons.refresh,
-                                    color: Theme.of(context).colorScheme.secondary,
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
                                   ),
                           ),
                         ),
