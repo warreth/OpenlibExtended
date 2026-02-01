@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 
 // Package imports:
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:openlib/services/platform_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -275,25 +277,41 @@ class AppLogger {
   Future<void> exportLogs() async {
     try {
       final logsContent = getAllLogs();
-
-      // Get temporary directory
-      final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now()
           .toIso8601String()
           .replaceAll(':', '-')
           .replaceAll('.', '-');
-      final file = File('${tempDir.path}/openlib_logs_$timestamp.txt');
+      final fileName = 'openlib_logs_$timestamp.txt';
 
-      // Write logs to file
-      await file.writeAsString(logsContent);
+      if (PlatformUtils.isDesktop) {
+        final outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Logs',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['txt'],
+        );
 
-      // Share the file
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: 'OpenlibExtended App Logs - $timestamp',
-        text:
-            'OpenlibExtended app logs for the past ${_logRetentionDuration.inMinutes} minutes',
-      );
+        if (outputFile != null) {
+          final file = File(outputFile);
+          await file.writeAsString(logsContent);
+          info('Logs saved to $outputFile', tag: 'AppLogger');
+        }
+      } else {
+        // Get temporary directory
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$fileName');
+
+        // Write logs to file
+        await file.writeAsString(logsContent);
+
+        // Share the file
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          subject: 'OpenlibExtended App Logs - $timestamp',
+          text:
+              'OpenlibExtended app logs for the past ${_logRetentionDuration.inMinutes} minutes',
+        );
+      }
 
       info('Logs exported successfully', tag: 'AppLogger');
     } catch (e, stackTrace) {

@@ -17,6 +17,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/logger.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
 import 'package:openlib/ui/onboarding/onboarding_page.dart';
@@ -337,6 +338,23 @@ class SettingsPage extends ConsumerWidget {
                         builder: (context) => const OnboardingPage()),
                     (route) => false,
                   );
+                }
+              },
+            ),
+            _buildSettingTile(
+              context,
+              title: "Export Logs",
+              subtitle: "Share diagnostic logs (last 5 min)",
+              icon: Icons.bug_report,
+              onTap: () async {
+                try {
+                  await AppLogger().exportLogs();
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Failed to export logs: $e")),
+                    );
+                  }
                 }
               },
             ),
