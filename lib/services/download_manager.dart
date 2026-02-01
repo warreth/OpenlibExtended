@@ -38,6 +38,7 @@ class DownloadTask {
   final String link;
   final List<String> mirrors;
   final String? mirrorUrl; // URL to fetch mirrors from (for retry)
+  final bool isDirectLink;
 
   DownloadStatus status;
   double progress;
@@ -59,6 +60,7 @@ class DownloadTask {
     this.description,
     required this.link,
     this.mirrorUrl,
+    this.isDirectLink = false,
     this.status = DownloadStatus.queued,
     this.progress = 0.0,
     this.downloadedBytes = 0,
@@ -76,6 +78,7 @@ class DownloadTask {
     CancelToken? cancelToken,
     List<String>? mirrors,
     String? mirrorUrl,
+    bool? isDirectLink,
   }) {
     return DownloadTask(
       id: id,
@@ -90,6 +93,7 @@ class DownloadTask {
       description: description,
       link: link,
       mirrorUrl: mirrorUrl ?? this.mirrorUrl,
+      isDirectLink: isDirectLink ?? this.isDirectLink,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       downloadedBytes: downloadedBytes ?? this.downloadedBytes,
@@ -419,7 +423,9 @@ class DownloadManager {
       await _notificationService.showDownloadNotification(
         id: task.id.hashCode,
         title: task.title,
-        body: 'Getting mirrors...',
+        body: task.isDirectLink
+            ? 'Starting fast download...'
+            : 'Getting mirrors...',
         progress: 0,
       );
 
@@ -431,11 +437,17 @@ class DownloadManager {
       }
 
       List<String> fetchedMirrors = [];
-      try {
-        fetchedMirrors = await mirrorFetcher.fetchMirrors(mirrorUrl);
-      } catch (e) {
-        _logger.error('Mirror fetching threw error: $e',
-            tag: 'DownloadManager');
+      if (task.isDirectLink) {
+        _logger.info('Using direct/fast download link',
+            tag: 'DownloadManager', metadata: {'url': mirrorUrl});
+        fetchedMirrors = [mirrorUrl];
+      } else {
+        try {
+          fetchedMirrors = await mirrorFetcher.fetchMirrors(mirrorUrl);
+        } catch (e) {
+          _logger.error('Mirror fetching threw error: $e',
+              tag: 'DownloadManager');
+        }
       }
 
       if (!_activeDownloads.containsKey(task.id)) {
@@ -545,7 +557,8 @@ class DownloadManager {
 
       String currentMirror = sortedMirrors[mirrorIndex];
       _logger.info('Attempting download from: $currentMirror',
-          tag: 'DownloadManager');
+          tag: 'DownloadManager',
+          metadata: {'isFastDownload': task.isDirectLink});
 
       try {
         _updateTaskStatus(taskId, DownloadStatus.downloading);

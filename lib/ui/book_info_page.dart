@@ -6,7 +6,7 @@ import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
-import 'package:openlib/services/annas_archieve.dart' show BookInfoData;
+import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/download_file.dart';
 import 'package:openlib/services/download_manager.dart';
@@ -35,7 +35,8 @@ import 'package:openlib/state/state.dart'
         getBookByIdProvider,
         myLibraryProvider,
         showManualDownloadButtonProvider,
-        downloadManagerProvider;
+        downloadManagerProvider,
+        donationKeyProvider;
 
 class BookInfoPage extends ConsumerWidget {
   const BookInfoPage({super.key, required this.url});
@@ -152,16 +153,35 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                     ),
                   ),
                   onPressed: () async {
-                    if (widget.data.mirror != null &&
-                        widget.data.mirror != '') {
+                    String? downloadUrl = widget.data.mirror;
+                    bool isFastDownload = widget.data.isFastDownload;
+
+                    // Try to fetch fast download link if key is present and not already fast
+                    final donationKey = ref.read(donationKeyProvider);
+                    if (donationKey.isNotEmpty && !isFastDownload) {
+                      try {
+                        final annasArchive = AnnasArchieve();
+                        final fastLink = await annasArchive.getFastDownloadUrl(
+                            widget.data.md5, donationKey);
+                        if (fastLink != null) {
+                          downloadUrl = fastLink;
+                          isFastDownload = true;
+                        }
+                      } catch (e) {
+                        // Fallback to normal mirror
+                      }
+                    }
+
+                    if (downloadUrl != null && downloadUrl != '') {
                       // On Linux, use WebView UI flow since headless webview is not supported
-                      if (PlatformUtils.isLinux) {
+                      // Unless it is a fast download (isDirectLink), which doesn't need scraping
+                      if (PlatformUtils.isLinux && !isFastDownload) {
                         // Navigate to webview page to get mirrors
                         final List<String>? mirrors = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (BuildContext context) =>
-                                Webview(url: widget.data.mirror!),
+                                Webview(url: downloadUrl!),
                           ),
                         );
 
@@ -188,15 +208,18 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           await downloadManager.addDownload(task);
 
                           if (context.mounted) {
+                            final message = isFastDownload
+                                ? 'Fast download started in background 🚀'
+                                : 'Download started in background';
                             showSnackBar(
                               context: context,
-                              message: 'Download started in background',
+                              message: message,
                             );
                           }
                           ref.invalidate(myLibraryProvider);
                         }
                       } else {
-                        // Other platforms: use background mirror fetcher
+                        // Other platforms (or fast download on Linux): use background fetch
                         final downloadManager =
                             ref.read(downloadManagerProvider);
                         final task = DownloadTask(
@@ -211,19 +234,22 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           description: widget.data.description,
                           link: widget.data.link,
                           mirrors: [], // Will be fetched in background
-                          mirrorUrl:
-                              widget.data.mirror, // Store mirror URL for retry
+                          mirrorUrl: downloadUrl, // Store mirror URL for retry
+                          isDirectLink: isFastDownload,
                         );
 
                         await downloadManager.addDownloadWithMirrorUrl(
                           task,
-                          widget.data.mirror!,
+                          downloadUrl,
                         );
 
                         if (context.mounted) {
+                          final message = isFastDownload
+                              ? 'Fast download started in background 🚀'
+                              : 'Download started in background';
                           showSnackBar(
                             context: context,
-                            message: 'Download started in background',
+                            message: message,
                           );
                           ref.invalidate(myLibraryProvider);
                         }

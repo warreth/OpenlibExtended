@@ -39,6 +39,7 @@ class BookInfoData extends BookData {
   String? mirror;
   final String? description;
   final String? format;
+  bool isFastDownload;
 
   BookInfoData(
       {required super.title,
@@ -50,7 +51,8 @@ class BookInfoData extends BookData {
       required super.md5,
       required this.format,
       required this.mirror,
-      required this.description});
+      required this.description,
+      this.isFastDownload = false});
 }
 
 // ====================================================================
@@ -504,19 +506,29 @@ class AnnasArchieve {
             options: Options(headers: defaultDioHeaders));
 
         if (response.statusCode == 200 || response.statusCode == 204) {
-          final data = jsonDecode(response.data.toString());
-          if (data['download_url'] != null) {
+          dynamic data = response.data;
+          if (data is String) {
+            try {
+              data = jsonDecode(data);
+            } catch (e) {
+              _logger.warning('Failed to parse fast download JSON response',
+                  tag: 'AnnasArchive', error: e.toString());
+              throw Exception('Invalid JSON response');
+            }
+          }
+
+          if (data is Map && data['download_url'] != null) {
             _logger.info('Fast download URL obtained', tag: 'AnnasArchive');
             return data['download_url'];
           } else {
+            final errorMsg = data is Map ? data['error'] : 'Unknown error';
             _logger.warning('Fast download URL not found in response',
-                tag: 'AnnasArchive', metadata: {'error': data['error']});
-            throw Exception(data['error'] ?? 'Fast download URL not found');
+                tag: 'AnnasArchive', metadata: {'error': errorMsg});
+            throw Exception(errorMsg ?? 'Fast download URL not found');
           }
         } else {
           _logger.error('Fast download API request failed',
-              tag: 'AnnasArchive',
-              metadata: {'status': response.statusCode});
+              tag: 'AnnasArchive', metadata: {'status': response.statusCode});
           throw Exception('Failed to get fast download URL');
         }
       });
@@ -569,12 +581,6 @@ class AnnasArchieve {
         BookInfoData? data =
             await _bookInfoParser(response.data, adjustedUrl, currentBaseUrl);
         if (data != null) {
-          if (donationKey != null && donationKey.isNotEmpty) {
-            final fastUrl = await getFastDownloadUrl(data.md5, donationKey);
-            if (fastUrl != null) {
-              data.mirror = fastUrl;
-            }
-          }
           return data;
         } else {
           throw NetworkError(
