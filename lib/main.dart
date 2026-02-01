@@ -32,6 +32,7 @@ import 'package:openlib/state/state.dart'
     show
         selectedIndexProvider,
         themeModeProvider,
+        fontSizeScaleProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
@@ -65,6 +66,19 @@ void main(List<String> args) async {
 
   bool isDarkMode =
       await dataBase.getPreference('darkMode') == 0 ? false : true;
+
+  double fontSizeScale = 1.0;
+  try {
+    var pref =
+        await dataBase.getPreference('fontSizeScale').catchError((e) => 1.0);
+    if (pref is num) {
+      fontSizeScale = pref.toDouble();
+    } else if (pref is String) {
+      fontSizeScale = double.tryParse(pref) ?? 1.0;
+    }
+  } catch (e) {
+    fontSizeScale = 1.0;
+  }
 
   bool openPdfwithExternalapp = await dataBase
               .getPreference('openPdfwithExternalApp')
@@ -136,6 +150,7 @@ void main(List<String> args) async {
       overrides: [
         themeModeProvider.overrideWith(
             (ref) => isDarkMode ? ThemeMode.dark : ThemeMode.light),
+        fontSizeScaleProvider.overrideWith((ref) => fontSizeScale),
         openPdfWithExternalAppProvider
             .overrideWith((ref) => openPdfwithExternalapp),
         openEpubWithExternalAppProvider
@@ -164,9 +179,10 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       builder: (context, child) {
+        final scale = ref.watch(fontSizeScaleProvider);
         return MediaQuery(
           data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(1.0)),
+              .copyWith(textScaler: TextScaler.linear(scale)),
           child: child!,
         );
       },

@@ -164,6 +164,7 @@ class FileName {
 final selectedIndexProvider = StateProvider<int>((ref) => 0);
 final homePageSelectedIndexProvider = StateProvider<int>((ref) => 0);
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
+final fontSizeScaleProvider = StateProvider<double>((ref) => 1.0);
 
 // Search Filter States
 final selectedTypeState = StateProvider<String>((ref) => "All");

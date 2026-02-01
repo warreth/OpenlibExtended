@@ -25,6 +25,7 @@ import 'package:openlib/ui/onboarding/onboarding_page.dart';
 import 'package:openlib/state/state.dart'
     show
         themeModeProvider,
+        fontSizeScaleProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
@@ -130,6 +131,7 @@ class SettingsPage extends ConsumerWidget {
     final openPdfExternal = ref.watch(openPdfWithExternalAppProvider);
     final openEpubExternal = ref.watch(openEpubWithExternalAppProvider);
     final showManualDownload = ref.watch(showManualDownloadButtonProvider);
+    final fontSizeScale = ref.watch(fontSizeScaleProvider);
 
     MyLibraryDb dataBase = MyLibraryDb.instance;
 
@@ -160,7 +162,7 @@ class SettingsPage extends ConsumerWidget {
             ),
             const _AutoRankInstancesWidget(),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "General"),
+            _buildSectionHeader(context, "Appearance"),
             _buildSwitchTile(
               context,
               title: "Dark Mode",
@@ -176,6 +178,41 @@ class SettingsPage extends ConsumerWidget {
                 }
               },
             ),
+            _buildSettingCard(
+              context,
+              title: "Font Size",
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Scale: ${fontSizeScale.toStringAsFixed(1)}x"),
+                        Text("Preview",
+                            textScaler: TextScaler.linear(fontSizeScale)),
+                      ],
+                    ),
+                  ),
+                  Slider(
+                    value: fontSizeScale,
+                    min: 0.8,
+                    max: 2.0,
+                    divisions: 12,
+                    label: fontSizeScale.toStringAsFixed(1),
+                    onChanged: (val) {
+                      ref.read(fontSizeScaleProvider.notifier).state = val;
+                    },
+                    onChangeEnd: (val) {
+                      dataBase.savePreference('fontSizeScale', val.toString());
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, "General"),
             FutureBuilder<dynamic>(
               future: dataBase.getPreference('bookStorageDirectory'),
               builder: (context, snapshot) {
@@ -530,7 +567,7 @@ class _InstanceSelectorWidgetState
             return Padding(
               padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
               child: Container(
-                height: 61,
+                constraints: const BoxConstraints(minHeight: 61),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(5),
                   color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -615,7 +652,7 @@ class _InstanceSelectorWidgetState
           loading: () => Padding(
             padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
             child: Container(
-              height: 61,
+              constraints: const BoxConstraints(minHeight: 61),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(5),
                 color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -626,7 +663,7 @@ class _InstanceSelectorWidgetState
           error: (error, stack) => Padding(
             padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
             child: Container(
-              height: 61,
+              constraints: const BoxConstraints(minHeight: 61),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(5),
                 color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -644,7 +681,7 @@ class _InstanceSelectorWidgetState
       loading: () => Padding(
         padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
         child: Container(
-          height: 61,
+          constraints: const BoxConstraints(minHeight: 61),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(5),
             color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -655,7 +692,7 @@ class _InstanceSelectorWidgetState
       error: (error, stack) => Padding(
         padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
         child: Container(
-          height: 61,
+          constraints: const BoxConstraints(minHeight: 61),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(5),
             color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -834,7 +871,7 @@ class _AutoRankInstancesWidgetState
           child: InkWell(
             onTap: _isRanking ? null : _rankNow,
             child: Container(
-              height: 61,
+              constraints: const BoxConstraints(minHeight: 61),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(5),
                 color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -954,7 +991,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
         Padding(
           padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
           child: Container(
-            height: 61,
+            constraints: const BoxConstraints(minHeight: 61),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(5),
               color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -1015,7 +1052,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
           child: InkWell(
             onTap: _isChecking ? null : _checkForUpdates,
             child: Container(
-              height: 61,
+              constraints: const BoxConstraints(minHeight: 61),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(5),
                 color: Theme.of(context).colorScheme.tertiaryContainer,
