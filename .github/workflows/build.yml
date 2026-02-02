@@ -241,6 +241,10 @@ jobs:
           Compression=lzma
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64compatible
+          CloseApplications=yes
+          RestartApplications=yes
+          PrivilegesRequired=lowest
+
           [Files]
           Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
           [Icons]
