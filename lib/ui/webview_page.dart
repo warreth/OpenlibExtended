@@ -46,8 +46,9 @@ class _WebviewState extends ConsumerState<Webview> {
   @override
   void initState() {
     super.initState();
-    // On Linux, use desktop_webview_window
-    if (PlatformUtils.isLinux) {
+    // On Linux and Windows, use desktop_webview_window
+    // On Windows, this avoids "Graphics Context is not valid" (InAppWebView) issues in some environments (Wine/VMs)
+    if (PlatformUtils.isLinux || PlatformUtils.isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openDesktopWebview();
       });
@@ -56,7 +57,7 @@ class _WebviewState extends ConsumerState<Webview> {
 
   Future<void> _openDesktopWebview() async {
     try {
-      _logger.info("Opening desktop webview for Linux",
+      _logger.info("Opening desktop webview for Desktop",
           tag: "WebView", metadata: {"url": widget.url});
 
       // Get app documents directory for webview data
@@ -236,8 +237,8 @@ class _WebviewState extends ConsumerState<Webview> {
 
   @override
   Widget build(BuildContext context) {
-    // Show a waiting message for Linux users while desktop webview is open
-    if (PlatformUtils.isLinux) {
+    // Show a waiting message for Desktop (Linux/Windows) users while desktop webview is open
+    if (PlatformUtils.isLinux || PlatformUtils.isWindows) {
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: true,
