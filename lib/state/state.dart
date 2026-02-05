@@ -1,8 +1,11 @@
 // Dart imports:
 import 'dart:math';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Package imports:
 import 'package:dio/dio.dart';
@@ -161,9 +164,65 @@ class FileName {
 // UI AND SIMPLE STATE PROVIDERS
 // ====================================================================
 
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  ThemeModeNotifier(super.state);
+
+  Future<void> setTheme(ThemeMode mode) async {
+    state = mode;
+
+    // Save to DB
+    String pref = 'system';
+    if (mode == ThemeMode.light) pref = 'light';
+    if (mode == ThemeMode.dark) pref = 'dark';
+    await MyLibraryDb.instance.savePreference('themeMode', pref);
+
+    updateSystemUi(mode);
+  }
+
+  static void updateSystemUi(ThemeMode mode) {
+    if (Platform.isAndroid) {
+      bool isDark = mode == ThemeMode.dark;
+      if (mode == ThemeMode.system) {
+        isDark = ui.PlatformDispatcher.instance.platformBrightness ==
+            Brightness.dark;
+      }
+      SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+          systemNavigationBarColor:
+              isDark ? Colors.black : Colors.grey.shade200));
+    }
+  }
+
+  static Future<ThemeMode> getInitialTheme() async {
+    try {
+      MyLibraryDb dataBase = MyLibraryDb.instance;
+      // Check for new theme mode preference
+      var themePref =
+          await dataBase.getPreference('themeMode').catchError((e) => null);
+      if (themePref != null && themePref is String) {
+        if (themePref == 'light') return ThemeMode.light;
+        if (themePref == 'dark') return ThemeMode.dark;
+        return ThemeMode.system;
+      } else {
+        // Fallback to legacy darkMode preference
+        var legacyDark =
+            await dataBase.getPreference('darkMode').catchError((e) => null);
+        if (legacyDark != null) {
+          return (legacyDark == 0) ? ThemeMode.light : ThemeMode.dark;
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return ThemeMode.system;
+  }
+}
+
 final selectedIndexProvider = StateProvider<int>((ref) => 0);
 final homePageSelectedIndexProvider = StateProvider<int>((ref) => 0);
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
+final themeModeProvider =
+    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+  return ThemeModeNotifier(ThemeMode.light);
+});
 final fontSizeScaleProvider = StateProvider<double>((ref) => 1.0);
 
 // Search Filter States

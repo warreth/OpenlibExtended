@@ -457,9 +457,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   icon: Icons.light_mode,
                   selected: mode == ThemeMode.light,
                   onTap: () {
-                    ref.read(themeModeProvider.notifier).state =
-                        ThemeMode.light;
-                    MyLibraryDb.instance.savePreference('darkMode', 0);
+                    ref
+                        .read(themeModeProvider.notifier)
+                        .setTheme(ThemeMode.light);
                   }),
               const SizedBox(width: 20),
               _ThemeCard(
@@ -467,8 +467,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   icon: Icons.dark_mode,
                   selected: mode == ThemeMode.dark,
                   onTap: () {
-                    ref.read(themeModeProvider.notifier).state = ThemeMode.dark;
-                    MyLibraryDb.instance.savePreference('darkMode', 1);
+                    ref
+                        .read(themeModeProvider.notifier)
+                        .setTheme(ThemeMode.dark);
                   }),
             ],
           ),

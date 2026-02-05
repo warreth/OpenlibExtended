@@ -30,6 +30,7 @@ import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/state/state.dart'
     show
+        ThemeModeNotifier,
         selectedIndexProvider,
         themeModeProvider,
         fontSizeScaleProvider,
@@ -64,8 +65,7 @@ void main(List<String> args) async {
 
   await DownloadManager().initialize();
 
-  bool isDarkMode =
-      await dataBase.getPreference('darkMode') == 0 ? false : true;
+  ThemeMode startThemeMode = await ThemeModeNotifier.getInitialTheme();
 
   double fontSizeScale = 1.0;
   try {
@@ -139,17 +139,15 @@ void main(List<String> args) async {
 
   if (Platform.isAndroid) {
     // Android-specific setup for system UI overlay colors
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-        systemNavigationBarColor:
-            isDarkMode ? Colors.black : Colors.grey.shade200));
+    ThemeModeNotifier.updateSystemUi(startThemeMode);
     await moveFilesToAndroidInternalStorage();
   }
 
   runApp(
     ProviderScope(
       overrides: [
-        themeModeProvider.overrideWith(
-            (ref) => isDarkMode ? ThemeMode.dark : ThemeMode.light),
+        themeModeProvider
+            .overrideWith((ref) => ThemeModeNotifier(startThemeMode)),
         fontSizeScaleProvider.overrideWith((ref) => fontSizeScale),
         openPdfWithExternalAppProvider
             .overrideWith((ref) => openPdfwithExternalapp),

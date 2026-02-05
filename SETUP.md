@@ -28,13 +28,13 @@ cd OpenlibProject
 ### 2. Clone the Repository
 Use Git to clone the project into your newly created directory:
 ```bash
-git clone https://github.com/dstark5/Openlib.git
+git clone https://github.com/warreth/OpenlibExtended.git
 ```
 
 ### 3. Navigate to the Project Folder
-After cloning, move into the **Openlib** folder:
+After cloning, move into the **OpenlibExtended** folder:
 ```bash
-cd Openlib
+cd OpenlibExtended
 ```
 
 ### 4. Open the Project in Android Studio or VS Code
@@ -67,6 +67,28 @@ To access the emulator options and additional Flutter-specific features:
 To run the app:
 1. Open **main.dart** (usually found under `lib/`).
 2. Use the **Run** button in Android Studio to launch the app on your selected emulator or connected device.
+
+---
+
+## Linux Setup
+
+### Requirements
+To build and run on Linux, you need to install **WebKitGTK 4.1**. This is required for the internal browser window used for CAPTCHA verification and downloads.
+
+**Arch Linux / CachyOS:**
+```bash
+sudo pacman -S webkit2gtk-4.1
+```
+
+**Ubuntu / Debian:**
+```bash
+sudo apt install libwebkit2gtk-4.1-dev
+```
+
+**Fedora:**
+```bash
+sudo dnf install webkit2gtk4.1-devel
+```
 
 ---
 

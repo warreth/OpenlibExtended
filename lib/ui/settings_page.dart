@@ -163,20 +163,34 @@ class SettingsPage extends ConsumerWidget {
             const _AutoRankInstancesWidget(),
             const SizedBox(height: 20),
             _buildSectionHeader(context, "Appearance"),
-            _buildSwitchTile(
+            _buildSettingCard(
               context,
-              title: "Dark Mode",
-              value: themeMode == ThemeMode.dark,
-              onChanged: (val) {
-                ref.read(themeModeProvider.notifier).state =
-                    val ? ThemeMode.dark : ThemeMode.light;
-                dataBase.savePreference('darkMode', val);
-                if (Platform.isAndroid) {
-                  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-                      systemNavigationBarColor:
-                          val ? Colors.black : Colors.grey.shade200));
-                }
-              },
+              title: "Theme",
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: DropdownButtonFormField<ThemeMode>(
+                  value: themeMode,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                        value: ThemeMode.system,
+                        child: Text("Follow the System")),
+                    DropdownMenuItem(
+                        value: ThemeMode.light, child: Text("Light theme")),
+                    DropdownMenuItem(
+                        value: ThemeMode.dark, child: Text("Dark theme")),
+                  ],
+                  onChanged: (ThemeMode? val) {
+                    if (val != null) {
+                      ref.read(themeModeProvider.notifier).setTheme(val);
+                    }
+                  },
+                ),
+              ),
             ),
             _buildSettingCard(
               context,

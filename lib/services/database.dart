@@ -141,6 +141,8 @@ class MyLibraryDb {
         await db.execute(
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('darkMode', 0)");
         await db.execute(
+            "INSERT OR IGNORE INTO preferences (name, value) VALUES ('themeMode', 'system')");
+        await db.execute(
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('openPdfwithExternalApp', 0)");
         await db.execute(
             "INSERT OR IGNORE INTO preferences (name, value) VALUES ('openEpubwithExternalApp', 0)");
