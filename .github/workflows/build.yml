@@ -244,12 +244,13 @@ jobs:
           CloseApplications=yes
           RestartApplications=yes
           PrivilegesRequired=lowest
+          PrivilegesRequiredOverridesAllowed=dialog
 
           [Files]
           Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
           [Icons]
           Name: "{group}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
-          Name: "{commondesktop}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
+          Name: "{autodesktop}\OpenLibExtended"; Filename: "{app}\OpenLibExtended.exe"
           [Run]
           Filename: "{app}\OpenLibExtended.exe"; Description: "Launch OpenLibExtended"; Flags: nowait postinstall skipifsilent
           "@ | Out-File -FilePath "installer.iss" -Encoding UTF8
