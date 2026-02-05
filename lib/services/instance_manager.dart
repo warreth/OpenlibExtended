@@ -95,9 +95,9 @@ class InstanceManager {
   // Default instances including all Anna's Archive mirrors and welib.org
   static final List<ArchiveInstance> _defaultInstances = [
     ArchiveInstance(
-      id: 'annas_archive_li',
-      name: "Anna's Archive (.li)",
-      baseUrl: 'https://annas-archive.li',
+      id: 'annas_archive_gl',
+      name: "Anna's Archive (.gl)",
+      baseUrl: 'https://annas-archive.gl',
       priority: 2,
       enabled: true,
     ),
