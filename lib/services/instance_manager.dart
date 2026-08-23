@@ -98,35 +98,21 @@ class InstanceManager {
       id: 'annas_archive_gl',
       name: "Anna's Archive (.gl)",
       baseUrl: 'https://annas-archive.gl',
-      priority: 2,
+      priority: 1,
       enabled: true,
     ),
     ArchiveInstance(
       id: 'annas_archive_pk',
       name: "Anna's Archive (.pk)",
       baseUrl: 'https://annas-archive.pk',
-      priority: 3,
+      priority: 2,
       enabled: true,
     ),
     ArchiveInstance(
-      id: 'annas_archive_vg',
-      name: "Anna's Archive (.vg)",
-      baseUrl: 'https://annas-archive.vg',
-      priority: 4,
-      enabled: true,
-    ),
-      ArchiveInstance(
       id: 'annas_archive_gd',
       name: "Anna's Archive (.gd)",
       baseUrl: 'https://annas-archive.gd',
-      priority: 4,
-      enabled: true,
-    ),
-    ArchiveInstance(
-      id: 'welib_org',
-      name: 'Welib.org',
-      baseUrl: 'https://welib.org',
-      priority: 5,
+      priority: 3,
       enabled: true,
     ),
   ];
@@ -138,11 +124,25 @@ class InstanceManager {
       final stored = await _database.getPreference(_storageKey);
 
       final List<dynamic> jsonList = jsonDecode(stored);
-      final instances =
+      List<ArchiveInstance> instances =
           jsonList.map((json) => ArchiveInstance.fromJson(json)).toList();
+
+      // Clean up known dead or unwanted mirrors that aren't custom
+      instances.removeWhere((i) => !i.isCustom && [
+        'welib_org', 'annas_archive_li', 'annas_archive_pm', 'annas_archive_in',
+        'annas_archive_se', 'annas_archive_vg', 'annas_archive_org'
+      ].contains(i.id));
+
+      // Add missing default mirrors
+      for (final defaultInst in _defaultInstances) {
+        if (!instances.any((i) => i.id == defaultInst.id)) {
+          instances.add(defaultInst);
+        }
+      }
 
       // Sort by priority
       instances.sort((a, b) => a.priority.compareTo(b.priority));
+      await _saveInstances(instances);
       return instances;
     } catch (e) {
       // If there's an error or preference not found, initialize with defaults

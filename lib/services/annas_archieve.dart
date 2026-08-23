@@ -534,6 +534,7 @@ class AnnasArchieve {
                 "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry\n• Click 'Verify in Browser' to solve the captcha manually",
             technicalDetails: "DDoS challenge detected in response",
             rawResponseBody: response.data?.toString(),
+            blockedUrl: encodedURL,
           );
         }
 
@@ -651,6 +652,7 @@ class AnnasArchieve {
                 "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry\n• Click 'Verify in Browser' to solve the captcha manually",
             technicalDetails: "DDoS challenge detected in response",
             rawResponseBody: response.data?.toString(),
+            blockedUrl: adjustedUrl,
           );
         }
 

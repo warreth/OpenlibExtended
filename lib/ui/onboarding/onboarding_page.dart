@@ -291,15 +291,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           Text("Automatic Updates",
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.withOpacity(0.3)),
-            ),
-            child: Column(
-              children: [
-                SwitchListTile(
+          Material(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile(
                   title: const Text("Enable Auto-Updates"),
                   subtitle: const Text(
                       "Not recommended if you installed via F-Droid (F-Droid handles updates)."),

@@ -209,25 +209,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             if (suggestions.isNotEmpty && _searchController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(left: 15, right: 15, top: 8),
-                child: Container(
-                  constraints: const BoxConstraints(maxHeight: 250),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: suggestions.length,
-                    itemBuilder: (context, index) {
-                      final suggestion = suggestions[index];
-                      return ListTile(
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  elevation: 2,
+                  clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    constraints: const BoxConstraints(maxHeight: 250),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: suggestions.length,
+                      itemBuilder: (context, index) {
+                        final suggestion = suggestions[index];
+                        return ListTile(
                         dense: true,
                         title: Text(
                           suggestion,

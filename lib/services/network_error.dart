@@ -31,6 +31,7 @@ class NetworkError implements Exception {
   final String solution;
   final String? technicalDetails;
   final String? rawResponseBody;
+  final String? blockedUrl; // URL that was blocked (for opening in browser)
 
   NetworkError({
     required this.type,
@@ -38,6 +39,7 @@ class NetworkError implements Exception {
     required this.solution,
     this.technicalDetails,
     this.rawResponseBody,
+    this.blockedUrl,
   });
 
   @override

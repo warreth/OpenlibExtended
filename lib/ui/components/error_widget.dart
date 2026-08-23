@@ -11,6 +11,7 @@ import 'package:flutter_svg/svg.dart';
 // Project imports:
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/ui/webview_page.dart';
 
 class CustomErrorWidget extends StatelessWidget {
   final Object error;
@@ -405,14 +406,34 @@ class CustomErrorWidget extends StatelessWidget {
 
   // Trigger browser verification (to be implemented by parent widget)
   void _triggerBrowserVerification(BuildContext context) {
-    // This should be handled by the parent widget (results_page or book_info_page)
-    // Emit a custom event or use a provider to trigger Webview
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Opening verification page in browser..."),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    final networkError = _parseError(error);
+    
+    // Check if we have a URL to open
+    if (networkError.blockedUrl != null) {
+      // Navigate to Webview page with the blocked URL
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Webview(
+            url: networkError.blockedUrl!,
+            showOverlay: false, // Show full page for manual verification
+          ),
+        ),
+      ).then((result) {
+        // After user completes verification, trigger refresh if available
+        if (onRefresh != null && context.mounted) {
+          onRefresh!();
+        }
+      });
+    } else {
+      // Fallback if no URL available
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Unable to open verification page - no URL available"),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   // Show dialog with raw response for debugging

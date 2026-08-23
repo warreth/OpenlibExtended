@@ -486,21 +486,21 @@ class SettingsPage extends ConsumerWidget {
       required VoidCallback onTap}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+      child: Material(
         color: Theme.of(context).colorScheme.tertiaryContainer,
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        leading: icon != null
-            ? Icon(icon, color: Theme.of(context).colorScheme.secondary)
-            : null,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: subtitle != null
-            ? Text(subtitle, style: const TextStyle(fontSize: 12))
-            : null,
-        trailing: trailing ?? const Icon(Icons.chevron_right),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          onTap: onTap,
+          leading: icon != null
+              ? Icon(icon, color: Theme.of(context).colorScheme.secondary)
+              : null,
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: subtitle != null
+              ? Text(subtitle, style: const TextStyle(fontSize: 12))
+              : null,
+          trailing: trailing ?? const Icon(Icons.chevron_right),
+        ),
       ),
     );
   }
@@ -512,19 +512,19 @@ class SettingsPage extends ConsumerWidget {
       required ValueChanged<bool> onChanged}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+      child: Material(
         color: Theme.of(context).colorScheme.tertiaryContainer,
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: SwitchListTile(
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: Theme.of(context).colorScheme.secondary,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: subtitle != null
-            ? Text(subtitle, style: const TextStyle(fontSize: 12))
-            : null,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        child: SwitchListTile(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: Theme.of(context).colorScheme.secondary,
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: subtitle != null
+              ? Text(subtitle, style: const TextStyle(fontSize: 12))
+              : null,
+        ),
       ),
     );
   }
