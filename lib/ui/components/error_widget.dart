@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 // Package imports:
 import 'package:flutter_svg/svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import 'package:openlib/services/network_error.dart';
@@ -387,6 +388,19 @@ class CustomErrorWidget extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text("Cancel"),
           ),
+          OutlinedButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              final networkError = _parseError(error);
+              final targetUrl = networkError.blockedUrl;
+              if (targetUrl != null) {
+                final uri = Uri.parse(targetUrl);
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(Icons.language),
+            label: const Text("System Browser"),
+          ),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
@@ -394,7 +408,7 @@ class CustomErrorWidget extends StatelessWidget {
               _triggerBrowserVerification(context);
             },
             icon: const Icon(Icons.open_in_browser),
-            label: const Text("Open Browser"),
+            label: const Text("Embedded Browser"),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
             ),

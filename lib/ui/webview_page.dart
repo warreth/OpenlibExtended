@@ -83,12 +83,14 @@ class _WebviewState extends ConsumerState<Webview> {
 
       // Handle webview close
       _desktopWebview!.onClose.then((_) {
+        _pollingTimer?.cancel();
+        _pollingTimer = null;
+        _desktopWebview = null;
         _logger.info("Desktop webview closed by user",
             tag: "WebView",
             metadata: {"links_captured": _capturedDownloadLinks.length});
-        _pollingTimer?.cancel();
-        // Return whatever links we found
         if (mounted && !_linksFound) {
+          _linksFound = true;
           Future.microtask(() {
             if (mounted) {
               Navigator.pop(context, _capturedDownloadLinks);
@@ -113,32 +115,79 @@ class _WebviewState extends ConsumerState<Webview> {
   }
 
   void _startPolling() {
-    // Poll every 2 seconds for download links
-    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      if (_linksFound || _desktopWebview == null) {
+    _pollingTimer?.cancel();
+    // Poll every 3 seconds for download links or solved challenges
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      final webview = _desktopWebview;
+      if (_linksFound || webview == null || !mounted) {
         timer.cancel();
         return;
       }
 
       try {
-        // Check current URL
+        if (!mounted || _desktopWebview == null) return;
+        
+        // Check current URL safely
         final currentUrl =
-            await _desktopWebview!.evaluateJavaScript("window.location.href");
-        if (currentUrl == null) return;
+            await webview.evaluateJavaScript("window.location.href").catchError((_) => null);
+        if (currentUrl == null || _desktopWebview == null) return;
 
         final urlStr = currentUrl.toString().replaceAll('"', '');
+
+        // Check page title to detect Cloudflare/Turnstile challenge
+        final currentTitle =
+            await webview.evaluateJavaScript("document.title").catchError((_) => null);
+        final titleStr = currentTitle?.toString().toLowerCase() ?? '';
+
+        // Do not interrupt while user is actively solving a Cloudflare/Turnstile/DDoS challenge
+        if (titleStr.contains("moment") ||
+            titleStr.contains("cloudflare") ||
+            titleStr.contains("attention required") ||
+            titleStr.contains("ddos") ||
+            urlStr.contains("cloudflare") ||
+            urlStr.contains("challenge") ||
+            urlStr.contains("turnstile") ||
+            urlStr.contains("cf-browser")) {
+          return;
+        }
+
+        // Try extracting document.cookie when challenge is completed
+        try {
+          final cookieStr =
+              await webview.evaluateJavaScript("document.cookie").catchError((_) => null);
+          if (cookieStr != null &&
+              cookieStr.toString() != "null" &&
+              cookieStr.toString().isNotEmpty) {
+            final rawCookies = cookieStr.toString().replaceAll('"', '');
+            final domain = Uri.parse(widget.url).host;
+            if (rawCookies.isNotEmpty && domain.isNotEmpty) {
+              final parsedCookies = <io.Cookie>[];
+              for (final pair in rawCookies.split(';')) {
+                final parts = pair.trim().split('=');
+                if (parts.length >= 2) {
+                  parsedCookies.add(io.Cookie(
+                      parts[0].trim(), parts.sublist(1).join('=').trim()));
+                }
+              }
+              if (parsedCookies.isNotEmpty) {
+                await DDoSProtectionHandler()
+                    .storeCookies(domain, parsedCookies);
+              }
+            }
+          }
+        } catch (_) {}
 
         if (urlStr.contains("slow_download")) {
           // Extract slow_download link
           final result =
-              await _desktopWebview!.evaluateJavaScript("""(function() {
+              await webview.evaluateJavaScript("""(function() {
               var paragraphTag = document.querySelector('p[class="mb-4 text-xl font-bold"]');
               if (paragraphTag) {
                 var anchor = paragraphTag.querySelector('a');
                 if (anchor && anchor.href) return anchor.href;
               }
               return null;
-            })()""");
+            })()""").catchError((_) => null);
 
           if (result != null &&
               result.toString() != "null" &&
@@ -155,7 +204,7 @@ class _WebviewState extends ConsumerState<Webview> {
         } else {
           // Extract IPFS links
           final result =
-              await _desktopWebview!.evaluateJavaScript("""(function() {
+              await webview.evaluateJavaScript("""(function() {
               var linkTags = document.querySelectorAll('ul>li>a');
               var links = [];
               linkTags.forEach(function(e) { 
@@ -164,7 +213,7 @@ class _WebviewState extends ConsumerState<Webview> {
                 }
               });
               return JSON.stringify(links);
-            })()""");
+            })()""").catchError((_) => null);
 
           if (result != null &&
               result.toString() != "null" &&
