@@ -43,8 +43,6 @@ class _WebviewState extends ConsumerState<Webview> {
   final List<String> _capturedDownloadLinks = [];
   Timer? _pollingTimer;
   desktop_webview.Webview? _desktopWebview;
-  int _consecutiveCookieUpdates = 0;
-  bool _cookiesDetected = false;
 
   @override
   void initState() {
@@ -174,20 +172,6 @@ class _WebviewState extends ConsumerState<Webview> {
               if (parsedCookies.isNotEmpty) {
                 await DDoSProtectionHandler()
                     .storeCookies(domain, parsedCookies);
-                _consecutiveCookieUpdates++;
-                
-                // Auto-close after cookies are detected consistently (CAPTCHA likely solved)
-                if (_consecutiveCookieUpdates >= 2 && !_cookiesDetected) {
-                  _cookiesDetected = true;
-                  _logger.info("Cookies detected, auto-closing webview",
-                      tag: "WebView");
-                  _pollingTimer?.cancel();
-                  _pollingTimer = null;
-                  if (mounted) {
-                    Navigator.pop(context, <String>[]);
-                  }
-                  return;
-                }
               }
             }
           }
@@ -309,18 +293,36 @@ class _WebviewState extends ConsumerState<Webview> {
         appBar: AppBar(
           automaticallyImplyLeading: true,
           title: const Text("Verifying Access"),
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                _pollingTimer?.cancel();
+                _pollingTimer = null;
+                // Don't call _desktopWebview?.close() - causes GTK crash
+                // Just null it and let user close the window
+                _desktopWebview = null;
+                if (mounted) {
+                  Navigator.pop(context, _capturedDownloadLinks);
+                }
+              },
+              icon: const Icon(Icons.check_circle),
+              label: const Text("Done"),
+            ),
+          ],
         ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.secondary,
+              Icon(
+                Icons.open_in_browser,
+                size: 64,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(height: 20),
               Text(
                 _isDesktopWebviewOpen
-                    ? "A browser window has opened..."
+                    ? "Browser window is open"
                     : "Opening browser window...",
                 style: TextStyle(
                   fontSize: 16,
@@ -329,15 +331,28 @@ class _WebviewState extends ConsumerState<Webview> {
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
-                "Complete the verification in the browser window.\nThe app will automatically continue once cookies are detected.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .tertiary
-                      .withValues(alpha: 0.7),
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.info_outline, size: 20),
+                    const SizedBox(height: 8),
+                    Text(
+                      "1. Solve the CAPTCHA in the browser window\n"
+                      "2. Wait for the page to fully load\n"
+                      "3. Click 'Done' button above to continue",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
