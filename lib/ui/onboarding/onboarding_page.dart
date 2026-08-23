@@ -303,49 +303,50 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               child: Column(
                 children: [
                   SwitchListTile(
-                  title: const Text("Enable Auto-Updates"),
-                  subtitle: const Text(
-                      "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
-                  activeThumbColor: Theme.of(context).colorScheme.secondary,
-                  activeTrackColor:
-                      Theme.of(context).colorScheme.secondary.withOpacity(0.5),
-                  inactiveThumbColor: Colors.grey,
-                  inactiveTrackColor: Colors.grey.withOpacity(0.5),
-                  value: _enableAutoUpdate,
-                  onChanged: (val) async {
-                    setState(() {
-                      _enableAutoUpdate = val;
-                    });
-                    if (val && Platform.isAndroid) {
-                      // Request install permission if they enable it
-                      final status =
-                          await Permission.requestInstallPackages.status;
-                      if (!status.isGranted) {
-                        await Permission.requestInstallPackages.request();
+                    title: const Text("Enable Auto-Updates"),
+                    subtitle: const Text(
+                        "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
+                    activeThumbColor: Theme.of(context).colorScheme.secondary,
+                    activeTrackColor:
+                        Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+                    inactiveThumbColor: Colors.grey,
+                    inactiveTrackColor: Colors.grey.withOpacity(0.5),
+                    value: _enableAutoUpdate,
+                    onChanged: (val) async {
+                      setState(() {
+                        _enableAutoUpdate = val;
+                      });
+                      if (val && Platform.isAndroid) {
+                        // Request install permission if they enable it
+                        final status =
+                            await Permission.requestInstallPackages.status;
+                        if (!status.isGranted) {
+                          await Permission.requestInstallPackages.request();
+                        }
                       }
-                    }
-                  },
-                ),
-                Divider(),
-                SwitchListTile(
-                  title: const Text("Enable Beta Updates"),
-                  subtitle: const Text(
-                      "Get pre-release versions (beta updates) when available."),
-                  activeThumbColor: Colors.orange,
-                  activeTrackColor: Colors.orangeAccent,
-                  inactiveThumbColor: Colors.grey,
-                  inactiveTrackColor: Colors.grey.withOpacity(0.5),
-                  value: _enableBetaUpdates,
-                  onChanged: (val) async {
-                    setState(() {
-                      _enableBetaUpdates = val;
-                    });
-                    final db = MyLibraryDb.instance;
-                    await db.savePreference(
-                        'includePrereleaseUpdates', val ? 1 : 0);
-                  },
-                ),
-              ],
+                    },
+                  ),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text("Enable Beta Updates"),
+                    subtitle: const Text(
+                        "Get pre-release versions (beta updates) when available."),
+                    activeThumbColor: Colors.orange,
+                    activeTrackColor: Colors.orangeAccent,
+                    inactiveThumbColor: Colors.grey,
+                    inactiveTrackColor: Colors.grey.withOpacity(0.5),
+                    value: _enableBetaUpdates,
+                    onChanged: (val) async {
+                      setState(() {
+                        _enableBetaUpdates = val;
+                      });
+                      final db = MyLibraryDb.instance;
+                      await db.savePreference(
+                          'includePrereleaseUpdates', val ? 1 : 0);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ],

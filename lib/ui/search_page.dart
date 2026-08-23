@@ -222,28 +222,29 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       itemBuilder: (context, index) {
                         final suggestion = suggestions[index];
                         return ListTile(
-                        dense: true,
-                        title: Text(
-                          suggestion,
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context).colorScheme.onSurface),
-                        ),
-                        leading: const Icon(Icons.book, size: 18),
-                        onTap: () {
-                          // 1. Update the state with the selected suggestion
-                          ref.read(searchQueryProvider.notifier).state =
-                              suggestion;
+                          dense: true,
+                          title: Text(
+                            suggestion,
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.onSurface),
+                          ),
+                          leading: const Icon(Icons.book, size: 18),
+                          onTap: () {
+                            // 1. Update the state with the selected suggestion
+                            ref.read(searchQueryProvider.notifier).state =
+                                suggestion;
 
-                          // 2. Clear the suggestion list
-                          ref.read(searchSuggestionProvider.notifier).state =
-                              [];
+                            // 2. Clear the suggestion list
+                            ref.read(searchSuggestionProvider.notifier).state =
+                                [];
 
-                          // 3. Immediately perform search
-                          onSubmit(context);
-                        },
-                      );
-                    },
+                            // 3. Immediately perform search
+                            onSubmit(context);
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
