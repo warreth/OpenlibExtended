@@ -126,17 +126,19 @@ class _WebviewState extends ConsumerState<Webview> {
 
       try {
         if (!mounted || _desktopWebview == null) return;
-        
+
         // Check current URL safely
-        final currentUrl =
-            await webview.evaluateJavaScript("window.location.href").catchError((_) => null);
+        final currentUrl = await webview
+            .evaluateJavaScript("window.location.href")
+            .catchError((_) => null);
         if (currentUrl == null || _desktopWebview == null) return;
 
         final urlStr = currentUrl.toString().replaceAll('"', '');
 
         // Check page title to detect Cloudflare/Turnstile challenge
-        final currentTitle =
-            await webview.evaluateJavaScript("document.title").catchError((_) => null);
+        final currentTitle = await webview
+            .evaluateJavaScript("document.title")
+            .catchError((_) => null);
         final titleStr = currentTitle?.toString().toLowerCase() ?? '';
 
         // Do not interrupt while user is actively solving a Cloudflare/Turnstile/DDoS challenge
@@ -153,8 +155,9 @@ class _WebviewState extends ConsumerState<Webview> {
 
         // Try extracting document.cookie when challenge is completed
         try {
-          final cookieStr =
-              await webview.evaluateJavaScript("document.cookie").catchError((_) => null);
+          final cookieStr = await webview
+              .evaluateJavaScript("document.cookie")
+              .catchError((_) => null);
           if (cookieStr != null &&
               cookieStr.toString() != "null" &&
               cookieStr.toString().isNotEmpty) {
@@ -179,8 +182,7 @@ class _WebviewState extends ConsumerState<Webview> {
 
         if (urlStr.contains("slow_download")) {
           // Extract slow_download link
-          final result =
-              await webview.evaluateJavaScript("""(function() {
+          final result = await webview.evaluateJavaScript("""(function() {
               var paragraphTag = document.querySelector('p[class="mb-4 text-xl font-bold"]');
               if (paragraphTag) {
                 var anchor = paragraphTag.querySelector('a');
@@ -203,8 +205,7 @@ class _WebviewState extends ConsumerState<Webview> {
           }
         } else {
           // Extract IPFS links
-          final result =
-              await webview.evaluateJavaScript("""(function() {
+          final result = await webview.evaluateJavaScript("""(function() {
               var linkTags = document.querySelectorAll('ul>li>a');
               var links = [];
               linkTags.forEach(function(e) { 
@@ -381,19 +382,25 @@ class _WebviewState extends ConsumerState<Webview> {
                 // Extract and store cookies after page load
                 try {
                   final cookieManager = CookieManager.instance();
-                  final cookies = await cookieManager.getCookies(url: WebUri.uri(url!));
+                  final cookies =
+                      await cookieManager.getCookies(url: WebUri.uri(url!));
                   if (cookies.isNotEmpty) {
-                    final ddosCookies = cookies.map((c) => io.Cookie(c.name, c.value.toString())).toList();
+                    final ddosCookies = cookies
+                        .map((c) => io.Cookie(c.name, c.value.toString()))
+                        .toList();
                     final domain = url.host;
-                    await DDoSProtectionHandler().storeCookies(domain, ddosCookies);
-                    _logger.info('Cookies saved from WebView', 
-                        tag: 'WebView', 
-                        metadata: {'domain': domain, 'count': ddosCookies.length});
+                    await DDoSProtectionHandler()
+                        .storeCookies(domain, ddosCookies);
+                    _logger.info('Cookies saved from WebView',
+                        tag: 'WebView',
+                        metadata: {
+                          'domain': domain,
+                          'count': ddosCookies.length
+                        });
                   }
                 } catch (e) {
-                  _logger.debug('Failed to extract cookies from WebView', 
-                      tag: 'WebView', 
-                      metadata: {'error': e.toString()});
+                  _logger.debug('Failed to extract cookies from WebView',
+                      tag: 'WebView', metadata: {'error': e.toString()});
                 }
 
                 List<String> bookDownloadLinks = [];
