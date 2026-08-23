@@ -43,6 +43,8 @@ class _WebviewState extends ConsumerState<Webview> {
   final List<String> _capturedDownloadLinks = [];
   Timer? _pollingTimer;
   desktop_webview.Webview? _desktopWebview;
+  int _consecutiveCookieUpdates = 0;
+  bool _cookiesDetected = false;
 
   @override
   void initState() {
@@ -172,6 +174,20 @@ class _WebviewState extends ConsumerState<Webview> {
               if (parsedCookies.isNotEmpty) {
                 await DDoSProtectionHandler()
                     .storeCookies(domain, parsedCookies);
+                _consecutiveCookieUpdates++;
+                
+                // Auto-close after cookies are detected consistently (CAPTCHA likely solved)
+                if (_consecutiveCookieUpdates >= 2 && !_cookiesDetected) {
+                  _cookiesDetected = true;
+                  _logger.info("Cookies detected, auto-closing webview",
+                      tag: "WebView");
+                  _pollingTimer?.cancel();
+                  _pollingTimer = null;
+                  if (mounted) {
+                    Navigator.pop(context, <String>[]);
+                  }
+                  return;
+                }
               }
             }
           }
@@ -293,19 +309,6 @@ class _WebviewState extends ConsumerState<Webview> {
         appBar: AppBar(
           automaticallyImplyLeading: true,
           title: const Text("Verifying Access"),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                _pollingTimer?.cancel();
-                _pollingTimer = null;
-                _desktopWebview?.close();
-                if (mounted) {
-                  Navigator.pop(context);
-                }
-              },
-            ),
-          ],
         ),
         body: Center(
           child: Column(
@@ -327,7 +330,7 @@ class _WebviewState extends ConsumerState<Webview> {
               ),
               const SizedBox(height: 10),
               Text(
-                "Complete the verification in the browser window.\nAfter solving, return here and click the X button to continue.",
+                "Complete the verification in the browser window.\nThe app will automatically continue once cookies are detected.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
