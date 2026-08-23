@@ -81,10 +81,10 @@ class AppLogger {
   factory AppLogger() => _instance;
   AppLogger._internal();
 
-  // Store logs for the past 5 minutes
+  // Store logs with larger buffer and longer retention
   final Queue<LogEntry> _logs = Queue<LogEntry>();
-  static const Duration _logRetentionDuration = Duration(minutes: 5);
-  static const int _maxLogEntries = 1000; // Limit to prevent memory issues
+  static const Duration _logRetentionDuration = Duration(hours: 2);
+  static const int _maxLogEntries = 10000; // Increased buffer to retain full debugging history
 
   /// Add a log entry
   void _addLog(String level, String message,

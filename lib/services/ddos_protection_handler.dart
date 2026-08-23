@@ -285,14 +285,12 @@ class DDoSProtectionHandler {
   }
 
   /// Add cookies to a request
+  /// NOTE: Disabled - cf_clearance cookies are bound to TLS fingerprint and won't work
+  /// when sent from Dio HTTP client. The webview flow handles DDoS protection directly.
   void addCookiesToRequest(RequestOptions options, List<Cookie> cookies) {
-    if (cookies.isNotEmpty) {
-      final cookieString = cookies.map((c) => '${c.name}=${c.value}').join('; ');
-      options.headers['cookie'] = cookieString;
-      _logger.debug('Added cookies to request',
-          tag: 'DDoSHandler',
-          metadata: {'cookieCount': cookies.length});
-    }
+    // Intentionally no-op: cf_clearance cookies are bound to browser TLS fingerprint.
+    // Sending them via Dio's HTTP client gets the request blocked anyway.
+    // The user must solve the CAPTCHA in the webview each time.
   }
 
   /// Extract cookies from response for storage

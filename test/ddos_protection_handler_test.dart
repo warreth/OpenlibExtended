@@ -91,7 +91,7 @@ void main() {
       expect(cookies.any((c) => c.name == 'session_id'), isTrue);
     });
 
-    test('Adds cookies to Dio request headers', () {
+    test('addCookiesToRequest is no-op because cf_clearance is TLS-fingerprint bound', () {
       final requestOptions = RequestOptions(path: 'https://annas-archive.pk/search');
       final cookies = [
         Cookie('cf_clearance', 'token_valid_123'),
@@ -100,8 +100,8 @@ void main() {
 
       handler.addCookiesToRequest(requestOptions, cookies);
 
-      expect(requestOptions.headers['cookie'], contains('cf_clearance=token_valid_123'));
-      expect(requestOptions.headers['cookie'], contains('annas_session=sess_abc'));
+      // Cookies should NOT be added to headers (disabled due to TLS fingerprint mismatch)
+      expect(requestOptions.headers['cookie'], isNull);
     });
   });
 }
