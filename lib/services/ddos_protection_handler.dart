@@ -169,7 +169,11 @@ class DDoSProtectionHandler {
     // Check for Cloudflare
     if (headers.containsKey('cf-mitigated') || 
         headers.containsKey('cf-ray') ||
+        headers.containsKey('cf-cache-status') ||
         body.contains('cloudflare') ||
+        body.contains('cf-turnstile') ||
+        body.contains('turnstile') ||
+        body.contains('just a moment...') ||
         body.contains('cf-browser-verification')) {
       return _extractCloudflareChallenge(response, body);
     }
