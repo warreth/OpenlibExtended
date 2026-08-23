@@ -6,16 +6,13 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart' as dom;
+import 'package:meta/meta.dart';
 
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/ddos_protection_handler.dart';
-
-// ====================================================================
-// DATA MODELS
-// ====================================================================
 
 class BookData {
   final String title;
@@ -344,6 +341,16 @@ class AnnasArchieve {
     }
     return bookList;
   }
+
+  /// Test-only wrappers around the private parsers so tests can verify real
+  /// HTML parsing without going through the network layer.
+  @visibleForTesting
+  List<BookData> parser(resData, String fileType, String currentBaseUrl) =>
+      _parser(resData, fileType, currentBaseUrl);
+
+  @visibleForTesting
+  Future<BookInfoData?> bookInfoParser(resData, url, String currentBaseUrl) =>
+      _bookInfoParser(resData, url, currentBaseUrl);
   // --------------------------------------------------------------------
 
   // --------------------------------------------------------------------
@@ -473,7 +480,13 @@ class AnnasArchieve {
     if (year.isNotEmpty) {
       if (year == "Before 1980") {
         url += '&year_end=1979';
-      } else if (!year.contains('-')) {
+      } else if (year.contains('-')) {
+        // Handle year ranges like "2020-2024"
+        final parts = year.split('-');
+        if (parts.length == 2) {
+          url += '&year_from=${parts[0].trim()}&year_end=${parts[1].trim()}';
+        }
+      } else {
         url += '&year=$year';
       }
     }
