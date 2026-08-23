@@ -276,25 +276,72 @@ class AnnasArchieve {
     var bookContainers =
         document.querySelectorAll('div.flex.pt-3.pb-3.border-b');
 
+    _logger.debug('Parser started',
+        tag: 'AnnasArchive',
+        metadata: {
+          'containerCount': bookContainers.length,
+          'fileType': fileType,
+          'currentBaseUrl': currentBaseUrl,
+        });
+
+    // FALLBACK: If primary selector finds nothing, try alternative selectors
+    // because Anna's Archive changes its HTML structure periodically.
+    if (bookContainers.isEmpty) {
+      _logger.warning('Primary selector found 0 containers, trying fallbacks',
+          tag: 'AnnasArchive');
+
+      // Try 1: any link with /md5/ in href, find their parent containers
+      final md5Links = document.querySelectorAll('a[href*="/md5/"]');
+      _logger.debug('Found md5 links',
+          tag: 'AnnasArchive', metadata: {'count': md5Links.length});
+
+      // Try 2: divs with border-b class
+      final borderDivs = document.querySelectorAll('div[class*="border-b"]');
+      _logger.debug('Found border-b divs',
+          tag: 'AnnasArchive', metadata: {'count': borderDivs.length});
+
+      // Try 3: any div containing md5 link
+      if (md5Links.isNotEmpty) {
+        bookContainers = md5Links.map((link) {
+          var parent = link.parent;
+          while (parent != null && parent.localName != 'div') {
+            parent = parent.parent;
+          }
+          return parent;
+        }).whereType<dom.Element>().toList();
+        _logger.debug('Using fallback: md5 link parents',
+            tag: 'AnnasArchive', metadata: {'count': bookContainers.length});
+      }
+    }
+
     List<BookData> bookList = [];
 
-    for (var container in bookContainers) {
+    for (int idx = 0; idx < bookContainers.length; idx++) {
+      var container = bookContainers[idx];
       final mainLinkElement =
           container.querySelector('a.line-clamp-\\[3\\].js-vim-focus');
-      final thumbnailElement = container.querySelector('a[href^="/md5/"] img');
 
-      if (mainLinkElement == null ||
-          mainLinkElement.attributes['href'] == null) {
+      // Fallback: any link with /md5/ in href
+      final md5LinkElement = container.querySelector('a[href*="/md5/"]');
+      final effectiveLinkElement = mainLinkElement ?? md5LinkElement;
+
+      final thumbnailElement = container.querySelector('a[href*="/md5/"] img');
+
+      if (effectiveLinkElement == null ||
+          effectiveLinkElement.attributes['href'] == null) {
+        _logger.debug('Skipped container (no mainLink)',
+            tag: 'AnnasArchive', metadata: {'containerIdx': idx});
         continue;
       }
 
-      final String title = cleanText(mainLinkElement.text.trim());
-      final String link = currentBaseUrl + mainLinkElement.attributes['href']!;
-      final String md5 = getMd5(mainLinkElement.attributes['href']!);
+      final String title = cleanText(effectiveLinkElement.text.trim());
+      final String link =
+          currentBaseUrl + effectiveLinkElement.attributes['href']!;
+      final String md5 = getMd5(effectiveLinkElement.attributes['href']!);
       final String? thumbnail = thumbnailElement?.attributes['src'];
 
       // Fix: Use sequential traversal instead of :nth-of-type
-      dom.Element? authorLinkElement = mainLinkElement.nextElementSibling;
+      dom.Element? authorLinkElement = effectiveLinkElement.nextElementSibling;
       dom.Element? publisherLinkElement = authorLinkElement?.nextElementSibling;
 
       if (authorLinkElement?.attributes['href']?.startsWith('/search?q=') !=
@@ -319,25 +366,47 @@ class AnnasArchieve {
       // No need for _safeParse here if we only treat info as a string
       final String? info = infoElement?.text.trim();
 
+      // If info is null (HTML structure changed) or no filter is specified,
+      // include the book. Only filter when a specific file type is requested.
       final bool hasMatchingFileType = fileType.isEmpty
-          ? (info?.contains(
-                  RegExp(r'(PDF|EPUB|CBR|CBZ)', caseSensitive: false)) ==
-              true)
+          ? true
           : info?.toLowerCase().contains(fileType.toLowerCase()) == true;
 
-      if (hasMatchingFileType) {
-        final BookData book = BookData(
-          title: title,
-          author: author?.isEmpty == true ? "unknown" : author,
-          thumbnail: thumbnail,
-          link: link,
-          md5: md5,
-          publisher: publisher?.isEmpty == true ? "unknown" : publisher,
-          info: info,
-        );
-        bookList.add(book);
+      if (!hasMatchingFileType) {
+        _logger.debug('Skipped container (no matching fileType)',
+            tag: 'AnnasArchive',
+            metadata: {
+              'containerIdx': idx,
+              'title': title.substring(
+                  0, title.length > 50 ? 50 : title.length),
+              'info': info ?? '(null)',
+              'fileType': fileType,
+            });
+        continue;
       }
+
+      final BookData book = BookData(
+        title: title,
+        author: author?.isEmpty == true ? "unknown" : author,
+        thumbnail: thumbnail,
+        link: link,
+        md5: md5,
+        publisher: publisher?.isEmpty == true ? "unknown" : publisher,
+        info: info,
+      );
+      bookList.add(book);
+
+      _logger.debug('Added book',
+          tag: 'AnnasArchive',
+          metadata: {
+            'title': title.substring(0, title.length > 50 ? 50 : title.length),
+            'md5': md5,
+          });
     }
+
+    _logger.info('Parser completed',
+        tag: 'AnnasArchive',
+        metadata: {'booksFound': bookList.length});
     return bookList;
   }
 

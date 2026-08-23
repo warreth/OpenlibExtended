@@ -9,6 +9,7 @@
 
 // Dart imports:
 import 'dart:async';
+import 'dart:io';
 
 // Package imports:
 import 'package:desktop_webview_window/desktop_webview_window.dart'
@@ -111,6 +112,22 @@ class WebviewChallengeSolver {
           _logger.info('Challenge solved, captured page HTML',
               tag: 'ChallengeSolver',
               metadata: {'length': html.length, 'title': title});
+
+          // Save HTML to debug file for parser debugging
+          try {
+            final home = Platform.environment['HOME'] ?? '/tmp';
+            final debugPath = '$home/annas_captured.html';
+            final debugFile = File(debugPath);
+            await debugFile.writeAsString(html);
+            _logger.debug('HTML saved for debugging',
+                tag: 'ChallengeSolver',
+                metadata: {'path': debugPath, 'size': html.length});
+          } catch (e) {
+            _logger.warning('Failed to save debug HTML',
+                tag: 'ChallengeSolver',
+                error: e.toString());
+          }
+
           return html;
         }
       }
