@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openlib/services/annas_archieve.dart';
 
@@ -82,6 +84,25 @@ void main() {
       expect(books.first.publisher, equals('Farrar, Straus and Giroux'));
       expect(books.first.md5, equals('1b0142979e5db11b7f0fb37c28f24cd1'));
       expect(books.first.link, equals('https://annas-archive.pk/md5/1b0142979e5db11b7f0fb37c28f24cd1'));
+    });
+
+    test('Parser parses REAL Anna\'s Archive HTML captured from live site', () {
+      // This fixture was extracted from actual live search results
+      // (harry potter query, annas-archive.gl, DDoS-Guard challenge solved).
+      // It uses the current production markup: note the DOUBLE SPACE in
+      // 'flex  pt-3 pb-3 border-b last:border-b-0 border-gray-100'.
+      final fixture = File('test/fixtures/search_results_sample.html');
+      final realHtml = fixture.readAsStringSync();
+
+      final books = api.parser(realHtml, '', 'https://annas-archive.gl');
+      expect(books.length, greaterThan(0),
+          reason: 'Parser must find books in real live HTML');
+      final book = books.first;
+      expect(book.md5, isNotEmpty);
+      expect(book.md5.length, equals(32));
+      expect(book.link, startsWith('https://annas-archive.gl/md5/'));
+      expect(book.title, isNotEmpty);
+      expect(book.info, contains('EPUB'));
     });
 
     test('Book detail parser parses realistic book page HTML', () async {

@@ -9,6 +9,7 @@
 
 // Dart imports:
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 // Package imports:
@@ -79,6 +80,7 @@ class WebviewChallengeSolver {
       webview.launch(url);
 
       final deadline = DateTime.now().add(timeout);
+      var titleOkPolls = 0;
       while (DateTime.now().isBefore(deadline)) {
         await Future.delayed(const Duration(milliseconds: 1500));
         if (closedByUser) {
@@ -89,8 +91,7 @@ class WebviewChallengeSolver {
         final live = webview;
         if (live == null) return null;
 
-        final title =
-            await _js(live, "document.title") ?? '';
+        final title = await _js(live, "document.title") ?? '';
         final bodySnippet = await _js(
               live,
               "(document.body ? document.body.innerHTML.slice(0, 3000) : '')",
@@ -100,11 +101,30 @@ class WebviewChallengeSolver {
         if (title.isEmpty && bodySnippet.isEmpty) continue;
 
         if (isChallengePage(title: title, bodySnippet: bodySnippet)) {
+          titleOkPolls = 0;
           _logger.debug('Challenge still active',
               tag: 'ChallengeSolver',
               metadata: {'title': title.isEmpty ? '(none)' : title});
           continue;
         }
+
+        // Title is no longer a challenge page, but the document may still be
+        // loading/hydrating. Grabbing too early yields an empty body and the
+        // parser reports "no results" even though the challenge was solved.
+        final readyState =
+            await _js(live, "document.readyState") ?? '';
+        if (readyState != 'complete') {
+          titleOkPolls++;
+          _logger.debug('Page rendering, waiting for readyState=complete',
+              tag: 'ChallengeSolver',
+              metadata: {'readyState': readyState, 'polls': titleOkPolls});
+          // Best-effort fallback: after ~15s of good titles with an
+          // incomplete state, grab whatever is there.
+          if (titleOkPolls < 10) continue;
+        }
+
+        // Small settle delay so late XHR content lands in the DOM.
+        await Future.delayed(const Duration(milliseconds: 2000));
 
         // Challenge cleared - grab rendered HTML.
         final html = await _js(live, "document.documentElement.outerHTML");
@@ -148,10 +168,15 @@ class WebviewChallengeSolver {
     try {
       final result = await webview.evaluateJavaScript(script);
       if (result == null) return null;
-      // evaluateJavaScript may wrap strings in quotes; strip them for checks.
       var s = result.toString();
+      // WebKit (and the plugin's JS bridge) may return strings JSON-encoded.
       if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
-        s = s.substring(1, s.length - 1);
+        try {
+          final decoded = json.decode(s);
+          if (decoded is String) return decoded;
+        } catch (_) {}
+        // Fallback: strip only the outer quote pair.
+        return s.substring(1, s.length - 1);
       }
       return s;
     } catch (_) {
