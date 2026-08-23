@@ -1,6 +1,6 @@
 // Dart imports:
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' as io;
 
 // Flutter imports:
 import 'package:flutter/material.dart';
@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 // Project imports:
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/ddos_protection_handler.dart';
 
 class Webview extends ConsumerStatefulWidget {
   const Webview({
@@ -62,7 +63,7 @@ class _WebviewState extends ConsumerState<Webview> {
 
       // Get app documents directory for webview data
       final appDir = await getApplicationSupportDirectory();
-      final webviewDataDir = Directory("${appDir.path}/webview_data");
+      final webviewDataDir = io.Directory("${appDir.path}/webview_data");
       if (!await webviewDataDir.exists()) {
         await webviewDataDir.create(recursive: true);
       }
@@ -318,6 +319,24 @@ class _WebviewState extends ConsumerState<Webview> {
               },
               onLoadStart: (controller, url) {},
               onLoadStop: (controller, url) async {
+                // Extract and store cookies after page load
+                try {
+                  final cookieManager = CookieManager.instance();
+                  final cookies = await cookieManager.getCookies(url: WebUri.uri(url!));
+                  if (cookies.isNotEmpty) {
+                    final ddosCookies = cookies.map((c) => io.Cookie(c.name, c.value.toString())).toList();
+                    final domain = url.host;
+                    await DDoSProtectionHandler().storeCookies(domain, ddosCookies);
+                    _logger.info('Cookies saved from WebView', 
+                        tag: 'WebView', 
+                        metadata: {'domain': domain, 'count': ddosCookies.length});
+                  }
+                } catch (e) {
+                  _logger.debug('Failed to extract cookies from WebView', 
+                      tag: 'WebView', 
+                      metadata: {'error': e.toString()});
+                }
+
                 List<String> bookDownloadLinks = [];
                 if (url.toString().contains("slow_download")) {
                   String query =

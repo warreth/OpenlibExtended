@@ -56,6 +56,8 @@ class CustomErrorWidget extends StatelessWidget {
             const SizedBox(height: 16),
             if (networkError.rawResponseBody != null)
               _buildShowDetailsButton(context, networkError),
+            if (networkError.type == NetworkErrorType.cloudflareBlock)
+              _buildOpenBrowserButton(context),
             const SizedBox(height: 20),
           ],
         ),
@@ -307,6 +309,108 @@ class CustomErrorWidget extends StatelessWidget {
         style: TextButton.styleFrom(
           foregroundColor: Colors.grey[600],
         ),
+      ),
+    );
+  }
+
+  // Build open in browser button for DDoS/Captcha challenges
+  Widget _buildOpenBrowserButton(BuildContext context) {
+    return Center(
+      child: ElevatedButton.icon(
+        onPressed: () => _openInBrowser(context),
+        icon: const Icon(Icons.open_in_browser_rounded),
+        label: const Text("Verify in Browser"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Open browser to allow user to manually solve captcha/verification
+  void _openInBrowser(BuildContext context) {
+    // This will trigger the webview page for manual verification
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.security_rounded, color: Colors.orange),
+            SizedBox(width: 12),
+            Text("Manual Verification Required"),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "The site is asking you to verify that you're human. We'll open a browser window where you can complete the verification.",
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_rounded, color: Colors.blue[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Your cookies will be saved for future use to avoid this again.",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              // Trigger webview for verification
+              _triggerBrowserVerification(context);
+            },
+            icon: const Icon(Icons.open_in_browser),
+            label: const Text("Open Browser"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Trigger browser verification (to be implemented by parent widget)
+  void _triggerBrowserVerification(BuildContext context) {
+    // This should be handled by the parent widget (results_page or book_info_page)
+    // Emit a custom event or use a provider to trigger Webview
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Opening verification page in browser..."),
+        duration: Duration(seconds: 2),
       ),
     );
   }

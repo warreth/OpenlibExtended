@@ -326,10 +326,10 @@ class NetworkError implements Exception {
     if (_isCloudflareBlock(error.response)) {
       return NetworkError(
         type: NetworkErrorType.cloudflareBlock,
-        userMessage: "Access blocked by Cloudflare protection",
+        userMessage: "Access blocked by DDoS protection",
         solution:
             "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
-        technicalDetails: "Cloudflare challenge/block detected",
+        technicalDetails: "DDoS challenge/block detected",
         rawResponseBody: responseData,
       );
     }
@@ -414,10 +414,10 @@ class NetworkError implements Exception {
     if (responseData != null && _containsCloudflareMarkers(responseData)) {
       return NetworkError(
         type: NetworkErrorType.cloudflareBlock,
-        userMessage: "Access blocked by Cloudflare protection",
+        userMessage: "Access blocked by DDoS protection",
         solution:
             "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
-        technicalDetails: "HTTP $statusCode with Cloudflare markers",
+        technicalDetails: "HTTP $statusCode with DDoS protection markers",
         rawResponseBody: responseData,
       );
     }
@@ -525,6 +525,16 @@ class NetworkError implements Exception {
       "please complete the security check",
       "__cf_chl_tk",
       "turnstile",
+      // DDoS-Guard and other providers
+      "ddos-guard",
+      "ddos guard",
+      "checking if the site connection is secure",
+      "needs to review the security of your connection",
+      "verifying you are human",
+      "please wait",
+      "browser check",
+      "security check",
+      "verify you are human",
     ];
 
     for (final marker in markers) {

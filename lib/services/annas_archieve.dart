@@ -11,6 +11,7 @@ import 'package:html/dom.dart' as dom;
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/network_error.dart';
+import 'package:openlib/services/ddos_protection_handler.dart';
 
 // ====================================================================
 // DATA MODELS
@@ -65,6 +66,7 @@ class AnnasArchieve {
   final Dio dio = Dio();
   final InstanceManager _instanceManager = InstanceManager();
   final AppLogger _logger = AppLogger();
+  final DDoSProtectionHandler _ddosHandler = DDoSProtectionHandler();
 
   // Optimized retry settings for faster response
   static const int maxRetriesPerInstance =
@@ -77,14 +79,16 @@ class AnnasArchieve {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
   };
 
-  // Check for Cloudflare block in response
+  // Check for Cloudflare/DDoS block in response
   bool _isCloudflareBlocked(Response response) {
     // Check cf-mitigated header
     if (response.headers.value("cf-mitigated") == "challenge") {
+      _logger.warning('DDoS protection detected: cf-mitigated header',
+          tag: 'AnnasArchive');
       return true;
     }
 
-    // Check response body for Cloudflare markers
+    // Check response body for Cloudflare and other DDoS protection markers
     final body = response.data?.toString().toLowerCase() ?? "";
     final markers = [
       "checking your browser",
@@ -95,10 +99,34 @@ class AnnasArchieve {
       "ray id:",
       "attention required",
       "ddos protection",
+      "ddos-guard",
+      "ddos guard",
+      "checking if the site connection is secure",
+      "needs to review the security of your connection",
+      "security check",
+      "verifying you are human",
+      "please wait",
+      "browser check",
     ];
 
     for (final marker in markers) {
       if (body.contains(marker)) {
+        _logger.warning('DDoS protection detected in response body',
+            tag: 'AnnasArchive',
+            metadata: {
+              'marker': marker,
+              'responseLength': body.length,
+              'statusCode': response.statusCode,
+              'headers': response.headers.map.toString(),
+            });
+        
+        // Log first 500 chars of response for debugging
+        final preview = response.data?.toString().substring(
+            0, response.data.toString().length > 500 ? 500 : response.data.toString().length);
+        _logger.debug('Response preview', 
+            tag: 'AnnasArchive',
+            metadata: {'preview': preview});
+        
         return true;
       }
     }
@@ -176,6 +204,29 @@ class AnnasArchieve {
       lastException ?? Exception('All instances failed'),
       targetHost: lastUsedHost,
     );
+  }
+
+  // Helper to make request with cookies if available
+  Future<Response> _makeRequest(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
+    final domain = Uri.parse(url).host;
+    final cookies = await _ddosHandler.getCookies(domain);
+
+    final requestHeaders = {
+      ...defaultDioHeaders,
+      if (headers != null) ...headers,
+    };
+
+    if (cookies != null && cookies.isNotEmpty) {
+      _ddosHandler.addCookiesToRequest(
+        RequestOptions(path: url, headers: requestHeaders),
+        cookies,
+      );
+    }
+
+    return await dio.get(url, options: Options(headers: requestHeaders));
   }
 
   String getMd5(String url) {
@@ -452,19 +503,36 @@ class AnnasArchieve {
 
         _logger.debug('Fetching search results',
             tag: 'AnnasArchive', metadata: {'url': encodedURL});
-        final response = await dio.get(encodedURL,
-            options: Options(headers: defaultDioHeaders));
+        final response = await _makeRequest(encodedURL);
+
+        // Log response details for debugging
+        _logger.debug('Search response received',
+            tag: 'AnnasArchive',
+            metadata: {
+              'statusCode': response.statusCode,
+              'contentType': response.headers.value('content-type'),
+              'responseLength': response.data?.toString().length ?? 0,
+            });
+
+        // Store cookies from successful response for future use
+        if (response.statusCode == 200) {
+          final cookies = _ddosHandler.extractCookies(response);
+          if (cookies.isNotEmpty) {
+            final domain = Uri.parse(encodedURL).host;
+            await _ddosHandler.storeCookies(domain, cookies);
+          }
+        }
 
         // Check for Cloudflare block in the response
         if (_isCloudflareBlocked(response)) {
-          _logger.warning('Cloudflare block detected in search response',
+          _logger.warning('Cloudflare/DDoS block detected in search response',
               tag: 'AnnasArchive');
           throw NetworkError(
             type: NetworkErrorType.cloudflareBlock,
-            userMessage: "Access blocked by Cloudflare protection",
+            userMessage: "Access blocked by DDoS protection",
             solution:
-                "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
-            technicalDetails: "Cloudflare challenge detected in response",
+                "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry\n• Click 'Verify in Browser' to solve the captcha manually",
+            technicalDetails: "DDoS challenge detected in response",
             rawResponseBody: response.data?.toString(),
           );
         }
@@ -561,19 +629,27 @@ class AnnasArchieve {
 
         _logger.debug('Fetching book details',
             tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
-        final response = await dio.get(adjustedUrl,
-            options: Options(headers: defaultDioHeaders));
+        final response = await _makeRequest(adjustedUrl);
+
+        // Store cookies from successful response
+        if (response.statusCode == 200) {
+          final cookies = _ddosHandler.extractCookies(response);
+          if (cookies.isNotEmpty) {
+            final domain = Uri.parse(adjustedUrl).host;
+            await _ddosHandler.storeCookies(domain, cookies);
+          }
+        }
 
         // Check for Cloudflare block in the response
         if (_isCloudflareBlocked(response)) {
-          _logger.warning('Cloudflare block detected in book info response',
+          _logger.warning('Cloudflare/DDoS block detected in book info response',
               tag: 'AnnasArchive');
           throw NetworkError(
             type: NetworkErrorType.cloudflareBlock,
-            userMessage: "Access blocked by Cloudflare protection",
+            userMessage: "Access blocked by DDoS protection",
             solution:
-                "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
-            technicalDetails: "Cloudflare challenge detected in response",
+                "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry\n• Click 'Verify in Browser' to solve the captcha manually",
+            technicalDetails: "DDoS challenge detected in response",
             rawResponseBody: response.data?.toString(),
           );
         }
@@ -583,12 +659,26 @@ class AnnasArchieve {
         if (data != null) {
           return data;
         } else {
+          // Log response preview when parser fails
+          final responseStr = response.data?.toString() ?? "";
+          final preview = responseStr.substring(
+              0, responseStr.length > 1000 ? 1000 : responseStr.length);
+          _logger.error('Parser returned null - possible DDoS protection page',
+              tag: 'AnnasArchive',
+              metadata: {
+                'url': adjustedUrl,
+                'responseLength': responseStr.length,
+                'statusCode': response.statusCode,
+                'preview': preview,
+              });
+          
           throw NetworkError(
             type: NetworkErrorType.unknown,
             userMessage: "Unable to load book details",
             solution:
                 "The book information could not be retrieved. Try again or try a different mirror in Settings.",
             technicalDetails: "Parser returned null for URL: $adjustedUrl",
+            rawResponseBody: preview,
           );
         }
       });
