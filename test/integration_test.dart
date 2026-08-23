@@ -3,9 +3,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/ddos_protection_handler.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize sqflite_ffi for desktop test environments
+  if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
 
   group('Integration Tests - Real Network Calls', () {
     late AnnasArchieve api;

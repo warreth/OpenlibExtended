@@ -13,6 +13,7 @@ import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/ddos_protection_handler.dart';
+import 'package:openlib/services/webview_challenge_solver.dart';
 
 class BookData {
   final String title;
@@ -220,18 +221,16 @@ class AnnasArchieve {
     Map<String, String>? headers,
   }) async {
     final domain = Uri.parse(url).host;
-    final cookies = await _ddosHandler.getCookies(domain);
-
-    final requestHeaders = {
+    final requestHeaders = <String, dynamic>{
       ...defaultDioHeaders,
       if (headers != null) ...headers,
     };
 
+    // Inject stored cookies directly into the request headers.
+    final cookies = await _ddosHandler.getCookies(domain);
     if (cookies != null && cookies.isNotEmpty) {
-      _ddosHandler.addCookiesToRequest(
-        RequestOptions(path: url, headers: requestHeaders),
-        cookies,
-      );
+      requestHeaders['cookie'] =
+          cookies.map((c) => '${c.name}=${c.value}').join('; ');
     }
 
     return await dio.get(url, options: Options(headers: requestHeaders));
@@ -568,13 +567,42 @@ class AnnasArchieve {
       _logger.info('Search completed',
           tag: 'AnnasArchive', metadata: {'results': books.length});
       return books;
-    } on NetworkError {
-      // Re-throw NetworkError as-is for proper UI handling
+    } on NetworkError catch (networkErr) {
+      // If all instances failed with 403 and webview solver is available, try automatic solve.
+      if (networkErr.type == NetworkErrorType.cloudflareBlock &&
+          WebviewChallengeSolver.isSupported) {
+        _logger.info('Attempting automatic challenge solve via webview',
+            tag: 'AnnasArchive');
+        
+        final instances = await _instanceManager.getEnabledInstances();
+        final targetUrl = networkErr.blockedUrl ??
+            urlEncoder(
+              searchQuery: searchQuery,
+              content: content,
+              sort: sort,
+              fileType: fileType,
+              language: language,
+              year: year,
+              enableFilters: enableFilters,
+              currentBaseUrl: instances.isEmpty ? baseUrl : instances.first.baseUrl,
+            );
+
+        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(targetUrl);
+        if (html != null && html.length > 1000) {
+          _logger.info('Challenge solved, parsing results from webview HTML',
+              tag: 'AnnasArchive');
+          final currentBaseUrl = Uri.parse(targetUrl).origin;
+          return _parser(html, fileType, currentBaseUrl);
+        } else {
+          _logger.warning('Webview solver returned no usable HTML',
+              tag: 'AnnasArchive');
+        }
+      }
+      // Re-throw NetworkError as-is for UI to handle if solver failed or unavailable
       rethrow;
     } on DioException catch (e) {
       _logger.error('Search failed',
           tag: 'AnnasArchive', error: e.message ?? e.error);
-      // Convert to user-friendly NetworkError with diagnostics
       throw await _handleErrorAsync(e,
           responseBody: e.response?.data?.toString());
     } catch (e) {
@@ -717,13 +745,36 @@ class AnnasArchieve {
             'hasMirror': data.mirror != null,
           });
       return data;
-    } on NetworkError {
-      // Re-throw NetworkError as-is for proper UI handling
+    } on NetworkError catch (networkErr) {
+      // If all instances failed with 403 and webview solver is available, try automatic solve.
+      if (networkErr.type == NetworkErrorType.cloudflareBlock &&
+          WebviewChallengeSolver.isSupported) {
+        _logger.info('Attempting automatic challenge solve via webview for bookInfo',
+            tag: 'AnnasArchive');
+        
+        final targetUrl = networkErr.blockedUrl ?? url;
+        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(targetUrl);
+        if (html != null && html.length > 1000) {
+          _logger.info('Challenge solved, parsing bookInfo from webview HTML',
+              tag: 'AnnasArchive');
+          final currentBaseUrl = Uri.parse(targetUrl).origin;
+          final data = await _bookInfoParser(html, targetUrl, currentBaseUrl);
+          if (data != null) {
+            return data;
+          } else {
+            _logger.warning('Webview HTML parsed but returned null bookInfo',
+                tag: 'AnnasArchive');
+          }
+        } else {
+          _logger.warning('Webview solver returned no usable HTML for bookInfo',
+              tag: 'AnnasArchive');
+        }
+      }
+      // Re-throw NetworkError as-is for UI to handle if solver failed or unavailable
       rethrow;
     } on DioException catch (e) {
       _logger.error('Failed to fetch book info',
           tag: 'AnnasArchive', error: e.message ?? e.error);
-      // Convert to user-friendly NetworkError with diagnostics
       throw await _handleErrorAsync(e,
           responseBody: e.response?.data?.toString());
     } catch (e) {
