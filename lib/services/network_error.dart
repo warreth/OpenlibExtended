@@ -326,13 +326,15 @@ class NetworkError implements Exception {
 
     // Check for Cloudflare challenge/block in response
     if (_isCloudflareBlock(error.response)) {
+      final requestUrl = error.requestOptions.uri.toString();
       return NetworkError(
         type: NetworkErrorType.cloudflareBlock,
         userMessage: "Access blocked by DDoS protection",
         solution:
-            "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry",
-        technicalDetails: "DDoS challenge/block detected",
+            "This site is protected and blocking your access.\n\n🔧 Solutions to try:\n• Use a VPN (recommended)\n• Change your DNS to 1.1.1.1 or 8.8.8.8\n• Try a different network\n• Wait a few minutes and retry\n• Click 'Verify in Browser' to solve the captcha manually",
+        technicalDetails: "DDoS challenge/block detected (HTTP $statusCode)",
         rawResponseBody: responseData,
+        blockedUrl: requestUrl.isNotEmpty ? requestUrl : null,
       );
     }
 
@@ -488,19 +490,22 @@ class NetworkError implements Exception {
       return true;
     }
 
-    // Check for Cloudflare-specific headers
+    final statusCode = response.statusCode;
+
+    // Any HTTP 403 or 503 status code is treated as a DDoS/Security challenge
+    if (statusCode == 403 ||
+        statusCode == 503 ||
+        statusCode == 520 ||
+        statusCode == 521 ||
+        statusCode == 522 ||
+        statusCode == 523 ||
+        statusCode == 524) {
+      return true;
+    }
+
+    // Check for Cloudflare-specific server headers
     if (headers.value("server")?.toLowerCase().contains("cloudflare") == true) {
-      final statusCode = response.statusCode;
-      // Common Cloudflare block status codes
-      if (statusCode == 403 ||
-          statusCode == 503 ||
-          statusCode == 520 ||
-          statusCode == 521 ||
-          statusCode == 522 ||
-          statusCode == 523 ||
-          statusCode == 524) {
-        return true;
-      }
+      return true;
     }
 
     // Check response body for Cloudflare markers
