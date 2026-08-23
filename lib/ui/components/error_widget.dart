@@ -336,7 +336,10 @@ class CustomErrorWidget extends StatelessWidget {
 
   // Open browser to allow user to manually solve captcha/verification
   void _openInBrowser(BuildContext context) {
-    // This will trigger the webview page for manual verification
+    final networkError = _parseError(error);
+    final targetUrl = networkError.blockedUrl;
+    
+    // Show dialog with embedded and system browser options
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -388,19 +391,16 @@ class CustomErrorWidget extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text("Cancel"),
           ),
-          OutlinedButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              final networkError = _parseError(error);
-              final targetUrl = networkError.blockedUrl;
-              if (targetUrl != null) {
+          if (targetUrl != null)
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
                 final uri = Uri.parse(targetUrl);
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-            icon: const Icon(Icons.language),
-            label: const Text("System Browser"),
-          ),
+              },
+              icon: const Icon(Icons.language),
+              label: const Text("System Browser"),
+            ),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);

@@ -11,7 +11,6 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:desktop_webview_window/desktop_webview_window.dart'
     as desktop_webview;
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 // Project imports:
 import 'package:openlib/services/platform_utils.dart';
@@ -48,51 +47,12 @@ class _WebviewState extends ConsumerState<Webview> {
   @override
   void initState() {
     super.initState();
-    // On Linux, use system browser to avoid desktop_webview_window GTK crashes
-    // On Windows, use desktop_webview_window
-    // On mobile (Android/iOS), use InAppWebView
-    if (PlatformUtils.isLinux) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openSystemBrowser();
-      });
-    } else if (PlatformUtils.isWindows) {
+    // On Linux and Windows, use desktop_webview_window
+    // On Windows, this avoids "Graphics Context is not valid" (InAppWebView) issues in some environments (Wine/VMs)
+    if (PlatformUtils.isLinux || PlatformUtils.isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openDesktopWebview();
       });
-    }
-  }
-
-  Future<void> _openSystemBrowser() async {
-    try {
-      _logger.info("Opening system browser for Linux",
-          tag: "WebView", metadata: {"url": widget.url});
-
-      final uri = Uri.parse(widget.url);
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      
-      if (launched) {
-        setState(() {
-          _isDesktopWebviewOpen = true;
-        });
-        
-        // Show message for a few seconds then pop
-        await Future.delayed(const Duration(seconds: 3));
-        if (mounted) {
-          Navigator.pop(context, <String>[]);
-        }
-      } else {
-        _logger.error("Failed to launch system browser",
-            tag: "WebView");
-        if (mounted) {
-          Navigator.pop(context, <String>[]);
-        }
-      }
-    } catch (e, stackTrace) {
-      _logger.error("Failed to open system browser",
-          tag: "WebView", error: e, stackTrace: stackTrace);
-      if (mounted) {
-        Navigator.pop(context, <String>[]);
-      }
     }
   }
 
@@ -327,51 +287,8 @@ class _WebviewState extends ConsumerState<Webview> {
 
   @override
   Widget build(BuildContext context) {
-    // Linux: Show message about system browser (url_launcher)
-    if (PlatformUtils.isLinux) {
-      return Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: true,
-          title: const Text("Verifying Access"),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.language,
-                size: 64,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                "Opening in your system browser...",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.tertiary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "Complete the verification in your browser.\nOnce done, try searching again in the app.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .tertiary
-                      .withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    // Windows: Show waiting message for desktop webview
-    if (PlatformUtils.isWindows) {
+    // Desktop (Linux/Windows): Show waiting message for desktop webview
+    if (PlatformUtils.isLinux || PlatformUtils.isWindows) {
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: true,
