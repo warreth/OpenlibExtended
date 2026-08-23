@@ -293,6 +293,19 @@ class _WebviewState extends ConsumerState<Webview> {
         appBar: AppBar(
           automaticallyImplyLeading: true,
           title: const Text("Verifying Access"),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                _pollingTimer?.cancel();
+                _pollingTimer = null;
+                _desktopWebview?.close();
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            ),
+          ],
         ),
         body: Center(
           child: Column(
@@ -314,7 +327,7 @@ class _WebviewState extends ConsumerState<Webview> {
               ),
               const SizedBox(height: 10),
               Text(
-                "Complete the verification in the browser window.\nThe download will start automatically when ready.",
+                "Complete the verification in the browser window.\nAfter solving, return here and click the X button to continue.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
@@ -324,27 +337,6 @@ class _WebviewState extends ConsumerState<Webview> {
                       .withValues(alpha: 0.7),
                 ),
               ),
-              if (_capturedDownloadLinks.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.green),
-                      const SizedBox(width: 8),
-                      Text(
-                        "${_capturedDownloadLinks.length} download link(s) found",
-                        style: const TextStyle(color: Colors.green),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
