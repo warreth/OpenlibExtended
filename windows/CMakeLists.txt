@@ -32,6 +32,16 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# MSVC 14.51 (Visual Studio 2026) promoted the <experimental/coroutine>
+# deprecation to a hard error (STL1011). Two plugins still reach that header
+# through C++/WinRT: flutter_inappwebview_windows compiles as C++17, so
+# <winrt/base.h> falls back to the experimental header, and
+# permission_handler_windows builds with /await, which selects the experimental
+# coroutine machinery outright. Both are regenerated under
+# flutter/ephemeral/.plugin_symlinks by `flutter pub get`, so the opt-out is set
+# here, ahead of the plugin subdirectories below, to reach every plugin target.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
