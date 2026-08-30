@@ -12,7 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 // Project imports:
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/logger.dart';
-import 'package:openlib/ui/webview_page.dart';
+import 'package:openlib/ui/challenge_solver_page.dart';
 
 class CustomErrorWidget extends StatelessWidget {
   final Object error;
@@ -418,24 +418,22 @@ class CustomErrorWidget extends StatelessWidget {
     );
   }
 
-  // Trigger browser verification (to be implemented by parent widget)
+  // Trigger browser verification: shows the solver page which captures the
+  // rendered HTML after the challenge clears (and caches it by URL), then the
+  // caller refreshes and the request re-runs against the cache.
   void _triggerBrowserVerification(BuildContext context) {
     final networkError = _parseError(error);
-    
-    // Check if we have a URL to open
+
     if (networkError.blockedUrl != null) {
-      // Navigate to Webview page with the blocked URL
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => Webview(
+          builder: (context) => ChallengeSolverPage(
             url: networkError.blockedUrl!,
-            showOverlay: false, // Show full page for manual verification
           ),
         ),
-      ).then((result) {
-        // After user completes verification, trigger refresh if available
-        if (onRefresh != null && context.mounted) {
+      ).then((solved) {
+        if (solved == true && onRefresh != null && context.mounted) {
           onRefresh!();
         }
       });

@@ -13,6 +13,7 @@ import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/ddos_protection_handler.dart';
+import 'package:openlib/services/challenge_html_cache.dart';
 import 'package:openlib/services/webview_challenge_solver.dart';
 
 class BookData {
@@ -593,6 +594,15 @@ class AnnasArchieve {
             enableFilters: enableFilters,
             currentBaseUrl: currentBaseUrl);
 
+        // If the challenge solver already captured this page in a browser,
+        // use it directly - Dio can never pass the challenge itself.
+        final cached = ChallengeHtmlCache.get(encodedURL);
+        if (cached != null) {
+          _logger.info('Using cached challenge HTML for search',
+              tag: 'AnnasArchive', metadata: {'url': encodedURL});
+          return _parser(cached, fileType, currentBaseUrl);
+        }
+
         _logger.debug('Fetching search results',
             tag: 'AnnasArchive', metadata: {'url': encodedURL});
         final response = await _makeRequest(encodedURL);
@@ -637,30 +647,21 @@ class AnnasArchieve {
           tag: 'AnnasArchive', metadata: {'results': books.length});
       return books;
     } on NetworkError catch (networkErr) {
-      // If all instances failed with 403 and webview solver is available, try automatic solve.
+      // All mirrors are challenge-blocked. Let a real browser solve the
+      // challenge and capture the page, then parse it directly. The captured
+      // HTML is cached by URL, so a retry ("Try Again") parses it instantly.
       if (networkErr.type == NetworkErrorType.cloudflareBlock &&
-          WebviewChallengeSolver.isSupported) {
+          WebviewChallengeSolver.isSupported &&
+          networkErr.blockedUrl != null) {
         _logger.info('Attempting automatic challenge solve via webview',
             tag: 'AnnasArchive');
-        
-        final instances = await _instanceManager.getEnabledInstances();
-        final targetUrl = networkErr.blockedUrl ??
-            urlEncoder(
-              searchQuery: searchQuery,
-              content: content,
-              sort: sort,
-              fileType: fileType,
-              language: language,
-              year: year,
-              enableFilters: enableFilters,
-              currentBaseUrl: instances.isEmpty ? baseUrl : instances.first.baseUrl,
-            );
 
-        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(targetUrl);
+        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(
+            networkErr.blockedUrl!);
         if (html != null && html.length > 1000) {
           _logger.info('Challenge solved, parsing results from webview HTML',
               tag: 'AnnasArchive');
-          final currentBaseUrl = Uri.parse(targetUrl).origin;
+          final currentBaseUrl = Uri.parse(networkErr.blockedUrl!).origin;
           return _parser(html, fileType, currentBaseUrl);
         } else {
           _logger.warning('Webview solver returned no usable HTML',
@@ -749,6 +750,16 @@ class AnnasArchieve {
               '$currentBaseUrl${urlParsed.path}${urlParsed.query.isNotEmpty ? "?${urlParsed.query}" : ""}';
         }
 
+        // If the challenge solver already captured this page in a browser,
+        // use it directly - Dio can never pass the challenge itself.
+        final cached = ChallengeHtmlCache.get(adjustedUrl);
+        if (cached != null) {
+          _logger.info('Using cached challenge HTML for bookInfo',
+              tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
+          final data = await _bookInfoParser(cached, adjustedUrl, currentBaseUrl);
+          if (data != null) return data;
+        }
+
         _logger.debug('Fetching book details',
             tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
         final response = await _makeRequest(adjustedUrl);
@@ -817,12 +828,15 @@ class AnnasArchieve {
     } on NetworkError catch (networkErr) {
       // If all instances failed with 403 and webview solver is available, try automatic solve.
       if (networkErr.type == NetworkErrorType.cloudflareBlock &&
-          WebviewChallengeSolver.isSupported) {
-        _logger.info('Attempting automatic challenge solve via webview for bookInfo',
+          WebviewChallengeSolver.isSupported &&
+          networkErr.blockedUrl != null) {
+        _logger.info(
+            'Attempting automatic challenge solve via webview for bookInfo',
             tag: 'AnnasArchive');
-        
-        final targetUrl = networkErr.blockedUrl ?? url;
-        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(targetUrl);
+
+        final targetUrl = networkErr.blockedUrl!;
+        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(
+            targetUrl);
         if (html != null && html.length > 1000) {
           _logger.info('Challenge solved, parsing bookInfo from webview HTML',
               tag: 'AnnasArchive');
