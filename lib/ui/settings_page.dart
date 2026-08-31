@@ -378,7 +378,7 @@ class SettingsPage extends ConsumerWidget {
                     final internalDirectory =
                         await getBookStorageDefaultDirectory;
                     String? pickedDirectory =
-                        await FilePicker.platform.getDirectoryPath();
+                        await FilePicker.getDirectoryPath();
                     if (pickedDirectory == null) return;
                     await requestStoragePermission();
 

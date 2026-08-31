@@ -284,16 +284,16 @@ class AppLogger {
       final fileName = 'openlib_logs_$timestamp.txt';
 
       if (PlatformUtils.isDesktop) {
-        final outputFile = await FilePicker.platform.saveFile(
+        // file_picker 12: saveFile takes the bytes and returns a file Uri.
+        final outputFile = await FilePicker.saveFile(
           dialogTitle: 'Save Logs',
           fileName: fileName,
           type: FileType.custom,
           allowedExtensions: ['txt'],
+          bytes: Uint8List.fromList(utf8.encode(logsContent)),
         );
 
         if (outputFile != null) {
-          final file = File(outputFile);
-          await file.writeAsString(logsContent);
           info('Logs saved to $outputFile', tag: 'AppLogger');
         }
       } else {
@@ -305,11 +305,13 @@ class AppLogger {
         await file.writeAsString(logsContent);
 
         // Share the file
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          subject: 'OpenlibExtended App Logs - $timestamp',
-          text:
-              'OpenlibExtended app logs for the past ${_logRetentionDuration.inMinutes} minutes',
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(file.path)],
+            subject: 'OpenlibExtended App Logs - $timestamp',
+            text:
+                'OpenlibExtended app logs for the past ${_logRetentionDuration.inMinutes} minutes',
+          ),
         );
       }
 

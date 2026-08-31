@@ -115,7 +115,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 
   Future<void> _selectStorage() async {
-    String? pickedDirectory = await FilePicker.platform.getDirectoryPath();
+    String? pickedDirectory = await FilePicker.getDirectoryPath();
     if (pickedDirectory != null) {
       // If we are selecting a new path, we should probably check permissions if android
       if (Platform.isAndroid) {
@@ -197,7 +197,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                       : Theme.of(context)
                           .colorScheme
                           .secondary
-                          .withOpacity(0.2),
+                          .withValues(alpha: 0.2),
                 ),
               );
             }),
@@ -297,7 +297,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             clipBehavior: Clip.antiAlias,
             child: Container(
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -308,9 +308,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                         "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
                     activeThumbColor: Theme.of(context).colorScheme.secondary,
                     activeTrackColor:
-                        Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+                        Theme.of(context).colorScheme.secondary.withValues(alpha: 0.5),
                     inactiveThumbColor: Colors.grey,
-                    inactiveTrackColor: Colors.grey.withOpacity(0.5),
+                    inactiveTrackColor: Colors.grey.withValues(alpha: 0.5),
                     value: _enableAutoUpdate,
                     onChanged: (val) async {
                       setState(() {
@@ -334,7 +334,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                     activeThumbColor: Colors.orange,
                     activeTrackColor: Colors.orangeAccent,
                     inactiveThumbColor: Colors.grey,
-                    inactiveTrackColor: Colors.grey.withOpacity(0.5),
+                    inactiveTrackColor: Colors.grey.withValues(alpha: 0.5),
                     value: _enableBetaUpdates,
                     onChanged: (val) async {
                       setState(() {
@@ -505,7 +505,7 @@ class _ThemeCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: selected
-              ? Theme.of(context).colorScheme.secondary.withOpacity(0.1)
+              ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1)
               : null,
           border: Border.all(
             color: selected

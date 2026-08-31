@@ -41,15 +41,17 @@ dependencies:
   # pdfx: ^2.4.0
 
   dio: ^5.4.0
-  html: ^0.15.4
+  # flutter_html (via epub_view) calls the matches() extension that html
+  # 0.15.7 removed; keep 0.15.6 until epub_view drops flutter_html.
+  html: 0.15.6
 
   sqflite: ^2.3.0
   path_provider: ^2.0.15
-  permission_handler: ^11.2.0
+  permission_handler: ^13.0.1
   open_file: ^3.3.2
 
-  flutter_svg: ^2.0.7
-  google_fonts: ^6.1.0
+  flutter_svg: ^2.3.0
+  google_fonts: ^8.2.1
 
   cached_network_image: 3.3.0
 
@@ -57,19 +59,20 @@ dependencies:
   url_launcher: ^6.1.12
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.2
+  cupertino_icons: ^1.0.9
   dev: ^1.0.0
   crypto: ^3.0.3
-  file_picker: ^8.1.2
-  device_info_plus: ^10.1.2
+  meta:
+  file_picker: ^12.1.2
+  device_info_plus: ^13.2.0
   flutter_inappwebview: ^6.0.0
   http: ^1.2.2
   path: ^1.9.0
-  share_plus: ^10.1.0
-  flutter_local_notifications: ^18.0.1
+  share_plus: ^13.3.0
+  flutter_local_notifications: ^22.3.0
   yaml: ^3.1.2
-  package_info_plus: ^8.0.0
-  desktop_webview_window: ^0.2.3
+  package_info_plus: ^10.2.1
+  desktop_webview_window: ^0.3.0
   android_package_installer: ^0.0.3
   apk_sideload: ^0.0.2
 
@@ -85,7 +88,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^3.0.1
+  flutter_lints: ^6.0.0
 
 flutter_icons:
   android: "launcher_icon"

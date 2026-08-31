@@ -8,7 +8,6 @@
 // so the data survives even after the webview is gone.
 
 // Dart imports:
-import 'dart:async';
 
 // Project imports:
 import 'package:openlib/services/logger.dart';

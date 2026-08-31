@@ -17,7 +17,6 @@
 // Dart imports:
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 // Package imports:
 import 'package:desktop_webview_window/desktop_webview_window.dart'

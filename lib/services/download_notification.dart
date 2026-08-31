@@ -57,7 +57,7 @@ class DownloadNotificationService {
           InitializationSettings(android: androidSettings);
 
       await _notificationsPlugin.initialize(
-        initSettings,
+        settings: initSettings,
         onDidReceiveNotificationResponse: _onNotificationTap,
       );
 
@@ -123,16 +123,16 @@ class DownloadNotificationService {
         NotificationDetails(android: androidDetails);
 
     await _notificationsPlugin.show(
-      id,
-      title,
-      body,
-      notificationDetails,
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails,
     );
   }
 
   Future<void> cancelNotification(int id) async {
     if (!_initialized) return;
-    await _notificationsPlugin.cancel(id);
+    await _notificationsPlugin.cancel(id: id);
   }
 
   Future<void> cancelAllNotifications() async {

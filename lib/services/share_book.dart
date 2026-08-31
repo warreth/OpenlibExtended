@@ -12,9 +12,10 @@ Future<void> shareBook(String title, String link, String path) async {
     String imagePath = await saveAndGetImagePath(path);
     String message = 'Discover this amazing book: "$title"\nRead more : $link';
     if (imagePath.isNotEmpty) {
-      await Share.shareXFiles([XFile(imagePath)], text: message);
+      await SharePlus.instance.share(
+          ShareParams(files: [XFile(imagePath)], text: message));
     } else {
-      await Share.share(message);
+      await SharePlus.instance.share(ShareParams(text: message));
     }
   } catch (e) {
     debugPrint('Error sharing the book: $e');
