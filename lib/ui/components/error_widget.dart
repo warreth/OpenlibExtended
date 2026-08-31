@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 // Project imports:
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/ui/challenge_solver_page.dart';
 
 class CustomErrorWidget extends StatelessWidget {
@@ -373,7 +374,7 @@ class CustomErrorWidget extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        "Your cookies will be saved for future use to avoid this again.",
+                        "Once you complete the verification, return to the app and tap 'Try Again'.",
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.blue[700],
@@ -418,19 +419,29 @@ class CustomErrorWidget extends StatelessWidget {
     );
   }
 
-  // Trigger browser verification: shows the solver page which captures the
-  // rendered HTML after the challenge clears (and caches it by URL), then the
-  // caller refreshes and the request re-runs against the cache.
+  // Trigger browser verification. On mobile the in-app solver page loads the
+  // blocked URL, waits for the challenge to clear and captures the rendered
+  // HTML. On desktop the in-app webview plugin is unavailable, so the system
+  // browser is the only manual fallback.
   void _triggerBrowserVerification(BuildContext context) {
     final networkError = _parseError(error);
+    final targetUrl = networkError.blockedUrl;
 
-    if (networkError.blockedUrl != null) {
+    if (targetUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Unable to open verification page - no URL available"),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (PlatformUtils.isMobile) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ChallengeSolverPage(
-            url: networkError.blockedUrl!,
-          ),
+          builder: (context) => ChallengeSolverPage(url: targetUrl),
         ),
       ).then((solved) {
         if (solved == true && onRefresh != null && context.mounted) {
@@ -438,13 +449,8 @@ class CustomErrorWidget extends StatelessWidget {
         }
       });
     } else {
-      // Fallback if no URL available
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Unable to open verification page - no URL available"),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      launchUrl(Uri.parse(targetUrl),
+          mode: LaunchMode.externalApplication);
     }
   }
 
