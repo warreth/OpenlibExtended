@@ -142,6 +142,21 @@ class DownloadManager {
     return '$bookStorageDirectory/$fileName';
   }
 
+  /// Ensures the book storage directory exists (users can delete it or point
+  /// the preference at a removable drive). Returns the directory path.
+  Future<String> _ensureStorageDirectory() async {
+    String bookStorageDirectory =
+        await _database.getPreference('bookStorageDirectory');
+    final dir = Directory(bookStorageDirectory);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+      _logger.info('Created book storage directory',
+          tag: 'DownloadManager',
+          metadata: {'path': bookStorageDirectory});
+    }
+    return bookStorageDirectory;
+  }
+
   List<String> _reorderMirrors(List<String> mirrors) {
     List<String> ipfsMirrors = [];
     List<String> httpsMirrors = [];
@@ -621,6 +636,8 @@ class DownloadManager {
     dio.options.receiveTimeout = const Duration(minutes: 60);
 
     try {
+      // The storage directory can vanish (deleted folder, unmounted drive).
+      await _ensureStorageDirectory();
       File file = File(savePath);
       int received = 0;
       if (await file.exists()) {
@@ -677,6 +694,11 @@ class DownloadManager {
 
       IOSink sink = file.openWrite(mode: FileMode.append);
 
+      // Await the sink's own error stream too: a failing disk write would
+      // otherwise surface as an unhandled zone error and leave the task
+      // stuck at its last progress value.
+      final sinkDone = sink.done;
+
       await response.data.stream.listen(
         (data) {
           sink.add(data);
@@ -703,6 +725,8 @@ class DownloadManager {
 
       await sink.flush();
       await sink.close();
+      // A write error (disk full, deleted directory) lands here.
+      await sinkDone;
 
       return true;
     } catch (e) {
@@ -741,21 +765,36 @@ class DownloadManager {
       progress: 100,
     );
 
-    bool checkSumValid =
-        await _verifyFileCheckSum(md5Hash: task.md5, fileName: fileName);
+    bool checkSumValid;
+    try {
+      checkSumValid =
+          await _verifyFileCheckSum(md5Hash: task.md5, fileName: fileName);
+    } catch (e, st) {
+      _logger.error('Checksum verification failed', tag: 'DownloadManager',
+          error: e, stackTrace: st);
+      checkSumValid = false;
+    }
 
-    await _database.insert(MyBook(
-      id: task.md5,
-      title: task.title,
-      author: task.author,
-      thumbnail: task.thumbnail,
-      link: task.link,
-      publisher: task.publisher,
-      info: task.info,
-      format: task.format,
-      description: task.description,
-      fileName: fileName,
-    ));
+    try {
+      await _database.insert(MyBook(
+        id: task.md5,
+        title: task.title,
+        author: task.author,
+        thumbnail: task.thumbnail,
+        link: task.link,
+        publisher: task.publisher,
+        info: task.info,
+        format: task.format,
+        description: task.description,
+        fileName: fileName,
+      ));
+    } catch (e, st) {
+      // A database failure must never strand the task in 'verifying'.
+      _logger.error('Failed to save book to library', tag: 'DownloadManager',
+          error: e, stackTrace: st);
+      _handleDownloadFailure(task.id, 'Could not save to library: $e');
+      return;
+    }
 
     _updateTaskStatus(task.id, DownloadStatus.completed);
 
