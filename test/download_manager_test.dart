@@ -28,6 +28,11 @@ class _RangeServer {
   final bool supportsRange;
   final Duration? chunkDelay;
 
+  /// Number of GET requests that respond 500 before serving normally, to
+  /// simulate an overloaded mirror.
+  int failNextGets = 0;
+  int failedGets = 0;
+
   _RangeServer(this._server, this.bytes,
       {this.supportsRange = true, this.chunkDelay});
 
@@ -62,6 +67,14 @@ class _RangeServer {
       request.response.statusCode = HttpStatus.ok;
       request.response.headers.set(
           HttpHeaders.acceptRangesHeader, supportsRange ? 'bytes' : 'none');
+      request.response.close();
+      return;
+    }
+
+    if (failNextGets > 0) {
+      failNextGets--;
+      failedGets++;
+      request.response.statusCode = 500;
       request.response.close();
       return;
     }
@@ -304,6 +317,92 @@ void main() {
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 60)));
 
+    test('rejects a second task for the same book (md5 dedupe)', () async {
+      final bytes =
+          Uint8List.fromList(List.generate(50 * 1024, (i) => i % 251));
+      server = await _RangeServer.start(bytes: bytes);
+      server._server.listen(server.handle);
+
+      final taskA = DownloadTask(
+        id: 'md5hash_005_a',
+        md5: 'md5hash_005',
+        title: 'Deduped Book',
+        mirrors: [server.url.toString()],
+        format: 'epub',
+        link: server.url.toString(),
+      );
+      // Same book pressed again milliseconds later: different timestamped id,
+      // identical md5 and target file.
+      final taskB = DownloadTask(
+        id: 'md5hash_005_b',
+        md5: 'md5hash_005',
+        title: 'Deduped Book',
+        mirrors: [server.url.toString()],
+        format: 'epub',
+        link: server.url.toString(),
+      );
+
+      final completed = Completer<void>();
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[taskA.id];
+        if (t?.status == DownloadStatus.completed && !completed.isCompleted) {
+          completed.complete();
+        }
+      });
+
+      await manager.addDownload(taskA);
+      await manager.addDownload(taskB);
+
+      expect(manager.activeDownloads.containsKey(taskB.id), isFalse,
+          reason: 'second task for the same md5 must be rejected');
+
+      await completed.future.timeout(const Duration(seconds: 30));
+
+      final saved = File(
+          '$saveDir/${generateBookFileName(title: 'Deduped Book', format: 'epub', md5: 'md5hash_005')}');
+      expect(saved.lengthSync(), bytes.length,
+          reason: 'the single accepted task must finish cleanly');
+
+      manager.removeDownload(taskA.id);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('retries a transient 500 from the mirror and completes', () async {
+      final bytes =
+          Uint8List.fromList(List.generate(60 * 1024, (i) => (i * 3) % 251));
+      server = await _RangeServer.start(bytes: bytes);
+      server.failNextGets = 2; // two 500s, then success
+      server._server.listen(server.handle);
+
+      final task = DownloadTask(
+        id: 'md5hash_006',
+        md5: 'md5hash_006',
+        title: 'Flaky Mirror Book',
+        mirrors: [server.url.toString()],
+        format: 'epub',
+        link: server.url.toString(),
+      );
+
+      final completed = Completer<void>();
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[task.id];
+        if (t?.status == DownloadStatus.completed && !completed.isCompleted) {
+          completed.complete();
+        }
+      });
+
+      await manager.addDownload(task);
+      await completed.future.timeout(const Duration(seconds: 60));
+
+      expect(server.failedGets, 2,
+          reason: 'the manager must have hit the injected 500s');
+      final saved = File(
+          '$saveDir/${generateBookFileName(title: 'Flaky Mirror Book', format: 'epub', md5: 'md5hash_006')}');
+      expect(saved.lengthSync(), bytes.length);
+      expect(saved.readAsBytesSync(), bytes,
+          reason: 'backoff retry must produce the exact file');
+
+      manager.removeDownload(task.id);
+    }, timeout: const Timeout(Duration(seconds: 90)));
     test('server without Range support restarts cleanly from zero', () async {
       final bytes = Uint8List.fromList(
           List.generate(1024 * 100, (i) => (i * 13) % 251));

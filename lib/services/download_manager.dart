@@ -213,12 +213,49 @@ class DownloadManager {
     }
   }
 
-  Future<void> addDownload(DownloadTask task) async {
-    if (_activeDownloads.containsKey(task.id)) {
-      _logger.warning('Download already exists: ${task.title}',
-          tag: 'DownloadManager');
-      return;
+  /// Server overload or throttling: worth retrying the same mirror shortly.
+  /// Expired links (403) and client errors are permanent - move to the next
+  /// mirror instead.
+  bool _isTransientMirrorError(Object e) {
+    if (e is! DioException) return false;
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      return true;
     }
+    final status = e.response?.statusCode;
+    return status != null && {429, 500, 502, 503, 504}.contains(status);
+  }
+
+  /// True when a task for the same book (md5) is already in flight. Downloads
+  /// write to the same file path, so two concurrent tasks for one book corrupt
+  /// each other and trigger mirror 500s.
+  bool _hasActiveDownloadFor(String md5) {
+    return _activeDownloads.values.any((t) =>
+        t.md5 == md5 &&
+        t.status != DownloadStatus.completed &&
+        t.status != DownloadStatus.failed &&
+        t.status != DownloadStatus.cancelled);
+  }
+
+  Future<bool> _canAdd(DownloadTask task, String title) async {
+    if (_activeDownloads.containsKey(task.id) ||
+        _hasActiveDownloadFor(task.md5)) {
+      _logger.warning('Download already active: $title', tag: 'DownloadManager');
+      if (!_activeDownloads.containsKey(task.id)) {
+        await _notificationService.showDownloadNotification(
+          id: task.md5.hashCode,
+          title: 'Already downloading: $title',
+          progress: -1,
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> addDownload(DownloadTask task) async {
+    if (!await _canAdd(task, task.title)) return;
 
     _logger.info('Adding download: ${task.title} (${task.format})',
         tag: 'DownloadManager');
@@ -237,11 +274,7 @@ class DownloadManager {
 
   Future<void> addDownloadWithMirrorUrl(
       DownloadTask task, String mirrorUrl) async {
-    if (_activeDownloads.containsKey(task.id)) {
-      _logger.warning('Download already exists: ${task.title}',
-          tag: 'DownloadManager');
-      return;
-    }
+    if (!await _canAdd(task, task.title)) return;
 
     _logger.info(
         'Adding download with mirror URL: ${task.title} (${task.format})',
@@ -561,6 +594,14 @@ class DownloadManager {
 
     bool downloadSuccessful = false;
     int mirrorIndex = 0;
+    // Mirrors regularly return 500/502/504 under load; a short backoff retry
+    // on the same mirror usually succeeds and resumes the partial file.
+    const maxAttemptsPerMirror = 3;
+    int attempt = 0;
+    bool lastErrorRetryable = false;
+
+    Duration backoffFor(int attempt) =>
+        Duration(seconds: 2 * (1 << (attempt - 1).clamp(0, 3)));
 
     while (mirrorIndex < sortedMirrors.length && !downloadSuccessful) {
       task = _activeDownloads[taskId];
@@ -573,8 +614,12 @@ class DownloadManager {
       String currentMirror = sortedMirrors[mirrorIndex];
       _logger.info('Attempting download from: $currentMirror',
           tag: 'DownloadManager',
-          metadata: {'isFastDownload': task.isDirectLink});
+          metadata: {
+            'isFastDownload': task.isDirectLink,
+            if (attempt > 0) 'attempt': attempt + 1,
+          });
 
+      lastErrorRetryable = false;
       try {
         _updateTaskStatus(taskId, DownloadStatus.downloading);
         await _notificationService.showDownloadNotification(
@@ -600,9 +645,25 @@ class DownloadManager {
         }
         _logger.warning('Download from mirror failed',
             tag: 'DownloadManager', error: e);
+        lastErrorRetryable = _isTransientMirrorError(e);
       }
 
       if (!downloadSuccessful) {
+        final canRetrySameMirror =
+            lastErrorRetryable && attempt < maxAttemptsPerMirror - 1;
+
+        if (canRetrySameMirror) {
+          attempt++;
+          final wait = backoffFor(attempt);
+          _logger.info(
+              'Transient mirror error, retrying in ${wait.inSeconds}s',
+              tag: 'DownloadManager',
+              metadata: {'mirror': currentMirror, 'attempt': attempt + 1});
+          await Future.delayed(wait);
+          continue; // same mirror again; resume keeps partial bytes
+        }
+
+        attempt = 0;
         mirrorIndex++;
         if (mirrorIndex < sortedMirrors.length) {
           await Future.delayed(const Duration(seconds: 1));
@@ -728,13 +789,24 @@ class DownloadManager {
       // A write error (disk full, deleted directory) lands here.
       await sinkDone;
 
+      // A stream that ends without the promised bytes is a failed transfer
+      // (connection cut mid-body), not a completed file.
+      if (total > 0 && received < total) {
+        throw DioException.connectionError(
+            requestOptions: RequestOptions(path: url),
+            reason: 'Incomplete body: got $received of $total bytes');
+      }
+
       return true;
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.cancel) {
         rethrow;
       }
+      // Surface the error so _executeDownloadLoop can classify it (retryable
+      // mirror errors get a backoff retry) instead of silently reporting
+      // failure for a half-finished stream.
       _logger.error('Download stream error', tag: 'DownloadManager', error: e);
-      return false;
+      rethrow;
     } finally {
       dio.close();
     }
