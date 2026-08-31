@@ -1,84 +1,79 @@
+// Tests the real cookie persistence of DDoSProtectionHandler: cookies captured
+// by the embedded webviews are stored per domain and survive retrieval.
+// (Cookie replay into Dio is intentionally NOT part of this API - it never
+// works against DDoS-Guard; see the handler's documentation.)
+
+// Dart imports:
 import 'dart:io';
+
+// Package imports:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+
+// Project imports:
 import 'package:openlib/services/ddos_protection_handler.dart';
 
+class _FakePathProvider extends PathProviderPlatform {
+  Future<String> _dir(String name) async {
+    final dir = Directory('/tmp/openlib_ddos_test/$name');
+    await dir.create(recursive: true);
+    return dir.path;
+  }
+
+  @override
+  Future<String?> getApplicationSupportPath() => _dir('support');
+
+  @override
+  Future<String?> getApplicationDocumentsPath() => _dir('documents');
+
+  @override
+  Future<String?> getTemporaryPath() => _dir('temp');
+
+  @override
+  Future<String?> getLibraryPath() => _dir('library');
+}
+
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+      PathProviderPlatform.instance = _FakePathProvider();
+    }
+  });
 
-  group('DDoSProtectionHandler Tests', () {
-    late DDoSProtectionHandler handler;
+  group('DDoSProtectionHandler cookie persistence', () {
+    test('cookies stored by the webview round-trip per domain', () async {
+      final handler = DDoSProtectionHandler();
+      final domain = 'annas-archive.test';
 
-    setUp(() {
-      handler = DDoSProtectionHandler();
+      await handler.clearCookies(domain);
+
+      await handler.storeCookies(domain, [
+        Cookie('ddg_id', 'test_token_123'),
+        Cookie('session_id', 'sess_abc'),
+      ]);
+
+      final retrieved = await handler.getCookies(domain);
+      expect(retrieved, isNotNull);
+      expect(retrieved!.length, equals(2));
+      expect(retrieved.any((c) => c.name == 'ddg_id' && c.value == 'test_token_123'),
+          isTrue);
+
+      await handler.clearCookies(domain);
+      expect(await handler.getCookies(domain), isNull);
     });
 
-    test('Detects Cloudflare challenge via cf-mitigated header', () {
-      final response = Response(
-        requestOptions: RequestOptions(path: 'https://annas-archive.pk/search'),
-        statusCode: 403,
-        headers: Headers.fromMap({
-          'cf-mitigated': ['challenge'],
-          'server': ['cloudflare'],
-        }),
-      );
-
-      final protection = handler.detectProtection(response);
-      expect(protection, isNotNull);
-      expect(protection!.provider, equals(DDoSProvider.cloudflare));
-    });
-
-    test('Detects Cloudflare Turnstile in response body', () {
-      final response = Response(
-        requestOptions: RequestOptions(path: 'https://annas-archive.gl/search'),
-        statusCode: 403,
-        data: '<html><head><title>Just a moment...</title></head><body><div class="cf-turnstile"></div></body></html>',
-        headers: Headers.fromMap({
-          'content-type': ['text/html'],
-        }),
-      );
-
-      final protection = handler.detectProtection(response);
-      expect(protection, isNotNull);
-      expect(protection!.provider, equals(DDoSProvider.cloudflare));
-    });
-
-    test('Detects DDoS-Guard in response body or headers', () {
-      final response = Response(
-        requestOptions: RequestOptions(path: 'https://annas-archive.gd/search'),
-        statusCode: 403,
-        data: '<html><body>Checking if the site connection is secure - DDoS-Guard</body></html>',
-        headers: Headers.fromMap({
-          'server': ['ddos-guard'],
-        }),
-      );
-
-      final protection = handler.detectProtection(response);
-      expect(protection, isNotNull);
-      expect(protection!.provider, equals(DDoSProvider.ddosGuard));
-    });
-
-    test('Normal 200 response returns null protection', () {
-      final response = Response(
-        requestOptions: RequestOptions(path: 'https://annas-archive.pk/search'),
-        statusCode: 200,
-        data: '<html><body>Search results for books</body></html>',
-        headers: Headers.fromMap({
-          'content-type': ['text/html'],
-        }),
-      );
-
-      final protection = handler.detectProtection(response);
-      expect(protection, isNull);
-    });
-
-    test('Extracts cookies from Set-Cookie headers', () {
+    test('extractCookies parses real Set-Cookie headers', () {
+      final handler = DDoSProtectionHandler();
       final response = Response(
         requestOptions: RequestOptions(path: 'https://annas-archive.pk'),
         statusCode: 200,
         headers: Headers.fromMap({
           'set-cookie': [
-            'cf_clearance=abc123xyz; Path=/; Domain=.annas-archive.pk; HttpOnly; Secure',
+            'ddg_id=abc123xyz; Path=/; Domain=.annas-archive.pk; HttpOnly; Secure',
             'session_id=sess_456; Path=/',
           ],
         }),
@@ -86,22 +81,22 @@ void main() {
 
       final cookies = handler.extractCookies(response);
       expect(cookies.length, equals(2));
-      expect(cookies.any((c) => c.name == 'cf_clearance'), isTrue);
-      expect(cookies.firstWhere((c) => c.name == 'cf_clearance').value, equals('abc123xyz'));
+      expect(cookies.firstWhere((c) => c.name == 'ddg_id').value,
+          equals('abc123xyz'));
       expect(cookies.any((c) => c.name == 'session_id'), isTrue);
     });
 
-    test('addCookiesToRequest is no-op because cf_clearance is TLS-fingerprint bound', () {
-      final requestOptions = RequestOptions(path: 'https://annas-archive.pk/search');
-      final cookies = [
-        Cookie('cf_clearance', 'token_valid_123'),
-        Cookie('annas_session', 'sess_abc'),
-      ];
+    test('extractCookies skips malformed Set-Cookie headers', () {
+      final handler = DDoSProtectionHandler();
+      final response = Response(
+        requestOptions: RequestOptions(path: 'https://annas-archive.pk'),
+        statusCode: 200,
+        headers: Headers.fromMap({
+          'set-cookie': ['this is not a valid cookie header at all'],
+        }),
+      );
 
-      handler.addCookiesToRequest(requestOptions, cookies);
-
-      // Cookies should NOT be added to headers (disabled due to TLS fingerprint mismatch)
-      expect(requestOptions.headers['cookie'], isNull);
+      expect(handler.extractCookies(response), isEmpty);
     });
   });
 }

@@ -12,7 +12,6 @@ import 'package:meta/meta.dart';
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/network_error.dart';
-import 'package:openlib/services/ddos_protection_handler.dart';
 import 'package:openlib/services/challenge_html_cache.dart';
 import 'package:openlib/services/webview_challenge_solver.dart';
 
@@ -65,7 +64,6 @@ class AnnasArchieve {
   final Dio dio = Dio();
   final InstanceManager _instanceManager = InstanceManager();
   final AppLogger _logger = AppLogger();
-  final DDoSProtectionHandler _ddosHandler = DDoSProtectionHandler();
 
   // Optimized retry settings for faster response
   static const int maxRetriesPerInstance =
@@ -216,24 +214,17 @@ class AnnasArchieve {
     );
   }
 
-  // Helper to make request with cookies if available
+  // Plain HTTP fetch. No cookie replay: DDoS-Guard clearance is bound to the
+  // browser's TLS fingerprint, so stored cookies never help here. Blocked
+  // requests surface as cloudflareBlock and the webview solver takes over.
   Future<Response> _makeRequest(
     String url, {
     Map<String, String>? headers,
   }) async {
-    final domain = Uri.parse(url).host;
     final requestHeaders = <String, dynamic>{
       ...defaultDioHeaders,
       if (headers != null) ...headers,
     };
-
-    // Inject stored cookies directly into the request headers.
-    final cookies = await _ddosHandler.getCookies(domain);
-    if (cookies != null && cookies.isNotEmpty) {
-      requestHeaders['cookie'] =
-          cookies.map((c) => '${c.name}=${c.value}').join('; ');
-    }
-
     return await dio.get(url, options: Options(headers: requestHeaders));
   }
 
@@ -616,15 +607,6 @@ class AnnasArchieve {
               'responseLength': response.data?.toString().length ?? 0,
             });
 
-        // Store cookies from successful response for future use
-        if (response.statusCode == 200) {
-          final cookies = _ddosHandler.extractCookies(response);
-          if (cookies.isNotEmpty) {
-            final domain = Uri.parse(encodedURL).host;
-            await _ddosHandler.storeCookies(domain, cookies);
-          }
-        }
-
         // Check for Cloudflare block in the response
         if (_isCloudflareBlocked(response)) {
           _logger.warning('Cloudflare/DDoS block detected in search response',
@@ -763,15 +745,6 @@ class AnnasArchieve {
         _logger.debug('Fetching book details',
             tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
         final response = await _makeRequest(adjustedUrl);
-
-        // Store cookies from successful response
-        if (response.statusCode == 200) {
-          final cookies = _ddosHandler.extractCookies(response);
-          if (cookies.isNotEmpty) {
-            final domain = Uri.parse(adjustedUrl).host;
-            await _ddosHandler.storeCookies(domain, cookies);
-          }
-        }
 
         // Check for Cloudflare block in the response
         if (_isCloudflareBlocked(response)) {
