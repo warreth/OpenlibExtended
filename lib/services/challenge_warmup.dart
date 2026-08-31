@@ -1,18 +1,23 @@
 // Warm-up for the DDoS-Guard challenge protecting Anna's Archive mirrors.
 //
-// Measured behavior (Linux/WebKitGTK): the first challenge per app run takes
-// ~2.2 minutes of DDoS-Guard's JS proof-of-work. Every additional webview in
-// the same process (new solver windows, the download-link browser) shares the
-// default WebKit context, so after one clear everything is fast (~8s).
+// Measured behavior (Linux/WebKitGTK): the first challenge of an app run can
+// take ~2 minutes. Analysis of the challenge bundle showed why: the JS
+// fingerprint (canvas/webgl/audio/fonts) completes in well under a second on
+// WebKitGTK, and the optional canvas proof-of-work ("picasso") is disabled
+// (HTTP 204) for this client - so the wall time is NOT local computation.
+// It is DDoS-Guard's trust score repeatedly re-issuing the challenge page
+// (~2-5 s per cycle including its forced reload delay) until it accepts the
+// WebView's session. Real Firefox/Chrome pass in one or two cycles (~15 s)
+// because their TLS/HTTP fingerprint scores higher.
 //
-// This warm-up runs that one slow challenge once, right after launch, while
-// the user is on the home screen - so the first search/book/download of the
-// session hits an already-cleared browser context instead of a 2+ minute
-// visible challenge window.
+// All webviews in the process share the default WebKit context, so once one
+// window clears the challenge, every later solve is near-instant (measured
+// 5-9 s even after the clearance cookie expires). This warm-up pays the
+// one-time cost right after launch, while the user is on the home screen.
 //
 // Mobile runs it headless (invisible); desktop shows the small solver window
-// once. If the user closes the desktop window early, nothing breaks: the
-// next request just solves on demand like before.
+// once. If the desktop window is closed early, nothing breaks: the next
+// request falls back to solving on demand.
 
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
