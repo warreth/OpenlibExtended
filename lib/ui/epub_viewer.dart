@@ -38,22 +38,25 @@ Future<void> launchEpubViewer({
     } else {
       try {
         // Use internal Epub Viewer for all platforms (epub_view supports desktop)
-        // ignore: use_build_context_synchronously
-        Navigator.push(context,
-            MaterialPageRoute(builder: (BuildContext context) {
-          return EpubViewerWidget(fileName: fileName);
-        }));
+        if (context.mounted) {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (BuildContext context) {
+            return EpubViewerWidget(fileName: fileName);
+          }));
+        }
       } catch (e) {
-        // ignore: use_build_context_synchronously
-        showSnackBar(context: context, message: "Unable to open epub!");
+        if (context.mounted) {
+          showSnackBar(context: context, message: "Unable to open epub!");
+        }
       }
     }
   } catch (e) {
     // File doesn't exist or can't be accessed
-    // ignore: use_build_context_synchronously
-    showSnackBar(
-        context: context,
-        message: "File not found. The download may have failed.");
+    if (context.mounted) {
+      showSnackBar(
+          context: context,
+          message: "File not found. The download may have failed.");
+    }
   }
 }
 

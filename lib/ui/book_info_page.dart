@@ -77,7 +77,7 @@ class BookInfoPage extends ConsumerWidget {
         error: (err, _) {
           return CustomErrorWidget(
             error: err,
-            stackTrace: _,
+            stackTrace: StackTrace.empty,
             onRefresh: () {
               ref.invalidate(bookInfoProvider(url));
             },
@@ -177,6 +177,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                       // Unless it is a fast download (isDirectLink), which doesn't need scraping
                       if (PlatformUtils.isLinux && !isFastDownload) {
                         // Navigate to webview page to get mirrors
+                        if (!context.mounted) return;
                         final List<String>? mirrors = await Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -255,8 +256,11 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                         }
                       }
                     } else {
-                      showSnackBar(
-                          context: context, message: 'No mirrors available!');
+                      if (context.mounted) {
+                        showSnackBar(
+                            context: context,
+                            message: 'No mirrors available!');
+                      }
                     }
                   },
                   child: const Text('Add To My Library'),

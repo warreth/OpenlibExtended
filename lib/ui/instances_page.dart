@@ -279,11 +279,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
 
                   return ReorderableListView.builder(
                     itemCount: instances.length,
-                    onReorder: (oldIndex, newIndex) async {
-                      if (oldIndex < newIndex) {
-                        newIndex -= 1;
-                      }
-
+                    onReorderItem: (oldIndex, newIndex) async {
                       final newList = List<ArchiveInstance>.from(instances);
                       final item = newList.removeAt(oldIndex);
                       newList.insert(newIndex, item);

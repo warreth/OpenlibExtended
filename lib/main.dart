@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 
 // Flutter imports:
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart'; // <-- REQUIRED
 
 // Package imports:

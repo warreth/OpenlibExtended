@@ -129,7 +129,7 @@ class TrendingPage extends ConsumerWidget {
         error: (error, _) {
           return CustomErrorWidget(
             error: error,
-            stackTrace: _,
+            stackTrace: StackTrace.empty,
             onRefresh: () {
               // ignore: unused_result
               ref.refresh(getTrendingBooks);

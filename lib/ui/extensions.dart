@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 extension ColorExtension on String {
-  toColor() {
+  Color toColor() {
     var hexString = this;
     final buffer = StringBuffer();
     if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');

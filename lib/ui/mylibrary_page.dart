@@ -250,7 +250,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
         }
       },
       error: (error, _) {
-        return CustomErrorWidget(error: error, stackTrace: _);
+        return CustomErrorWidget(error: error, stackTrace: StackTrace.empty);
       },
       loading: () {
         return Center(

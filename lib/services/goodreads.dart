@@ -32,7 +32,7 @@ class CategoryBookData {
 String baseUrl = "https://www.goodreads.com/";
 
 class SubCategoriesTypeList {
-  List<CategoryBookData> _parser(data) {
+  List<CategoryBookData> _parser(dynamic data) {
     var document = parse(data.toString());
     var categoryList = document.querySelectorAll('.listImgs a');
     List<CategoryBookData> categoriesBooks = [];

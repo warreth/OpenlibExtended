@@ -34,10 +34,11 @@ Future<void> launchPdfViewer(
       await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");
     } catch (e) {
       // File doesn't exist or can't be accessed
-      // ignore: use_build_context_synchronously
-      showSnackBar(
-          context: context,
-          message: "File not found. The download may have failed.");
+      if (context.mounted) {
+        showSnackBar(
+            context: context,
+            message: "File not found. The download may have failed.");
+      }
     }
   } else {
     Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {

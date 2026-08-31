@@ -262,7 +262,7 @@ class AnnasArchieve {
   // --------------------------------------------------------------------
   // _parser FUNCTION (Search Results - Fixed nth-of-type issue)
   // --------------------------------------------------------------------
-  List<BookData> _parser(resData, String fileType, String currentBaseUrl) {
+  List<BookData> _parser(dynamic resData, String fileType, String currentBaseUrl) {
     var document = parse(resData.toString());
 
     var bookContainers =
@@ -405,11 +405,11 @@ class AnnasArchieve {
   /// Test-only wrappers around the private parsers so tests can verify real
   /// HTML parsing without going through the network layer.
   @visibleForTesting
-  List<BookData> parser(resData, String fileType, String currentBaseUrl) =>
+  List<BookData> parser(dynamic resData, String fileType, String currentBaseUrl) =>
       _parser(resData, fileType, currentBaseUrl);
 
   @visibleForTesting
-  Future<BookInfoData?> bookInfoParser(resData, url, String currentBaseUrl) =>
+  Future<BookInfoData?> bookInfoParser(dynamic resData, String url, String currentBaseUrl) =>
       _bookInfoParser(resData, url, currentBaseUrl);
   // --------------------------------------------------------------------
 
@@ -417,7 +417,7 @@ class AnnasArchieve {
   // _bookInfoParser FUNCTION (Detail Page - Fixed 'unable to get data' error)
   // --------------------------------------------------------------------
   Future<BookInfoData?> _bookInfoParser(
-      resData, url, String currentBaseUrl) async {
+      dynamic resData, String url, String currentBaseUrl) async {
     var document = parse(resData.toString());
     final main = document.querySelector('div.main-inner');
     if (main == null) return null;

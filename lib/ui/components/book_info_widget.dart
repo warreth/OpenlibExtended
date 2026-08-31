@@ -116,7 +116,7 @@ class BookInfoWidget extends StatelessWidget {
                                 if (await canLaunchUrl(Uri.parse(aaUrl))) {
                                   await launchUrl(Uri.parse(aaUrl),
                                       mode: LaunchMode.externalApplication);
-                                } else {
+                                } else if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                         content: Text(
