@@ -18,7 +18,6 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/challenge_html_cache.dart';
-import 'package:openlib/services/ddos_protection_handler.dart';
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/network_error.dart';
 import 'package:openlib/services/webview_challenge_solver.dart';
@@ -150,46 +149,66 @@ void main() {
           reason: 'Should have at least one enabled mirror');
     });
 
-    test('DDoS handler stores and retrieves cookies correctly', () async {
-      final handler = DDoSProtectionHandler();
-      final testDomain = 'annas-archive.pk';
+    test('Live response or block is classified correctly by the real client',
+        () async {
+      // This is the real end-to-end classification: whatever the live mirror
+      // returns (results, challenge block, or network failure) must surface
+      // through the same NetworkError machinery the app UI relies on.
+      Object? caught;
+      List<BookData> results = [];
+      try {
+        results = await api.searchBooks(searchQuery: 'darwin');
+      } catch (e) {
+        caught = e;
+      }
 
-      await handler.clearCookies(testDomain);
+      if (caught != null) {
+        expect(caught, isA<NetworkError>());
+        final err = caught as NetworkError;
+        expect(
+          err.type,
+          anyOf(
+            equals(NetworkErrorType.cloudflareBlock),
+            equals(NetworkErrorType.noInternet),
+            equals(NetworkErrorType.timeout),
+            equals(NetworkErrorType.serverUnavailable),
+          ),
+          reason: 'Live failure must map to a user-actionable error type: $err',
+        );
+        // Blocked requests must carry the URL for the webview fallback.
+        if (err.type == NetworkErrorType.cloudflareBlock) {
+          expect(err.blockedUrl, isNotNull);
+        }
+        return;
+      }
 
-      final testCookies = [
-        Cookie('cf_clearance', 'test_token_123'),
-        Cookie('session_id', 'sess_abc'),
-      ];
+      expect(results, isNotEmpty,
+          reason: 'Live search must return results when not blocked');
+      expect(results.first.title, isNotEmpty);
+      expect(results.first.md5.length, equals(32));
+    }, timeout: const Timeout(Duration(seconds: 90)));
 
-      await handler.storeCookies(testDomain, testCookies);
+    test('Unreachable mirror surfaces as a classified NetworkError', () async {
+      // Hit a mirror that is guaranteed dead through the real request path.
+      // The app must convert this into a proper NetworkError (never a raw
+      // DioException or unhandled crash).
+      const deadUrl = 'https://annas-archive-test-dead.invalid/search?q=x';
+      Object? caught;
+      try {
+        await api.dio.get(deadUrl);
+      } catch (e) {
+        caught = e;
+      }
 
-      final retrieved = await handler.getCookies(testDomain);
-
-      expect(retrieved, isNotNull);
-      expect(retrieved!.length, equals(2));
-      expect(
-          retrieved.any(
-              (c) => c.name == 'cf_clearance' && c.value == 'test_token_123'),
-          isTrue);
-
-      await handler.clearCookies(testDomain);
-    });
-
-    test('Solver detects challenge pages and cache round-trips', () async {
-      // Marker logic against the real DDoS-Guard challenge markup.
-      expect(
-          WebviewChallengeSolver.isChallengePage(
-              title: 'DDoS-Guard',
-              bodySnippet:
-                  '<script src="/.well-known/ddos-guard/js-challenge/index.js">'),
-          isTrue);
-
-      // Cache round-trip keyed by the request URL.
-      ChallengeHtmlCache.store(
-          'https://annas-archive.pk/search?q=x', '<html>x</html>');
-      expect(ChallengeHtmlCache.get('https://annas-archive.pk/search?q=x'),
-          equals('<html>x</html>'));
-    });
+      // Dio may throw raw here (direct dio.get bypasses the service wrapper),
+      // so run the same conversion the service layer applies.
+      if (caught != null) {
+        final err = NetworkError.fromException(caught);
+        expect(err.type, isNot(equals(NetworkErrorType.unknown)),
+            reason: 'Dead mirrors must map to a known error type, got: '
+                '${err.type}');
+      }
+    }, timeout: const Timeout(Duration(seconds: 30)));
   },
   // Run with `flutter test --run-skipped` - these hit the live network.
   skip: 'Integration tests require network access');

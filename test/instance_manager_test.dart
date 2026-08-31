@@ -1,11 +1,47 @@
+import 'dart:io';
+
+// Package imports:
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+
+// Project imports:
 import 'package:openlib/services/instance_manager.dart';
 
-void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+// Desktop test runner needs the sqlite plugin faked; the app itself uses the
+// platform plugin. These tests exercise the real InstanceManager logic
+// (defaults, cleanup, custom instances) against a real local database.
+class _FakePathProvider extends PathProviderPlatform {
+  Future<String> _dir(String name) async {
+    final dir = Directory('/tmp/openlib_instance_test/$name');
+    await dir.create(recursive: true);
+    return dir.path;
+  }
 
-  group('InstanceManager Model & Logic Tests', () {
-    test('ArchiveInstance serialization and deserialization', () {
+  @override
+  Future<String?> getApplicationSupportPath() => _dir('support');
+
+  @override
+  Future<String?> getApplicationDocumentsPath() => _dir('documents');
+
+  @override
+  Future<String?> getTemporaryPath() => _dir('temp');
+
+  @override
+  Future<String?> getLibraryPath() => _dir('library');
+}
+
+void main() {
+  setUpAll(() {
+    if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+      PathProviderPlatform.instance = _FakePathProvider();
+    }
+  });
+
+  group('ArchiveInstance model', () {
+    test('serialization round-trips all fields', () {
       final instance = ArchiveInstance(
         id: 'annas_archive_pk',
         name: "Anna's Archive (.pk)",
@@ -15,22 +51,16 @@ void main() {
         isCustom: false,
       );
 
-      final json = instance.toJson();
-      expect(json['id'], equals('annas_archive_pk'));
-      expect(json['name'], equals("Anna's Archive (.pk)"));
-      expect(json['baseUrl'], equals('https://annas-archive.pk'));
-      expect(json['priority'], equals(1));
-      expect(json['enabled'], isTrue);
-
-      final parsed = ArchiveInstance.fromJson(json);
+      final parsed = ArchiveInstance.fromJson(instance.toJson());
       expect(parsed.id, equals(instance.id));
       expect(parsed.name, equals(instance.name));
       expect(parsed.baseUrl, equals(instance.baseUrl));
       expect(parsed.priority, equals(instance.priority));
       expect(parsed.enabled, equals(instance.enabled));
+      expect(parsed.isCustom, equals(instance.isCustom));
     });
 
-    test('Instance copyWith works correctly', () {
+    test('copyWith only changes the given fields', () {
       final instance = ArchiveInstance(
         id: 'annas_archive_gl',
         name: "Anna's Archive (.gl)",
@@ -41,20 +71,76 @@ void main() {
 
       final modified = instance.copyWith(priority: 5, enabled: false);
       expect(modified.id, equals('annas_archive_gl'));
+      expect(modified.name, equals(instance.name));
+      expect(modified.baseUrl, equals(instance.baseUrl));
       expect(modified.priority, equals(5));
       expect(modified.enabled, isFalse);
     });
+  });
 
-    test('Default mirrors include current working official mirrors', () {
-      final defaultUrls = [
-        'https://annas-archive.gl',
-        'https://annas-archive.pk',
-        'https://annas-archive.gd',
+  group('InstanceManager persistence (real local database)', () {
+    test('getInstances initializes with the current default mirrors', () async {
+      final manager = InstanceManager();
+      final instances = await manager.getInstances();
+
+      // The defaults are the mirrors the app actually ships with today.
+      final ids = instances.map((i) => i.id).toSet();
+      expect(ids, containsAll(['annas_archive_gl', 'annas_archive_pk',
+        'annas_archive_gd']));
+      expect(instances.every((i) => i.baseUrl.startsWith('https://')),
+          isTrue);
+    });
+
+    test('custom instances persist and defaults cannot be removed', () async {
+      final manager = InstanceManager();
+
+      await manager.addInstance('My Mirror', 'https://my-mirror.example/');
+      var instances = await manager.getInstances();
+
+      final custom =
+          instances.firstWhere((i) => i.isCustom && i.name == 'My Mirror');
+      expect(custom.baseUrl, equals('https://my-mirror.example'));
+
+      // Removing a default mirror is refused...
+      final removedDefault =
+          await manager.removeInstance('annas_archive_gl');
+      expect(removedDefault, isFalse);
+
+      // ...removing the custom one works and it stays gone.
+      expect(await manager.removeInstance(custom.id), isTrue);
+      instances = await manager.getInstances();
+      expect(instances.where((i) => i.id == custom.id), isEmpty);
+    });
+
+    test('dead mirrors are cleaned up on load', () async {
+      final manager = InstanceManager();
+      final instances = await manager.getInstances();
+
+      // Mirrors known to be dead/suspended must never come back, even if
+      // an old database still holds them.
+      final deadIds = [
+        'welib_org', 'annas_archive_li', 'annas_archive_pm',
+        'annas_archive_in', 'annas_archive_se', 'annas_archive_vg',
+        'annas_archive_org'
       ];
+      expect(instances.where((i) => deadIds.contains(i.id) && !i.isCustom),
+          isEmpty);
+    });
 
-      for (final url in defaultUrls) {
-        expect(url.startsWith('https://annas-archive.'), isTrue);
-      }
+    test('enabled filter and selected instance are honored', () async {
+      final manager = InstanceManager();
+      final instances = await manager.getInstances();
+      if (instances.isEmpty) return;
+
+      await manager.toggleInstance(instances.first.id, false);
+      final enabled = await manager.getEnabledInstances();
+      expect(enabled.map((i) => i.id), isNot(contains(instances.first.id)));
+
+      // Selection falls back to the first enabled instance when unset.
+      final current = await manager.getCurrentInstance();
+      expect(current.enabled, isTrue);
+
+      await manager.toggleInstance(instances.first.id, true);
     });
   });
 }
