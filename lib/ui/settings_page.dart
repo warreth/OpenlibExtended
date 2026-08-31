@@ -3,7 +3,6 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 // Package imports:
 import 'package:device_info_plus/device_info_plus.dart';
@@ -121,6 +120,149 @@ Future<void> requestStoragePermission() async {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Shared building blocks: every settings row renders through these, so all
+// sections share one card shape, spacing and typography.
+// ---------------------------------------------------------------------------
+
+/// Section label above a group of tiles.
+class _SettingsSectionHeader extends StatelessWidget {
+  const _SettingsSectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 4, top: 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card wrapping an embedded control (dropdown, slider) with a bold label.
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// Tappable row with optional icon, subtitle and trailing element. Pass a
+/// [busy] flag to swap the trailing chevron for a progress spinner.
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.title,
+    this.subtitle,
+    this.icon,
+    this.busy = false,
+    this.onTap,
+  });
+
+  final String title;
+  final String? subtitle;
+  final IconData? icon;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final Widget resolvedTrailing = busy
+        ? const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.chevron_right);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: scheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          onTap: onTap,
+          leading: icon != null
+              ? Icon(icon, color: scheme.secondary)
+              : null,
+          title: Text(title,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: subtitle != null
+              ? Text(subtitle!, style: const TextStyle(fontSize: 12))
+              : null,
+          trailing: resolvedTrailing,
+        ),
+      ),
+    );
+  }
+}
+
+/// Switch row in the same card shape as [_SettingsTile].
+class _SettingsSwitchTile extends StatelessWidget {
+  const _SettingsSwitchTile({
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: SwitchListTile(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: Theme.of(context).colorScheme.secondary,
+          title: Text(title,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: subtitle != null
+              ? Text(subtitle!, style: const TextStyle(fontSize: 12))
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -143,14 +285,13 @@ class SettingsPage extends ConsumerWidget {
           children: [
             Text("Settings", style: Theme.of(context).textTheme.displayLarge),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "Library & Instances"),
-            _buildSettingCard(
-              context,
+
+            const _SettingsSectionHeader("Library & Instances"),
+            const _SettingsCard(
               title: "Archive Instance",
-              child: const _InstanceSelectorWidget(),
+              child: _InstanceSelectorWidget(),
             ),
-            _buildSettingTile(
-              context,
+            _SettingsTile(
               title: "Manage Instances",
               icon: Icons.dns,
               onTap: () {
@@ -162,52 +303,43 @@ class SettingsPage extends ConsumerWidget {
             ),
             const _AutoRankInstancesWidget(),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "Appearance"),
-            _buildSettingCard(
-              context,
+
+            const _SettingsSectionHeader("Appearance"),
+            _SettingsCard(
               title: "Theme",
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: DropdownButtonFormField<ThemeMode>(
-                  value: themeMode,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                        value: ThemeMode.system,
-                        child: Text("Follow the System")),
-                    DropdownMenuItem(
-                        value: ThemeMode.light, child: Text("Light theme")),
-                    DropdownMenuItem(
-                        value: ThemeMode.dark, child: Text("Dark theme")),
-                  ],
-                  onChanged: (ThemeMode? val) {
-                    if (val != null) {
-                      ref.read(themeModeProvider.notifier).setTheme(val);
-                    }
-                  },
+              child: DropdownButtonFormField<ThemeMode>(
+                initialValue: themeMode,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
+                items: const [
+                  DropdownMenuItem(
+                      value: ThemeMode.system,
+                      child: Text("Follow the System")),
+                  DropdownMenuItem(
+                      value: ThemeMode.light, child: Text("Light theme")),
+                  DropdownMenuItem(
+                      value: ThemeMode.dark, child: Text("Dark theme")),
+                ],
+                onChanged: (ThemeMode? val) {
+                  if (val != null) {
+                    ref.read(themeModeProvider.notifier).setTheme(val);
+                  }
+                },
               ),
             ),
-            _buildSettingCard(
-              context,
+            _SettingsCard(
               title: "Font Size",
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Scale: ${fontSizeScale.toStringAsFixed(1)}x"),
-                        Text("Preview",
-                            textScaler: TextScaler.linear(fontSizeScale)),
-                      ],
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Scale: ${fontSizeScale.toStringAsFixed(1)}x"),
+                      Text("Preview",
+                          textScaler: TextScaler.linear(fontSizeScale)),
+                    ],
                   ),
                   Slider(
                     value: fontSizeScale,
@@ -219,14 +351,16 @@ class SettingsPage extends ConsumerWidget {
                       ref.read(fontSizeScaleProvider.notifier).state = val;
                     },
                     onChangeEnd: (val) {
-                      dataBase.savePreference('fontSizeScale', val.toString());
+                      dataBase.savePreference(
+                          'fontSizeScale', val.toString());
                     },
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "General"),
+
+            const _SettingsSectionHeader("General"),
             FutureBuilder<dynamic>(
               future: dataBase.getPreference('bookStorageDirectory'),
               builder: (context, snapshot) {
@@ -234,8 +368,7 @@ class SettingsPage extends ConsumerWidget {
                 if (snapshot.hasData && snapshot.data is String) {
                   subtitle = snapshot.data as String;
                 }
-                return _buildSettingTile(
-                  context,
+                return _SettingsTile(
                   title: "Storage Location",
                   subtitle: subtitle,
                   icon: Icons.folder,
@@ -250,31 +383,26 @@ class SettingsPage extends ConsumerWidget {
                     await requestStoragePermission();
 
                     if (currentDirectory == internalDirectory) {
-                      await moveLibraryFiles(currentDirectory, pickedDirectory);
+                      await moveLibraryFiles(
+                          currentDirectory, pickedDirectory);
                     }
 
                     await dataBase.savePreference(
                         'bookStorageDirectory', pickedDirectory);
                     await scanAndImportBooks(pickedDirectory, dataBase, ref);
-                    // Force rebuild to show new path
                     // ignore: unused_result
                     ref.refresh(myLibraryProvider);
-                    // Since this FutureBuilder depends on the db future directly,
-                    // we might need to trigger a setstate or similar if we want it to update immediately
-                    // without page reload. But SettingsPage is a ConsumerWidget.
-                    // A simple hack is to rely on the fact that we're rebuilding the parent or
-                    // just let it update on next entry.
-                    // For better UX, we should probably watch a provider that updates when preference changes.
-                    // But for now, this matches the existing pattern.
+                    // The FutureBuilder reads the db future directly, so
+                    // rebuild manually to show the new path immediately.
                     (context as Element).markNeedsBuild();
                   },
                 );
               },
             ),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "Reader"),
-            _buildSwitchTile(
-              context,
+
+            const _SettingsSectionHeader("Reader"),
+            _SettingsSwitchTile(
               title: "Open PDF externally",
               subtitle: "Use your default PDF viewer",
               value: openPdfExternal,
@@ -283,8 +411,7 @@ class SettingsPage extends ConsumerWidget {
                 dataBase.savePreference('openPdfwithExternalApp', val);
               },
             ),
-            _buildSwitchTile(
-              context,
+            _SettingsSwitchTile(
               title: "Open EPUB externally",
               subtitle: "Use your default EPUB reader",
               value: openEpubExternal,
@@ -294,76 +421,32 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "Advanced"),
-            _buildSwitchTile(
-              context,
+
+            const _SettingsSectionHeader("Advanced"),
+            _SettingsSwitchTile(
               title: "Manual Download Button",
               subtitle: "Show button to manually trigger downloads",
               value: showManualDownload,
               onChanged: (val) {
-                ref.read(showManualDownloadButtonProvider.notifier).state = val;
+                ref.read(showManualDownloadButtonProvider.notifier).state =
+                    val;
                 dataBase.savePreference('showManualDownloadButton', val);
               },
             ),
-            _buildSettingTile(
-              context,
+            _SettingsTile(
               title: "Anna's Archive Donation Key",
               subtitle: "Enter key for faster downloads",
               icon: Icons.key,
-              onTap: () {
-                final currentKey = ref.read(donationKeyProvider);
-                final controller = TextEditingController(text: currentKey);
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text("Donation Key"),
-                    content: TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        hintText: "Enter your key",
-                        helperText:
-                            "Used for faster downloads on Anna's Archive",
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          "Cancel",
-                          style: TextStyle(
-                            color:
-                                Theme.of(context).brightness == Brightness.light
-                                    ? Colors.black
-                                    : Colors.white,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          final newKey = controller.text.trim();
-                          ref.read(donationKeyProvider.notifier).state = newKey;
-                          dataBase.savePreference('donationKey', newKey);
-                          Navigator.pop(context);
-                        },
-                        child: Text(
-                          "Save",
-                          style: TextStyle(
-                            color:
-                                Theme.of(context).brightness == Brightness.light
-                                    ? Colors.black
-                                    : Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+              onTap: () => _showDonationKeyDialog(context, ref, dataBase),
             ),
             const SizedBox(height: 20),
-            _buildSectionHeader(context, "About"),
-            _buildSettingTile(
-              context,
+
+            const _SettingsSectionHeader("Updates"),
+            const _UpdateSettingsWidget(),
+            const SizedBox(height: 20),
+
+            const _SettingsSectionHeader("About"),
+            _SettingsTile(
               title: "About OpenlibExtended",
               icon: Icons.info_outline,
               onTap: () {
@@ -371,10 +454,7 @@ class SettingsPage extends ConsumerWidget {
                     MaterialPageRoute(builder: (context) => const AboutPage()));
               },
             ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(context, "Developer"),
-            _buildSettingTile(
-              context,
+            _SettingsTile(
               title: "Redo Onboarding",
               subtitle: "Reset app setup and start over",
               icon: Icons.restart_alt,
@@ -391,8 +471,7 @@ class SettingsPage extends ConsumerWidget {
                 }
               },
             ),
-            _buildSettingTile(
-              context,
+            _SettingsTile(
               title: "Export Logs",
               subtitle: "Share diagnostic logs (last 5 min)",
               icon: Icons.bug_report,
@@ -408,18 +487,7 @@ class SettingsPage extends ConsumerWidget {
                 }
               },
             ),
-            const Padding(
-              padding: EdgeInsets.only(left: 5, right: 5, top: 20, bottom: 5),
-              child: Text(
-                "Updates",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const _UpdateSettingsWidget(),
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
             FutureBuilder<PackageInfo>(
               future: PackageInfo.fromPlatform(),
               builder: (context, snapshot) {
@@ -444,87 +512,36 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, left: 4),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+  void _showDonationKeyDialog(
+      BuildContext context, WidgetRef ref, MyLibraryDb dataBase) {
+    final currentKey = ref.read(donationKeyProvider);
+    final controller = TextEditingController(text: currentKey);
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Donation Key"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: "Enter your key",
+            helperText: "Used for faster downloads on Anna's Archive",
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSettingCard(BuildContext context,
-      {required String title, required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          child,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              final newKey = controller.text.trim();
+              ref.read(donationKeyProvider.notifier).state = newKey;
+              dataBase.savePreference('donationKey', newKey);
+              Navigator.pop(dialogContext);
+            },
+            child: const Text("Save"),
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSettingTile(BuildContext context,
-      {required String title,
-      String? subtitle,
-      IconData? icon,
-      Widget? trailing,
-      required VoidCallback onTap}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Theme.of(context).colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: ListTile(
-          onTap: onTap,
-          leading: icon != null
-              ? Icon(icon, color: Theme.of(context).colorScheme.secondary)
-              : null,
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: subtitle != null
-              ? Text(subtitle, style: const TextStyle(fontSize: 12))
-              : null,
-          trailing: trailing ?? const Icon(Icons.chevron_right),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile(BuildContext context,
-      {required String title,
-      String? subtitle,
-      required bool value,
-      required ValueChanged<bool> onChanged}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Theme.of(context).colorScheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: SwitchListTile(
-          value: value,
-          onChanged: onChanged,
-          activeThumbColor: Theme.of(context).colorScheme.secondary,
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: subtitle != null
-              ? Text(subtitle, style: const TextStyle(fontSize: 12))
-              : null,
-        ),
       ),
     );
   }
@@ -578,147 +595,71 @@ class _InstanceSelectorWidgetState
             final effectiveSelectedId =
                 selectedInstanceExists ? selectedId : currentInstance.id;
 
-            return Padding(
-              padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 61),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(5),
-                  color: Theme.of(context).colorScheme.tertiaryContainer,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            return DropdownButton<String>(
+              isExpanded: true,
+              value: effectiveSelectedId,
+              underline: const SizedBox.shrink(),
+              items: instances.map((instance) {
+                return DropdownMenuItem<String>(
+                  value: instance.id,
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
-                          "Current Instance",
+                          instance.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!instance.enabled)
+                        Text(
+                          ' (disabled)',
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.tertiary,
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withAlpha(140),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: effectiveSelectedId,
-                          underline: Container(),
-                          items: instances.map((instance) {
-                            return DropdownMenuItem<String>(
-                              value: instance.id,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      instance.name,
-                                      style: const TextStyle(fontSize: 13),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (!instance.enabled)
-                                    const Padding(
-                                      padding: EdgeInsets.only(left: 4.0),
-                                      child: Text(
-                                        '(disabled)',
-                                        style: TextStyle(
-                                            fontSize: 10, color: Colors.grey),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (String? newValue) async {
-                            if (newValue != null) {
-                              // Capture context-dependent objects before async gap
-                              final scaffoldMessenger =
-                                  ScaffoldMessenger.of(context);
-
-                              setState(() {
-                                _selectedInstanceId = newValue;
-                              });
-                              final manager = ref.read(instanceManagerProvider);
-                              await manager.setSelectedInstanceId(newValue);
-                              ref.invalidate(currentInstanceProvider);
-
-                              if (!mounted) return;
-                              scaffoldMessenger.showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text('Instance changed successfully'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      ),
                     ],
                   ),
-                ),
-              ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) async {
+                if (newValue == null) return;
+                // Capture context-dependent objects before async gap
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                setState(() {
+                  _selectedInstanceId = newValue;
+                });
+                final manager = ref.read(instanceManagerProvider);
+                await manager.setSelectedInstanceId(newValue);
+                ref.invalidate(currentInstanceProvider);
+
+                if (!mounted) return;
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Instance changed successfully'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
             );
           },
-          loading: () => Padding(
-            padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 61),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                color: Theme.of(context).colorScheme.tertiaryContainer,
-              ),
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-          ),
-          error: (error, stack) => Padding(
-            padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 61),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                color: Theme.of(context).colorScheme.tertiaryContainer,
-              ),
-              child: Center(
-                child: Text(
-                  'Error loading instances',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            ),
-          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) => _instanceLoadError(context),
         );
       },
-      loading: () => Padding(
-        padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 61),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(5),
-            color: Theme.of(context).colorScheme.tertiaryContainer,
-          ),
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-      ),
-      error: (error, stack) => Padding(
-        padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 61),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(5),
-            color: Theme.of(context).colorScheme.tertiaryContainer,
-          ),
-          child: Center(
-            child: Text(
-              'Error loading instance',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        ),
-      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _instanceLoadError(context),
+    );
+  }
+
+  Widget _instanceLoadError(BuildContext context) {
+    return Text(
+      'Error loading instances',
+      style: TextStyle(color: Theme.of(context).colorScheme.error),
     );
   }
 }
@@ -826,104 +767,17 @@ class _AutoRankInstancesWidgetState
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-          child: Container(
-            height: 75,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              color: Theme.of(context).colorScheme.tertiaryContainer,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Auto-Rank Instances",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.tertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Automatically sort by speed on startup",
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .tertiary
-                                .withAlpha(140),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: _autoRankEnabled,
-                    thumbColor: WidgetStateProperty.resolveWith((states) =>
-                        states.contains(WidgetState.selected)
-                            ? Colors.green
-                            : null),
-                    onChanged: _toggleAutoRank,
-                  ),
-                ],
-              ),
-            ),
-          ),
+        _SettingsSwitchTile(
+          title: "Auto-Rank Instances",
+          subtitle: "Automatically sort by speed on startup",
+          value: _autoRankEnabled,
+          onChanged: _toggleAutoRank,
         ),
-        Padding(
-          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-          child: InkWell(
-            onTap: _isRanking ? null : _rankNow,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 61),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                color: Theme.of(context).colorScheme.tertiaryContainer,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Rank Instances Now",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: _isRanking
-                            ? Theme.of(context)
-                                .colorScheme
-                                .tertiary
-                                .withAlpha(100)
-                            : Theme.of(context).colorScheme.tertiary,
-                      ),
-                    ),
-                    _isRanking
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Theme.of(context).colorScheme.secondary,
-                            ),
-                          )
-                        : const Icon(Icons.speed),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        _SettingsTile(
+          title: "Rank Instances Now",
+          icon: Icons.speed,
+          busy: _isRanking,
+          onTap: _isRanking ? null : _rankNow,
         ),
       ],
     );
@@ -1002,107 +856,22 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 61),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              color: Theme.of(context).colorScheme.tertiaryContainer,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Include Beta Updates",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.tertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Get pre-release versions",
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .tertiary
-                                .withAlpha(140),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: _includePrereleases,
-                    thumbColor: WidgetStateProperty.resolveWith((states) =>
-                        states.contains(WidgetState.selected)
-                            ? Colors.orange
-                            : null),
-                    onChanged: (bool value) async {
-                      setState(() {
-                        _includePrereleases = value;
-                      });
-                      await _updateChecker.setIncludePrereleases(value);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
+        _SettingsSwitchTile(
+          title: "Include Beta Updates",
+          subtitle: "Get pre-release versions",
+          value: _includePrereleases,
+          onChanged: (bool value) async {
+            setState(() {
+              _includePrereleases = value;
+            });
+            await _updateChecker.setIncludePrereleases(value);
+          },
         ),
-        Padding(
-          padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-          child: InkWell(
-            onTap: _isChecking ? null : _checkForUpdates,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 61),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                color: Theme.of(context).colorScheme.tertiaryContainer,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Check for Updates",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.tertiary,
-                      ),
-                    ),
-                    _isChecking
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Theme.of(context).colorScheme.secondary,
-                            ),
-                          )
-                        : Icon(
-                            Icons.refresh,
-                            color: Theme.of(context).colorScheme.secondary,
-                          ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        _SettingsTile(
+          title: "Check for Updates",
+          icon: Icons.refresh,
+          busy: _isChecking,
+          onTap: _isChecking ? null : _checkForUpdates,
         ),
       ],
     );
