@@ -16,6 +16,8 @@ import 'package:openlib/services/google_suggest_api.dart';
 
 import 'package:openlib/state/state.dart'
     show
+        searchAuthorProvider,
+        searchPublisherProvider,
         searchQueryProvider,
         selectedTypeState,
         selectedSortState,
@@ -52,6 +54,7 @@ class SearchPage extends ConsumerStatefulWidget {
 class _SearchPageState extends ConsumerState<SearchPage> {
   Timer? _debounce;
   late final TextEditingController _searchController;
+  final TextEditingController _advancedController = TextEditingController();
   final GoogleSuggestApi _apiService =
       GoogleSuggestApi(); // Instantiate API service
 
@@ -77,6 +80,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
+    _advancedController.dispose();
     super.dispose();
   }
 
@@ -249,6 +253,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ),
               ),
             // -----------------------------
+
+            // --- Advanced Search Panel ---
+            _AdvancedSearchPanel(controller: _advancedController),
 
             // Dropdown Filters (Unchanged)
             Padding(
@@ -475,6 +482,138 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// ADVANCED SEARCH PANEL
+// Expandable metadata filters: author and publisher refine the plain
+// text query into field-specific terms every provider understands.
+// ====================================================================
+
+class _AdvancedSearchPanel extends ConsumerStatefulWidget {
+  const _AdvancedSearchPanel({required this.controller});
+
+  /// The main search field's controller, kept for future synergy
+  /// between the plain query and the metadata fields.
+  final TextEditingController controller;
+
+  @override
+  ConsumerState<_AdvancedSearchPanel> createState() =>
+      _AdvancedSearchPanelState();
+}
+
+class _AdvancedSearchPanelState extends ConsumerState<_AdvancedSearchPanel> {
+  bool _expanded = false;
+  late final TextEditingController _authorController;
+  late final TextEditingController _publisherController;
+
+  @override
+  void initState() {
+    super.initState();
+    _authorController =
+        TextEditingController(text: ref.read(searchAuthorProvider));
+    _publisherController =
+        TextEditingController(text: ref.read(searchPublisherProvider));
+  }
+
+  @override
+  void dispose() {
+    _authorController.dispose();
+    _publisherController.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _decoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: Theme.of(context).colorScheme.secondary,
+      ),
+      enabledBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.grey, width: 2),
+        borderRadius: BorderRadius.all(Radius.circular(50)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.tertiary, width: 2),
+        borderRadius: const BorderRadius.all(Radius.circular(50)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActiveFields = ref.watch(searchAuthorProvider).isNotEmpty ||
+        ref.watch(searchPublisherProvider).isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 7, right: 7, top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Toggle row
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                label: Text(
+                  'Advanced Search',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ),
+              if (hasActiveFields)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Icon(
+                    Icons.filter_alt,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.tertiary,
+                  ),
+                ),
+            ],
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 4),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _authorController,
+                    decoration: _decoration('Author'),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold),
+                    onChanged: (value) =>
+                        ref.read(searchAuthorProvider.notifier).state =
+                            value.trim(),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _publisherController,
+                    decoration: _decoration('Publisher'),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold),
+                    onChanged: (value) => ref
+                        .read(searchPublisherProvider.notifier)
+                        .state = value.trim(),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

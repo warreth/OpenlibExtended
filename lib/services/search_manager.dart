@@ -34,6 +34,10 @@ abstract class SearchProvider {
 }
 
 /// The filters the results page collects, in provider-neutral form.
+///
+/// [author], [publisher] and [year] carry field-specific values from
+/// the advanced search panel; providers translate them into whatever
+/// their backend supports.
 @immutable
 class SearchQuery {
   final String text;
@@ -42,6 +46,8 @@ class SearchQuery {
   final String fileType;
   final String language;
   final String year;
+  final String author;
+  final String publisher;
   final bool filtersEnabled;
   final int page;
 
@@ -52,11 +58,13 @@ class SearchQuery {
     this.fileType = '',
     this.language = '',
     this.year = '',
+    this.author = '',
+    this.publisher = '',
     this.filtersEnabled = false,
     this.page = 1,
   });
 
-  bool get isEmpty => text.trim().isEmpty;
+  bool get isEmpty => text.trim().isEmpty && author.trim().isEmpty && publisher.trim().isEmpty;
 }
 
 /// The plain-HTML header most library mirrors expect from a browser.
@@ -87,6 +95,8 @@ class AnnasArchiveProvider implements SearchProvider {
       fileType: query.fileType,
       language: query.language,
       year: query.year,
+      author: query.author,
+      publisher: query.publisher,
       enableFilters: query.filtersEnabled,
       page: query.page,
     );
@@ -239,7 +249,28 @@ class LibgenProvider implements SearchProvider {
 
   @override
   Future<List<BookData>> search(SearchQuery query) async {
-    final params = StringBuffer('req=${Uri.encodeQueryComponent(query.text)}');
+    // Field-specific search: libgen.li/vg accept columns[]= codes
+    // restricting which fields 'req' is matched against - a=author,
+    // p=publisher, t=title. When the user gave an author or publisher,
+    // fold both into req and restrict matching to those columns so
+    // 'Asimov' finds books BY Asimov, not books mentioning him.
+    final author = query.author.trim();
+    final publisher = query.publisher.trim();
+    final useColumns = query.filtersEnabled &&
+        (author.isNotEmpty || publisher.isNotEmpty);
+    final req = useColumns
+        ? [
+            if (author.isNotEmpty) author,
+            if (publisher.isNotEmpty) publisher,
+            if (query.text.trim().isNotEmpty) query.text.trim(),
+          ].join(' ')
+        : query.text;
+
+    final params = StringBuffer('req=${Uri.encodeQueryComponent(req)}');
+    if (useColumns) {
+      if (author.isNotEmpty) params.write('&columns[]=a');
+      if (publisher.isNotEmpty) params.write('&columns[]=p');
+    }
     if (query.filtersEnabled) {
       if (query.fileType.isNotEmpty) {
         params.write('&extension=${Uri.encodeQueryComponent(query.fileType)}');

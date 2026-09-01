@@ -27,6 +27,7 @@ class MyLibraryPage extends ConsumerStatefulWidget {
 class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
   bool _isRefreshing = false;
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
   bool _hasTriggeredRefresh = false;
 
   static const _sortPrefKey = 'librarySortMode';
@@ -62,6 +63,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -167,6 +169,42 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
     );
   }
 
+  /// Metadata search box: filters the library by title, author,
+  /// publisher or the info line (year, language) as you type.
+  Widget _buildSearchField(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 5, right: 5, top: 4),
+      child: TextField(
+        controller: _searchController,
+        showCursor: true,
+        cursorColor: Theme.of(context).colorScheme.secondary,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search library (title, author, publisher, year)',
+          hintStyle: const TextStyle(
+              color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 11),
+          prefixIcon: const Icon(Icons.search, size: 20),
+          enabledBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey, width: 1.5),
+            borderRadius: BorderRadius.all(Radius.circular(50)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.tertiary, width: 2),
+            borderRadius: const BorderRadius.all(Radius.circular(50)),
+          ),
+        ),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.tertiary,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+        onChanged: (value) =>
+            ref.read(librarySearchQueryProvider.notifier).state = value,
+      ),
+    );
+  }
+
   /// The horizontal filter row: reading-status chips followed by tag chips.
   Widget _buildFilterChips(BuildContext context) {
     final tagFilter = ref.watch(libraryTagFilterProvider);
@@ -233,7 +271,8 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
       data: (data) {
         final organized = ref.watch(organizedLibraryProvider);
         final anyFilterActive = ref.watch(libraryTagFilterProvider).isNotEmpty ||
-            ref.watch(libraryStatusFilterProvider) != null;
+            ref.watch(libraryStatusFilterProvider) != null ||
+            ref.watch(librarySearchQueryProvider).trim().isNotEmpty;
         if (data.isNotEmpty) {
           return RefreshIndicator(
             onRefresh: () => _refreshLibrary(),
@@ -251,6 +290,9 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
                   ),
                   SliverToBoxAdapter(
                     child: _buildTitleWithRefresh(context),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _buildSearchField(context),
                   ),
                   if (data.length > 1 || anyFilterActive)
                     SliverToBoxAdapter(

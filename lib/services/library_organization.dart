@@ -122,17 +122,30 @@ List<LibraryBook> sortLibrary(List<LibraryBook> books, LibrarySortMode mode) {
 
 /// Keeps only the books matching every active filter. A null tag or
 /// status filter means "no filter"; an empty tag filter set also
-/// means "no filter".
+/// means "no filter". A [query] matches case-insensitively against
+/// the metadata captured when the book was added: title, author,
+/// publisher and the info line (which carries year and language).
 List<LibraryBook> filterLibrary(
   List<LibraryBook> books, {
   Set<String>? tagFilter,
   ReadingStatus? statusFilter,
+  String? query,
 }) {
+  final needle = query?.trim().toLowerCase();
   return books.where((b) {
     if (tagFilter != null && tagFilter.isNotEmpty) {
       if (!tagFilter.any(b.tags.contains)) return false;
     }
     if (statusFilter != null && b.status != statusFilter) return false;
+    if (needle != null && needle.isNotEmpty) {
+      final haystack = [
+        b.title,
+        b.author,
+        b.book.publisher ?? '',
+        b.book.info ?? '',
+      ].join(' ').toLowerCase();
+      if (!haystack.contains(needle)) return false;
+    }
     return true;
   }).toList();
 }

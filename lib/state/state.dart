@@ -235,6 +235,11 @@ final selectedFileTypeState = StateProvider<String>((ref) => "All");
 final selectedLanguageState = StateProvider<String>((ref) => "All");
 final selectedYearState = StateProvider<String>((ref) => "All");
 final searchQueryProvider = StateProvider<String>((ref) => "");
+
+// Advanced (metadata) search fields from the expandable panel. Empty
+// strings mean "not filtering on this field".
+final searchAuthorProvider = StateProvider<String>((ref) => "");
+final searchPublisherProvider = StateProvider<String>((ref) => "");
 final enableFiltersState = StateProvider<bool>((ref) => true);
 
 // Web/Download States
@@ -424,6 +429,8 @@ final searchProvider = FutureProvider.family
     fileType: ref.watch(getFileTypeValue),
     language: ref.watch(getLanguageValue),
     year: ref.watch(getYearValue),
+    author: ref.watch(searchAuthorProvider),
+    publisher: ref.watch(searchPublisherProvider),
     filtersEnabled: ref.watch(enableFiltersState),
     page: key.page,
   ));
@@ -522,6 +529,10 @@ final libraryTagFilterProvider = StateProvider<Set<String>>((ref) => {});
 final libraryStatusFilterProvider =
     StateProvider<ReadingStatus?>((ref) => null);
 
+/// Free-text filter over library metadata (title, author, publisher,
+/// info line). Empty string means no filter.
+final librarySearchQueryProvider = StateProvider<String>((ref) => "");
+
 /// All tags in use across the library.
 final libraryTagsProvider = FutureProvider<Set<String>>((ref) async {
   return (await dataBase.getAllTags()).toSet();
@@ -533,8 +544,12 @@ final organizedLibraryProvider = Provider<List<LibraryBook>>((ref) {
   final mode = ref.watch(librarySortModeProvider);
   final tagFilter = ref.watch(libraryTagFilterProvider);
   final statusFilter = ref.watch(libraryStatusFilterProvider);
+  final searchQuery = ref.watch(librarySearchQueryProvider);
   return sortLibrary(
-    filterLibrary(books, tagFilter: tagFilter, statusFilter: statusFilter),
+    filterLibrary(books,
+        tagFilter: tagFilter,
+        statusFilter: statusFilter,
+        query: searchQuery),
     mode,
   );
 });

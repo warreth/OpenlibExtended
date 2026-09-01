@@ -525,10 +525,25 @@ class AnnasArchieve {
       required String fileType,
       required String language,
       required String year,
+      String author = "",
+      String publisher = "",
       required bool enableFilters,
       required String currentBaseUrl,
       int page = 1}) {
-    searchQuery = searchQuery.replaceAll(" ", "+");
+    // Anna's Archive accepts field-scoped terms in the query string:
+    // q=author:"jrr tolkien" publisher:"harper" hobbit. Advanced
+    // search fields ride the same parameter instead of inventing new
+    // ones the site ignores.
+    final fieldTerms = StringBuffer();
+    if (author.trim().isNotEmpty) {
+      final encoded = Uri.encodeQueryComponent(author.trim());
+      fieldTerms.write('author:%22$encoded%22 ');
+    }
+    if (publisher.trim().isNotEmpty) {
+      final encoded = Uri.encodeQueryComponent(publisher.trim());
+      fieldTerms.write('publisher:%22$encoded%22 ');
+    }
+    searchQuery = (fieldTerms.toString() + searchQuery).replaceAll(" ", "+");
     // Anna's Archive paginates with &page=N after the query; page 1 is
     // the default and the parameter is omitted to keep cached challenge
     // pages matching.
@@ -587,6 +602,8 @@ class AnnasArchieve {
       String fileType = "",
       String language = "",
       String year = "",
+      String author = "",
+      String publisher = "",
       bool enableFilters = true,
       int page = 1}) async {
     _logger.info('Searching books', tag: 'AnnasArchive', metadata: {
@@ -596,6 +613,8 @@ class AnnasArchieve {
       'fileType': fileType,
       'language': language,
       'year': year,
+      'author': author,
+      'publisher': publisher,
       'filtersEnabled': enableFilters,
     });
 
@@ -609,6 +628,8 @@ class AnnasArchieve {
             fileType: fileType,
             language: language,
             year: year,
+            author: author,
+            publisher: publisher,
             enableFilters: enableFilters,
             currentBaseUrl: currentBaseUrl,
             page: page);
