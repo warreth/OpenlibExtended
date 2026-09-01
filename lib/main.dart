@@ -201,7 +201,8 @@ class MainScreen extends ConsumerStatefulWidget {
   ConsumerState<ConsumerStatefulWidget> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends ConsumerState<MainScreen> {
+class _MainScreenState extends ConsumerState<MainScreen>
+    with WidgetsBindingObserver {
   static const List<Widget> _widgetOptions = <Widget>[
     HomePage(),
     SearchPage(),
@@ -214,6 +215,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Request notification permission after first frame (only on mobile)
     if (PlatformUtils.isMobile) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -233,6 +235,23 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ChallengeWarmup.warmAfterLaunch();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android suspends the process soon after the user leaves the app,
+    // which cuts sockets mid-download ("Connection closed while
+    // receiving data"). Coming back to the foreground, every paused or
+    // failed download continues from its partial file instead of dying.
+    if (state == AppLifecycleState.resumed) {
+      DownloadManager().resumeInterruptedDownloads();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _autoRankInstancesOnStartup() async {

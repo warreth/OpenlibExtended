@@ -151,8 +151,7 @@ class DownloadManager {
     if (!await dir.exists()) {
       await dir.create(recursive: true);
       _logger.info('Created book storage directory',
-          tag: 'DownloadManager',
-          metadata: {'path': bookStorageDirectory});
+          tag: 'DownloadManager', metadata: {'path': bookStorageDirectory});
     }
     return bookStorageDirectory;
   }
@@ -241,7 +240,8 @@ class DownloadManager {
   Future<bool> _canAdd(DownloadTask task, String title) async {
     if (_activeDownloads.containsKey(task.id) ||
         _hasActiveDownloadFor(task.md5)) {
-      _logger.warning('Download already active: $title', tag: 'DownloadManager');
+      _logger.warning('Download already active: $title',
+          tag: 'DownloadManager');
       if (!_activeDownloads.containsKey(task.id)) {
         await _notificationService.showDownloadNotification(
           id: task.md5.hashCode,
@@ -416,6 +416,60 @@ class DownloadManager {
     _notifyListeners(); // Notify UI of the change
 
     _startDownload(updatedTask); // Start the download process
+  }
+
+  /// Resumes everything the OS suspension cut off: paused and failed
+  /// tasks continue from their partial files. Called when the app comes
+  /// back to the foreground - Android suspends the process shortly after
+  /// the user leaves, which kills open sockets mid-transfer; the partial
+  /// bytes on disk are the recovery point, so the download continues
+  /// where it broke instead of dying with "connection closed".
+  Future<void> resumeInterruptedDownloads() async {
+    final interrupted = _activeDownloads.values
+        .where((t) =>
+            t.status == DownloadStatus.paused ||
+            t.status == DownloadStatus.failed)
+        .map((t) => t.id)
+        .toList();
+
+    if (interrupted.isEmpty) return;
+
+    _logger.info('Resuming ${interrupted.length} interrupted downloads',
+        tag: 'DownloadManager');
+    for (final id in interrupted) {
+      final task = _activeDownloads[id];
+      if (task == null) continue;
+      if (task.status == DownloadStatus.paused) {
+        await resumeDownload(id);
+      } else {
+        // Failed tasks: retry, but keep the partial file so the Range
+        // request continues instead of restarting from zero.
+        await _retryDownloadKeepingPartial(id);
+      }
+    }
+  }
+
+  /// Retry that does NOT delete the partial file first, so the server's
+  /// Range support picks up from the last byte on disk.
+  Future<void> _retryDownloadKeepingPartial(String taskId) async {
+    if (!_activeDownloads.containsKey(taskId)) return;
+    final task = _activeDownloads[taskId]!;
+    if (task.status != DownloadStatus.failed) return;
+
+    final newToken = CancelToken();
+    _activeDownloads[taskId] = task.copyWith(
+      status: DownloadStatus.queued,
+      cancelToken: newToken,
+      errorMessage: null,
+    );
+    _notifyListeners();
+
+    final taskToStart = _activeDownloads[taskId]!;
+    if (taskToStart.mirrors.isNotEmpty) {
+      _startDownload(taskToStart);
+    } else if (taskToStart.mirrorUrl != null) {
+      _startDownloadWithMirrorUrl(taskToStart, taskToStart.mirrorUrl!);
+    }
   }
 
   Future<void> _startDownload(DownloadTask task) async {
@@ -655,8 +709,7 @@ class DownloadManager {
         if (canRetrySameMirror) {
           attempt++;
           final wait = backoffFor(attempt);
-          _logger.info(
-              'Transient mirror error, retrying in ${wait.inSeconds}s',
+          _logger.info('Transient mirror error, retrying in ${wait.inSeconds}s',
               tag: 'DownloadManager',
               metadata: {'mirror': currentMirror, 'attempt': attempt + 1});
           await Future.delayed(wait);
@@ -842,8 +895,8 @@ class DownloadManager {
       checkSumValid =
           await _verifyFileCheckSum(md5Hash: task.md5, fileName: fileName);
     } catch (e, st) {
-      _logger.error('Checksum verification failed', tag: 'DownloadManager',
-          error: e, stackTrace: st);
+      _logger.error('Checksum verification failed',
+          tag: 'DownloadManager', error: e, stackTrace: st);
       checkSumValid = false;
     }
 
@@ -862,8 +915,8 @@ class DownloadManager {
       ));
     } catch (e, st) {
       // A database failure must never strand the task in 'verifying'.
-      _logger.error('Failed to save book to library', tag: 'DownloadManager',
-          error: e, stackTrace: st);
+      _logger.error('Failed to save book to library',
+          tag: 'DownloadManager', error: e, stackTrace: st);
       _handleDownloadFailure(task.id, 'Could not save to library: $e');
       return;
     }

@@ -27,16 +27,16 @@ void main() {
     destination.deleteSync(recursive: true);
   });
 
-  File _write(String dir, String name) {
+  File writeFile(String dir, String name) {
     final f = File('$dir/$name');
     f.writeAsBytesSync(List.filled(128, 7));
     return f;
   }
 
   test('moves book files and leaves non-book files alone', () async {
-    final epub = _write(source.path, 'book.epub');
-    final pdf = _write(source.path, 'other.pdf');
-    _write(source.path, 'notes.txt');
+    final epub = writeFile(source.path, 'book.epub');
+    final pdf = writeFile(source.path, 'other.pdf');
+    writeFile(source.path, 'notes.txt');
 
     await moveLibraryFiles(source.path, destination.path);
 
@@ -50,7 +50,7 @@ void main() {
   });
 
   test('does not overwrite an existing file at the destination', () async {
-    final src = _write(source.path, 'book.epub');
+    final src = writeFile(source.path, 'book.epub');
     final dst = File('${destination.path}/book.epub')
       ..writeAsBytesSync(List.filled(64, 1));
 
@@ -69,7 +69,7 @@ void main() {
 
   test('creates the destination directory when it does not exist', () async {
     final nested = Directory('${destination.path}/new/sub');
-    _write(source.path, 'book.cbz');
+    writeFile(source.path, 'book.cbz');
 
     await moveLibraryFiles(source.path, nested.path);
 

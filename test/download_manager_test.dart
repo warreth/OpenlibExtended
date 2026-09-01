@@ -38,11 +38,16 @@ class _RangeServer {
 
   Uri get url => Uri.parse('http://127.0.0.1:${_server.port}/book.epub');
 
+  /// The bound port, for restarting "the same mirror" after an outage.
+  int get port => _server.port;
+
   static Future<_RangeServer> start(
       {required Uint8List bytes,
       bool supportsRange = true,
-      Duration? chunkDelay}) async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      Duration? chunkDelay,
+      int port = 0}) async {
+    final server =
+        await HttpServer.bind(InternetAddress.loopbackIPv4, port);
     return _RangeServer(server, bytes,
         supportsRange: supportsRange, chunkDelay: chunkDelay);
   }
@@ -53,8 +58,7 @@ class _RangeServer {
     } else {
       const chunkSize = 16 * 1024;
       for (var i = 0; i < data.length; i += chunkSize) {
-        response.add(data.sublist(
-            i, (i + chunkSize).clamp(0, data.length)));
+        response.add(data.sublist(i, (i + chunkSize).clamp(0, data.length)));
         await response.flush();
         await Future.delayed(chunkDelay!);
       }
@@ -89,23 +93,23 @@ class _RangeServer {
         request.response.close();
         return;
       }
-      final end = match.group(2)!.isEmpty || int.parse(match.group(2)!) >= bytes.length
-          ? bytes.length - 1
-          : int.parse(match.group(2)!);
+      final end =
+          match.group(2)!.isEmpty || int.parse(match.group(2)!) >= bytes.length
+              ? bytes.length - 1
+              : int.parse(match.group(2)!);
 
       request.response.statusCode = HttpStatus.partialContent;
-      request.response.headers.set(HttpHeaders.contentRangeHeader,
-          'bytes $start-$end/${bytes.length}');
+      request.response.headers.set(
+          HttpHeaders.contentRangeHeader, 'bytes $start-$end/${bytes.length}');
       request.response.headers
           .set(HttpHeaders.contentLengthHeader, end - start + 1);
       await _send(request.response, bytes.sublist(start, end + 1));
       request.response.close();
       return;
     }
-    request.response.headers.set(
-        HttpHeaders.acceptRangesHeader, supportsRange ? 'bytes' : 'none');
     request.response.headers
-        .set(HttpHeaders.contentLengthHeader, bytes.length);
+        .set(HttpHeaders.acceptRangesHeader, supportsRange ? 'bytes' : 'none');
+    request.response.headers.set(HttpHeaders.contentLengthHeader, bytes.length);
     // Server ignoring the Range header: reply 200 with the whole body,
     // exactly like the real slow-download mirrors do.
     await _send(request.response, bytes);
@@ -204,8 +208,8 @@ void main() {
 
     test('pause mid-download then resume continues from disk (Range server)',
         () async {
-      final bytes = Uint8List.fromList(
-          List.generate(1024 * 200, (i) => (i * 7) % 251));
+      final bytes =
+          Uint8List.fromList(List.generate(1024 * 200, (i) => (i * 7) % 251));
       // 30ms per 16KB chunk: slow enough to pause in the middle.
       server = await _RangeServer.start(
           bytes: bytes, chunkDelay: const Duration(milliseconds: 30));
@@ -228,8 +232,10 @@ void main() {
       manager.downloadsStream.listen((downloads) {
         final t = downloads[task.id];
         if (t == null) return;
-        if (!pausedOnce && t.status == DownloadStatus.downloading &&
-            t.progress > 0.3 && t.progress < 0.9) {
+        if (!pausedOnce &&
+            t.status == DownloadStatus.downloading &&
+            t.progress > 0.3 &&
+            t.progress < 0.9) {
           pausedOnce = true;
           pausedProgress = t.progress;
           manager.pauseDownload(task.id);
@@ -310,9 +316,10 @@ void main() {
       expect(outcome, 'completed',
           reason: 'deleted storage dir must be recreated, download must '
               'finish, got: $outcome');
-      expect(File('${dir.path}/${generateBookFileName(
-        title: 'Vanishing Dir Book', format: 'epub', md5: 'md5hash_004')}'
-        ).existsSync(), isTrue);
+      expect(
+          File('${dir.path}/${generateBookFileName(title: 'Vanishing Dir Book', format: 'epub', md5: 'md5hash_004')}')
+              .existsSync(),
+          isTrue);
 
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 60)));
@@ -404,8 +411,8 @@ void main() {
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 90)));
     test('server without Range support restarts cleanly from zero', () async {
-      final bytes = Uint8List.fromList(
-          List.generate(1024 * 100, (i) => (i * 13) % 251));
+      final bytes =
+          Uint8List.fromList(List.generate(1024 * 100, (i) => (i * 13) % 251));
       server = await _RangeServer.start(
           bytes: bytes,
           supportsRange: false,
@@ -428,8 +435,10 @@ void main() {
       manager.downloadsStream.listen((downloads) {
         final t = downloads[task.id];
         if (t == null) return;
-        if (!pausedOnce && t.status == DownloadStatus.downloading &&
-            t.progress > 0.4 && t.progress < 0.9) {
+        if (!pausedOnce &&
+            t.status == DownloadStatus.downloading &&
+            t.progress > 0.4 &&
+            t.progress < 0.9) {
           pausedOnce = true;
           manager.pauseDownload(task.id);
         }
@@ -451,6 +460,84 @@ void main() {
       expect(saved.lengthSync(), bytes.length);
       expect(saved.readAsBytesSync(), bytes,
           reason: 'restart-from-zero must still produce the correct file');
+
+      manager.removeDownload(task.id);
+    }, timeout: const Timeout(Duration(seconds: 90)));
+
+    test('resumeInterruptedDownloads picks up after app suspension', () async {
+      // The Android backgrounding story: the OS cuts the socket
+      // mid-transfer. On foreground return, resumeInterruptedDownloads
+      // must continue failed/paused tasks from their partial files
+      // instead of leaving them dead.
+      final bytes =
+          Uint8List.fromList(List.generate(1024 * 200, (i) => (i * 13) % 251));
+      server = await _RangeServer.start(
+          bytes: bytes, chunkDelay: const Duration(milliseconds: 25));
+      server._server.listen(server.handle);
+
+      final task = DownloadTask(
+        id: 'md5hash_bg',
+        md5: 'md5hash_bg',
+        title: 'Background Book',
+        mirrors: [server.url.toString()],
+        format: 'epub',
+        link: server.url.toString(),
+      );
+
+      final completed = Completer<void>();
+      final fileName = generateBookFileName(
+          title: 'Background Book', format: 'epub', md5: 'md5hash_bg');
+      var partialBytesAtFailure = 0;
+
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[task.id];
+        if (t == null) return;
+        if (t.status == DownloadStatus.completed && !completed.isCompleted) {
+          completed.complete();
+        }
+      });
+
+      await manager.addDownload(task);
+
+      // Simulate the OS suspension: kill the server mid-transfer. The
+      // download fails with the socket gone, leaving a partial file.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      final serverPort = server.port; // read before the socket closes
+      await server.close();
+      final partial = File('$saveDir/$fileName');
+      if (partial.existsSync()) {
+        partialBytesAtFailure = partial.lengthSync();
+      }
+      // Drain the failure: mirrors exhausted takes a moment.
+      for (var i = 0; i < 100; i++) {
+        final t = manager.activeDownloads[task.id];
+        if (t != null && t.status == DownloadStatus.failed) break;
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+      expect(manager.activeDownloads[task.id]?.status, DownloadStatus.failed,
+          reason: 'the socket cut must fail the task, not hang it');
+
+      // The app "comes back": new server, same URL, and the manager
+      // resumes everything interrupted.
+      // Same port as before: a real suspension resumes against the same
+      // mirror URL - the server just came back after being unreachable.
+      server = await _RangeServer.start(
+          bytes: bytes,
+          chunkDelay: const Duration(milliseconds: 5),
+          port: serverPort);
+      server._server.listen(server.handle);
+
+      await manager.resumeInterruptedDownloads();
+      await completed.future.timeout(const Duration(seconds: 40));
+
+      final saved = File('$saveDir/$fileName');
+      expect(saved.lengthSync(), bytes.length);
+      expect(saved.readAsBytesSync(), bytes,
+          reason: 'resumed transfer must be byte-identical');
+      if (partialBytesAtFailure > 0) {
+        expect(partialBytesAtFailure, lessThan(bytes.length),
+            reason: 'the cut must have happened mid-transfer');
+      }
 
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 90)));
