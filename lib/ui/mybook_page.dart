@@ -40,7 +40,9 @@ class BookPage extends StatelessWidget {
                     iconSize: 19.0,
                     onPressed: () async {
                       await shareBook(snapshot.data!.title, snapshot.data!.link,
-                          snapshot.data?.thumbnail ?? '');
+                          snapshot.data?.thumbnail ?? '',
+                          fileName: snapshot.data?.fileName,
+                          format: snapshot.data?.format);
                     },
                   );
                 } else {

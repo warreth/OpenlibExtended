@@ -60,7 +60,8 @@ class BookInfoPage extends ConsumerWidget {
               ),
               iconSize: 19.0,
               onPressed: () async {
-                await shareBook(data.title, data.link, data.thumbnail ?? '');
+                await shareBook(data.title, data.link, data.thumbnail ?? '',
+                    format: data.format);
               },
             );
           }, orElse: () {
@@ -258,8 +259,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                     } else {
                       if (context.mounted) {
                         showSnackBar(
-                            context: context,
-                            message: 'No mirrors available!');
+                            context: context, message: 'No mirrors available!');
                       }
                     }
                   },
