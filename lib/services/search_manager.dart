@@ -12,6 +12,7 @@ import 'package:html/parser.dart' as html_parser;
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 
 /// One searchable catalog the app can query.
@@ -91,8 +92,9 @@ class AnnasArchiveProvider implements SearchProvider {
   }
 }
 
-/// Library Genesis public search (libgen.is-style mirrors): an HTML table
-/// of results, one row per book.
+/// Library Genesis (libgen.li family): an HTML table of results, one
+/// row per book. Mirror order comes from the instance manager so the
+/// user's enabled/prioritized mirrors in settings are respected.
 class LibgenProvider implements SearchProvider {
   LibgenProvider({Dio? dio, List<String>? mirrors})
       : _dio = dio ??
@@ -101,10 +103,10 @@ class LibgenProvider implements SearchProvider {
               receiveTimeout: const Duration(seconds: 30),
               headers: _browserHeaders,
             )),
-        _mirrors = mirrors ?? const ['https://libgen.is', 'https://libgen.rs'];
+        _mirrors = mirrors;
 
   final Dio _dio;
-  final List<String> _mirrors;
+  final List<String>? _mirrors;
 
   @override
   SearchProviderId get id => SearchProviderId.libgen;
@@ -113,22 +115,91 @@ class LibgenProvider implements SearchProvider {
   String get displayName => 'Library Genesis';
 
   /// Parses a libgen results page. Public so tests can feed a captured
-  /// page without network.
+  /// page without network. Handles both table layouts in the wild:
+  /// the libgen.li/vg "tablelibgen" table and the older table.c.
   List<BookData> parseResults(String html, String baseUrl) {
     final document = html_parser.parse(html);
-    final rows = document.querySelectorAll('table.c tbody tr');
-    if (rows.isEmpty) return const [];
 
-    return rows
-        .map((row) => _rowToBook(row, baseUrl))
+    // The libgen.li/vg family marks its results table with an id. The
+    // older libgen layout uses a table.c; rows live in its tbody.
+    final liRows = document.querySelectorAll('#tablelibgen tr');
+    if (liRows.any((row) => row.querySelectorAll('td').length >= 9)) {
+      return liRows
+          .map((row) => _liRowToBook(row, baseUrl))
+          .whereType<BookData>()
+          .toList();
+    }
+
+    final legacyRows = document.querySelectorAll('table.c tbody tr');
+    return legacyRows
+        .map((row) => _legacyRowToBook(row, baseUrl))
         .whereType<BookData>()
         .toList();
   }
 
-  BookData? _rowToBook(dom.Element row, String baseUrl) {
+  BookData? _liRowToBook(dom.Element row, String baseUrl) {
     final cells = row.querySelectorAll('td');
-    // libgen row cells: [id, author, title(+links), publisher, year,
-    // pages, language, size, extension, ...mirror links]
+    // libgen.li-family layout: [title(+links), author, series,
+    // year, language, pages, size, extension, mirrors].
+    if (cells.length < 9) return null;
+
+    final titleCell = cells[0];
+    // The first link points at series.php - the work's own title. The
+    // edition links below it describe specific editions and DOI lines;
+    // they are longer and would drown the real title out.
+    final seriesLink =
+        titleCell.querySelector('a[href*="series.php"], a[href*="index.php?"]');
+    final title = (seriesLink ?? titleCell.querySelector('a'))?.text.trim() ??
+        titleCell.text.trim();
+    if (title.isEmpty) return null;
+
+    // An md5 download link from the mirrors cell, if present. Fall
+    // back to the edition link's id - unique per book either way.
+    final md5Link = cells[8]
+        .querySelectorAll('a[href*="md5="]')
+        .map((a) => a.attributes['href'] ?? '')
+        .whereType<String>()
+        .toList();
+    final md5 = _md5FromHref(md5Link) ??
+        cells[0]
+            .querySelectorAll('a[href*="id="]')
+            .map((a) => RegExp(r'id=(\d+)')
+                .firstMatch(a.attributes['href'] ?? '')
+                ?.group(1))
+            .whereType<String>()
+            .firstOrNull;
+
+    String cell(int i) => cells.length > i ? cells[i].text.trim() : '';
+
+    final info = [
+      cell(4), // language
+      if (cell(7).isNotEmpty) cell(7).toUpperCase(), // extension
+      cell(6).replaceAll(RegExp(r'\s+'), ' '), // size
+      cell(3), // year
+    ].where((s) => s.isNotEmpty).join(', ');
+
+    final md5Value = md5;
+    final fallbackLink = titleCell.querySelector('a');
+    final fallbackHref = fallbackLink?.attributes['href'] ?? '';
+    return BookData(
+      title: title,
+      author: cell(1).isEmpty ? 'Unknown' : cell(1),
+      thumbnail: null,
+      link: md5Value != null
+          ? '$baseUrl/ads.php?md5=$md5Value'
+          : (fallbackHref.startsWith('http')
+              ? fallbackHref
+              : '$baseUrl$fallbackHref'),
+      md5: md5Value ?? title,
+      publisher: cell(2).isEmpty ? null : cell(2),
+      info: info.isEmpty ? null : info,
+    );
+  }
+
+  BookData? _legacyRowToBook(dom.Element row, String baseUrl) {
+    final cells = row.querySelectorAll('td');
+    // Older libgen layout: [id, author, title(+link), publisher, year,
+    // pages, language, size, extension, ...mirror links].
     if (cells.length < 5) return null;
 
     final titleCell = cells[2];
@@ -151,15 +222,18 @@ class LibgenProvider implements SearchProvider {
       author: cell(1).isEmpty ? 'Unknown' : cell(1),
       thumbnail: null,
       link: href.startsWith('http') ? href : '$baseUrl$href',
-      md5: _md5FromHref(href) ?? title,
+      md5: _md5FromHref([href]) ?? title,
       publisher: cell(3).isEmpty ? null : cell(3),
       info: info.isEmpty ? null : info,
     );
   }
 
-  String? _md5FromHref(String href) {
-    final match = RegExp(r'[?&]md5=([0-9a-fA-F]{32})').firstMatch(href);
-    return match?.group(1);
+  String? _md5FromHref(List<String> hrefs) {
+    for (final href in hrefs) {
+      final match = RegExp(r'[?&]md5=([0-9a-fA-F]{32})').firstMatch(href);
+      if (match != null) return match.group(1);
+    }
+    return null;
   }
 
   @override
@@ -180,10 +254,13 @@ class LibgenProvider implements SearchProvider {
       params.write('&page=${query.page}');
     }
 
+    final mirrors = _mirrors ??
+        await InstanceManager().getEnabledUrls(MirrorService.libgen);
+
     Object? lastError;
-    for (final mirror in _mirrors) {
+    for (final mirror in mirrors) {
       try {
-        final response = await _dio.get('$mirror/search.php?$params&res=100');
+        final response = await _dio.get('$mirror/index.php?$params&res=100');
         if (response.statusCode != 200) continue;
         return parseResults(response.data.toString(), mirror);
       } catch (e) {
@@ -205,11 +282,10 @@ class ZlibraryProvider implements SearchProvider {
               receiveTimeout: const Duration(seconds: 30),
               headers: _browserHeaders,
             )),
-        _mirrors =
-            mirrors ?? const ['https://z-library.sk', 'https://z-lib.fm'];
+        _mirrors = mirrors;
 
   final Dio _dio;
-  final List<String> _mirrors;
+  final List<String>? _mirrors;
 
   @override
   SearchProviderId get id => SearchProviderId.zlibrary;
@@ -219,7 +295,9 @@ class ZlibraryProvider implements SearchProvider {
 
   @override
   Future<List<BookData>> search(SearchQuery query) async {
-    for (final mirror in _mirrors) {
+    final mirrors = _mirrors ??
+        await InstanceManager().getEnabledUrls(MirrorService.zlibrary);
+    for (final mirror in mirrors) {
       try {
         final response = await _dio.get(
           '$mirror/s/${Uri.encodeQueryComponent(query.text)}',

@@ -142,6 +142,29 @@ void main() {
           isEmpty);
     });
 
+    test('parses the libgen.li/vg table layout from a captured page', () {
+      final provider = LibgenProvider();
+      final captured =
+          File('test/fixtures/libgen_vg_results.html').readAsStringSync();
+      final books = provider.parseResults(captured, 'https://libgen.vg');
+
+      // The fixture holds 3 book rows (plus the header row, skipped).
+      expect(books.length, 3);
+
+      for (final book in books) {
+        expect(book.title, isNotEmpty);
+        expect(book.author, isNotEmpty);
+        expect(book.link, startsWith('https://libgen.vg'));
+        // Info carries language/ext/size/year in some order.
+        expect(book.info, isNotNull);
+      }
+
+      // First captured row is a known magazine entry.
+      expect(books.first.title, 'Pacing and Clinical Electrophysiology');
+      expect(books.first.info, contains('English'));
+      expect(books.first.info, contains('PDF'));
+    });
+
     test('skips rows with no title link', () {
       final broken = libgenHtml.replaceFirst(
           '<a href="/ads.php?md5=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" title="A Wizard of Earthsea">A Wizard of Earthsea</a>',

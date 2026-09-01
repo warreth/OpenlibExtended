@@ -60,8 +60,14 @@ class BookInfoPage extends ConsumerWidget {
               ),
               iconSize: 19.0,
               onPressed: () async {
-                await shareBook(data.title, data.link, data.thumbnail ?? '',
+                final outcome = await shareBook(
+                    data.title, data.link, data.thumbnail ?? '',
                     format: data.format);
+                if (context.mounted && outcome == ShareOutcome.pathCopied) {
+                  showSnackBar(
+                      context: context,
+                      message: 'Copied the book link to your clipboard');
+                }
               },
             );
           }, orElse: () {

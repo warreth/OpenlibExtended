@@ -13,12 +13,23 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 // Project imports:
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:openlib/services/files.dart' show getFilePath;
+import 'package:openlib/services/platform_utils.dart';
+
+/// Result of a share attempt. On platforms without a share sheet
+/// (Linux desktop), the caller gets [ShareOutcome.pathCopied] and the
+/// book file's path on the clipboard instead of a silent error.
+enum ShareOutcome { shared, pathCopied, failed }
 
 /// Shares a book. When the book file is on disk, the actual .epub/.pdf is
 /// attached; otherwise the message carries the title and a link to the
 /// book page so the recipient can find it.
-Future<void> shareBook(
+///
+/// Returns [ShareOutcome.pathCopied] on desktop, where share sheets do
+/// not exist: the file path is placed on the clipboard so the user can
+/// paste it wherever the book is needed.
+Future<ShareOutcome> shareBook(
   String title,
   String link,
   String thumbnailPath, {
@@ -32,10 +43,20 @@ Future<void> shareBook(
     if (fileName != null || format != null) {
       final bookFile = await _findBookFile(fileName, format);
       if (bookFile != null) {
+        if (PlatformUtils.isDesktop) {
+          await Clipboard.setData(ClipboardData(text: bookFile.path));
+          return ShareOutcome.pathCopied;
+        }
         await SharePlus.instance
             .share(ShareParams(files: [XFile(bookFile.path)], text: message));
-        return;
+        return ShareOutcome.shared;
       }
+    }
+
+    if (PlatformUtils.isDesktop) {
+      // No share sheet, no file on disk: at least keep the link handy.
+      await Clipboard.setData(ClipboardData(text: message));
+      return ShareOutcome.pathCopied;
     }
 
     // Not downloaded (or the file vanished): share the cover and link.
@@ -46,8 +67,10 @@ Future<void> shareBook(
     } else {
       await SharePlus.instance.share(ShareParams(text: message));
     }
+    return ShareOutcome.shared;
   } catch (e) {
     debugPrint('Error sharing the book: $e');
+    return ShareOutcome.failed;
   }
 }
 

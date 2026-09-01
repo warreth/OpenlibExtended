@@ -414,7 +414,8 @@ final searchProvider = FutureProvider.family
 
   // A provider failure must not swallow results from the others: the
   // manager returns what it got and lists the stragglers by name.
-  final result = await SearchManager().search(SearchQuery(
+  final manager = SearchManager();
+  final result = await manager.search(SearchQuery(
     text: key.query,
     content: ref.watch(getTypeValue),
     sort: ref.watch(getSortValue),
@@ -424,11 +425,15 @@ final searchProvider = FutureProvider.family
     filtersEnabled: ref.watch(enableFiltersState),
     page: key.page,
   ));
-  if (result.failedProviders.isNotEmpty &&
-      result.books.isEmpty &&
-      result.failedProviders.length == 1) {
-    // Exactly one enabled provider and it failed: surface a real error.
-    throw Exception('${result.failedProviders.first} is unreachable');
+  final enabledCount = (await manager.enabledProviders()).length;
+  if (result.books.isEmpty &&
+      result.failedProviders.length == enabledCount &&
+      enabledCount > 0) {
+    // Every enabled provider failed: surface a real error. One failing
+    // provider with others merely finding nothing is NOT an error - an
+    // empty result from a working source is a valid "no matches".
+    throw Exception('All search sources are unreachable: '
+        '${result.failedProviders.join(', ')}');
   }
   return result.books;
 });

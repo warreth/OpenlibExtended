@@ -13,10 +13,16 @@ import 'package:openlib/services/logger.dart';
 // INSTANCE DATA MODEL
 // ====================================================================
 
+/// Which search service a mirror belongs to. Anna's Archive mirrors
+/// power the main reader/downloads; libgen and zlibrary mirrors are
+/// additional search sources.
+enum MirrorService { annasArchive, libgen, zlibrary }
+
 class ArchiveInstance {
   final String id;
   final String name;
   final String baseUrl;
+  final MirrorService service;
   int priority;
   bool enabled;
   final bool isCustom;
@@ -25,6 +31,7 @@ class ArchiveInstance {
     required this.id,
     required this.name,
     required this.baseUrl,
+    required this.service,
     required this.priority,
     this.enabled = true,
     this.isCustom = false,
@@ -35,6 +42,7 @@ class ArchiveInstance {
       'id': id,
       'name': name,
       'baseUrl': baseUrl,
+      'service': service.name,
       'priority': priority,
       'enabled': enabled,
       'isCustom': isCustom,
@@ -46,6 +54,10 @@ class ArchiveInstance {
       id: json['id'] as String,
       name: json['name'] as String,
       baseUrl: json['baseUrl'] as String,
+      service: MirrorService.values.firstWhere(
+        (s) => s.name == json['service'],
+        orElse: () => MirrorService.annasArchive,
+      ),
       priority: json['priority'] as int,
       enabled: json['enabled'] as bool? ?? true,
       isCustom: json['isCustom'] as bool? ?? false,
@@ -56,6 +68,7 @@ class ArchiveInstance {
     String? id,
     String? name,
     String? baseUrl,
+    MirrorService? service,
     int? priority,
     bool? enabled,
     bool? isCustom,
@@ -64,6 +77,7 @@ class ArchiveInstance {
       id: id ?? this.id,
       name: name ?? this.name,
       baseUrl: baseUrl ?? this.baseUrl,
+      service: service ?? this.service,
       priority: priority ?? this.priority,
       enabled: enabled ?? this.enabled,
       isCustom: isCustom ?? this.isCustom,
@@ -92,12 +106,14 @@ class InstanceManager {
   static const String _storageKey = 'archive_instances';
   static const String _selectedInstanceKey = 'selected_instance_id';
 
-  // Default instances including all Anna's Archive mirrors and welib.org
+  // Default mirrors per service. Libgen and Z-Library mirrors rotate
+  // often; open-slum.org tracks which are alive.
   static final List<ArchiveInstance> _defaultInstances = [
     ArchiveInstance(
       id: 'annas_archive_gl',
       name: "Anna's Archive (.gl)",
       baseUrl: 'https://annas-archive.gl',
+      service: MirrorService.annasArchive,
       priority: 1,
       enabled: true,
     ),
@@ -105,6 +121,7 @@ class InstanceManager {
       id: 'annas_archive_pk',
       name: "Anna's Archive (.pk)",
       baseUrl: 'https://annas-archive.pk',
+      service: MirrorService.annasArchive,
       priority: 2,
       enabled: true,
     ),
@@ -112,7 +129,80 @@ class InstanceManager {
       id: 'annas_archive_gd',
       name: "Anna's Archive (.gd)",
       baseUrl: 'https://annas-archive.gd',
+      service: MirrorService.annasArchive,
       priority: 3,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'libgen_li',
+      name: 'LibGen (.li)',
+      baseUrl: 'https://libgen.li',
+      service: MirrorService.libgen,
+      priority: 4,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'libgen_gl',
+      name: 'LibGen (.gl)',
+      baseUrl: 'https://libgen.gl',
+      service: MirrorService.libgen,
+      priority: 5,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'libgen_bz',
+      name: 'LibGen (.bz)',
+      baseUrl: 'https://libgen.bz',
+      service: MirrorService.libgen,
+      priority: 6,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'libgen_vg',
+      name: 'LibGen (.vg)',
+      baseUrl: 'https://libgen.vg',
+      service: MirrorService.libgen,
+      priority: 7,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'zlib_gd',
+      name: 'Z-Library (.gd)',
+      baseUrl: 'https://z-lib.gd',
+      service: MirrorService.zlibrary,
+      priority: 8,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'zlib_sk',
+      name: 'Z-Library (.sk)',
+      baseUrl: 'https://z-library.sk',
+      service: MirrorService.zlibrary,
+      priority: 9,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'zlib_1lib_sk',
+      name: 'Z-Library (1lib.sk)',
+      baseUrl: 'https://1lib.sk',
+      service: MirrorService.zlibrary,
+      priority: 10,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'zlib_fm',
+      name: 'Z-Library (.fm)',
+      baseUrl: 'https://z-lib.fm',
+      service: MirrorService.zlibrary,
+      priority: 11,
+      enabled: true,
+    ),
+    ArchiveInstance(
+      id: 'zlib_articles_sk',
+      name: 'Z-Library Articles (.sk)',
+      baseUrl: 'https://articles.sk',
+      service: MirrorService.zlibrary,
+      priority: 12,
       enabled: true,
     ),
   ];
@@ -128,10 +218,17 @@ class InstanceManager {
           jsonList.map((json) => ArchiveInstance.fromJson(json)).toList();
 
       // Clean up known dead or unwanted mirrors that aren't custom
-      instances.removeWhere((i) => !i.isCustom && [
-        'welib_org', 'annas_archive_li', 'annas_archive_pm', 'annas_archive_in',
-        'annas_archive_se', 'annas_archive_vg', 'annas_archive_org'
-      ].contains(i.id));
+      instances.removeWhere((i) =>
+          !i.isCustom &&
+          [
+            'welib_org',
+            'annas_archive_li',
+            'annas_archive_pm',
+            'annas_archive_in',
+            'annas_archive_se',
+            'annas_archive_vg',
+            'annas_archive_org'
+          ].contains(i.id));
 
       // Add missing default mirrors
       for (final defaultInst in _defaultInstances) {
@@ -157,6 +254,20 @@ class InstanceManager {
     return instances.where((instance) => instance.enabled).toList();
   }
 
+  /// All mirrors of one service, sorted by priority.
+  Future<List<ArchiveInstance>> getInstancesByService(
+      MirrorService service) async {
+    final instances = await getInstances();
+    return instances.where((i) => i.service == service).toList();
+  }
+
+  /// Enabled base URLs of one service, priority-ordered. Search
+  /// providers use this as their mirror list.
+  Future<List<String>> getEnabledUrls(MirrorService service) async {
+    final instances = await getInstancesByService(service);
+    return instances.where((i) => i.enabled).map((i) => i.baseUrl).toList();
+  }
+
   // Save instances to database
   Future<void> _saveInstances(List<ArchiveInstance> instances) async {
     final jsonString = jsonEncode(instances.map((i) => i.toJson()).toList());
@@ -166,7 +277,9 @@ class InstanceManager {
   /// Add a custom instance to the list.
   /// [name] Display name for the instance.
   /// [baseUrl] Base URL for the instance (will remove trailing slash).
-  Future<void> addInstance(String name, String baseUrl) async {
+  /// [service] Which service the mirror belongs to.
+  Future<void> addInstance(String name, String baseUrl,
+      {MirrorService service = MirrorService.annasArchive}) async {
     final instances = await getInstances();
     final newId = 'custom_${DateTime.now().millisecondsSinceEpoch}';
     final newPriority = instances.isEmpty
@@ -181,6 +294,7 @@ class InstanceManager {
       baseUrl: baseUrl.endsWith('/')
           ? baseUrl.substring(0, baseUrl.length - 1)
           : baseUrl,
+      service: service,
       priority: newPriority,
       enabled: true,
       isCustom: true,

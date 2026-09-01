@@ -299,7 +299,7 @@ class SettingsPage extends ConsumerWidget {
               child: _InstanceSelectorWidget(),
             ),
             _SettingsTile(
-              title: "Manage Instances",
+              title: "Mirrors & Providers",
               icon: Icons.dns,
               onTap: () {
                 Navigator.push(

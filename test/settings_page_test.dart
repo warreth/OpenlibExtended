@@ -82,7 +82,7 @@ void main() {
     }
 
     for (final label in [
-      'Manage Instances',
+      'Mirrors & Providers',
       'Auto-Rank Instances',
       'Rank Instances Now',
       'Theme',

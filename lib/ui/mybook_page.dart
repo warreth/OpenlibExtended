@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Project imports:
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/share_book.dart';
+import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/ui/components/book_info_widget.dart';
 import 'package:openlib/ui/components/file_buttons_widget.dart';
 
@@ -39,10 +40,16 @@ class BookPage extends StatelessWidget {
                     ),
                     iconSize: 19.0,
                     onPressed: () async {
-                      await shareBook(snapshot.data!.title, snapshot.data!.link,
-                          snapshot.data?.thumbnail ?? '',
+                      final outcome = await shareBook(snapshot.data!.title,
+                          snapshot.data!.link, snapshot.data?.thumbnail ?? '',
                           fileName: snapshot.data?.fileName,
                           format: snapshot.data?.format);
+                      if (context.mounted &&
+                          outcome == ShareOutcome.pathCopied) {
+                        showSnackBar(
+                            context: context,
+                            message: 'Copied the book path to your clipboard');
+                      }
                     },
                   );
                 } else {

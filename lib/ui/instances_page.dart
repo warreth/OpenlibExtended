@@ -6,9 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import 'package:openlib/services/instance_manager.dart';
+import 'package:openlib/services/slum_health_service.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
 
+/// Manages every mirror the app can talk to, grouped by service. Each
+/// mirror can be toggled, reordered within its group, and health-
+/// checked - both directly (ping) and via open-slum.org, which tracks
+/// Cloudflare-protected mirrors the app itself often cannot reach.
 class InstancesPage extends ConsumerStatefulWidget {
   const InstancesPage({super.key});
 
@@ -19,8 +24,33 @@ class InstancesPage extends ConsumerStatefulWidget {
 class _InstancesPageState extends ConsumerState<InstancesPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
+
+  /// Instance id -> measured ping in ms (null = unreachable).
   Map<String, int?> _responseTimes = {};
-  bool _isTesting = false;
+
+  /// Mirror host -> open-slum.org health.
+  Map<String, SlumHealth> _slumHealth = const {};
+
+  bool _isPinging = false;
+  bool _isFetchingSlum = false;
+
+  static const _serviceOrder = [
+    MirrorService.annasArchive,
+    MirrorService.libgen,
+    MirrorService.zlibrary,
+  ];
+
+  static const _serviceTitles = {
+    MirrorService.annasArchive: "Anna's Archive",
+    MirrorService.libgen: 'Library Genesis',
+    MirrorService.zlibrary: 'Z-Library',
+  };
+
+  static const _serviceSubtitles = {
+    MirrorService.annasArchive: 'Main source for reading and downloads',
+    MirrorService.libgen: 'Additional search results',
+    MirrorService.zlibrary: 'Additional search results',
+  };
 
   @override
   void dispose() {
@@ -29,134 +59,158 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
     super.dispose();
   }
 
-  Future<void> _testAllInstances() async {
-    if (_isTesting) return;
+  @override
+  void initState() {
+    super.initState();
+    // SLUM data is cheap and static; load once per visit.
+    _loadSlumHealth();
+  }
+
+  Future<void> _loadSlumHealth() async {
+    if (_isFetchingSlum) return;
+    setState(() => _isFetchingSlum = true);
+    final health = await SlumHealthService().fetchHealth();
+    if (!mounted) return;
+    setState(() {
+      _slumHealth = health;
+      _isFetchingSlum = false;
+    });
+  }
+
+  Future<void> _pingAllInstances() async {
+    if (_isPinging) return;
 
     setState(() {
-      _isTesting = true;
+      _isPinging = true;
       _responseTimes = {};
     });
 
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-
     try {
       final manager = ref.read(instanceManagerProvider);
       final results = await manager.rankInstancesBySpeed();
 
+      if (!mounted) return;
+      setState(() {
+        _responseTimes = results;
+        _isPinging = false;
+      });
+      ref.invalidate(archiveInstancesProvider);
       if (mounted) {
-        setState(() {
-          _responseTimes = results;
-          _isTesting = false;
-        });
-
-        // Refresh the list to show new order
-        ref.invalidate(archiveInstancesProvider);
-
         scaffoldMessenger.showSnackBar(
           const SnackBar(
-            content: Text('Instances tested and ranked by speed'),
+            content: Text('Mirrors tested and ranked by speed'),
             duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isTesting = false;
-        });
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Testing failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _isPinging = false);
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+            content: Text('Testing failed: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error),
+      );
     }
   }
 
-  void _showAddInstanceDialog() {
+  void _showAddInstanceDialog(MirrorService service) {
     _nameController.clear();
     _urlController.clear();
+    var selectedService = service;
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Add Custom Instance'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'e.g., My Custom Mirror',
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Add Custom Mirror'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    hintText: 'e.g., My LibGen mirror',
+                  ),
                 ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<MirrorService>(
+                  initialValue: selectedService,
+                  decoration: const InputDecoration(labelText: 'Service'),
+                  items: [
+                    for (final entry in _serviceTitles.entries)
+                      DropdownMenuItem(
+                        value: entry.key,
+                        child: Text(entry.value),
+                      ),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => selectedService = value!),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _urlController,
+                  decoration: const InputDecoration(
+                    labelText: 'URL',
+                    hintText: 'https://example.com',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _urlController,
-                decoration: const InputDecoration(
-                  labelText: 'URL',
-                  hintText: 'https://example.com',
-                ),
-                keyboardType: TextInputType.url,
+              TextButton(
+                onPressed: () async {
+                  final name = _nameController.text.trim();
+                  final url = _urlController.text.trim();
+
+                  if (name.isEmpty || url.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fill all fields')),
+                    );
+                    return;
+                  }
+
+                  final uri = Uri.tryParse(url);
+                  if (uri == null ||
+                      (uri.scheme != 'http' && uri.scheme != 'https') ||
+                      uri.host.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Please enter a valid URL with http:// or https://'),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final navigator = Navigator.of(context);
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                  await ref
+                      .read(instanceManagerProvider)
+                      .addInstance(name, url, service: selectedService);
+                  ref.invalidate(archiveInstancesProvider);
+
+                  if (mounted) {
+                    if (navigator.canPop()) navigator.pop();
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                          content: Text('Mirror added successfully')),
+                    );
+                  }
+                },
+                child: const Text('Add'),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final name = _nameController.text.trim();
-                final url = _urlController.text.trim();
-
-                if (name.isEmpty || url.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please fill all fields')),
-                  );
-                  return;
-                }
-
-                final uri = Uri.tryParse(url);
-                if (uri == null ||
-                    (uri.scheme != 'http' && uri.scheme != 'https') ||
-                    uri.host.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Please enter a valid URL with http:// or https://'),
-                    ),
-                  );
-                  return;
-                }
-
-                // Capture context-dependent objects before async gap
-                final navigator = Navigator.of(context);
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-                final manager = ref.read(instanceManagerProvider);
-                await manager.addInstance(name, url);
-
-                // Refresh the instances list
-                ref.invalidate(archiveInstancesProvider);
-
-                if (mounted) {
-                  if (navigator.canPop()) {
-                    navigator.pop();
-                  }
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                        content: Text('Instance added successfully')),
-                  );
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
         );
       },
     );
@@ -167,7 +221,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Delete Instance'),
+          title: const Text('Delete Mirror'),
           content: Text('Are you sure you want to delete "${instance.name}"?'),
           actions: [
             TextButton(
@@ -176,30 +230,28 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
             ),
             TextButton(
               onPressed: () async {
-                // Capture context-dependent objects before async gap
                 final navigator = Navigator.of(context);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-                final manager = ref.read(instanceManagerProvider);
-                final success = await manager.removeInstance(instance.id);
+                final success =
+                    await ref.read(instanceManagerProvider).removeInstance(
+                          instance.id,
+                        );
 
                 if (!mounted) return;
 
-                if (success) {
-                  ref.invalidate(archiveInstancesProvider);
-                  navigator.pop();
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Instance deleted')),
-                  );
-                } else {
-                  navigator.pop();
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                        content: Text('Cannot delete default instances')),
-                  );
-                }
+                ref.invalidate(archiveInstancesProvider);
+                navigator.pop();
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: Text(success
+                        ? 'Mirror deleted'
+                        : 'Cannot delete default mirrors'),
+                  ),
+                );
               },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              child: Text('Delete',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           ],
         );
@@ -210,45 +262,38 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
   @override
   Widget build(BuildContext context) {
     final instancesAsync = ref.watch(archiveInstancesProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manage Instances'),
+        title: const Text('Manage Mirrors'),
         actions: [
+          if (_isFetchingSlum)
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           IconButton(
-            icon: _isTesting
+            icon: _isPinging
                 ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.speed),
-            onPressed: _isTesting ? null : _testAllInstances,
-            tooltip: 'Test & Rank All Instances',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _showAddInstanceDialog,
-            tooltip: 'Add Custom Instance',
+            onPressed: _isPinging ? null : _pingAllInstances,
+            tooltip: 'Test & rank mirrors by speed',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              // Capture context-dependent objects before async gap
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-              final manager = ref.read(instanceManagerProvider);
-              await manager.resetToDefaults();
+            onPressed: () {
               ref.invalidate(archiveInstancesProvider);
-              if (!mounted) return;
-              scaffoldMessenger.showSnackBar(
-                const SnackBar(content: Text('Reset to default instances')),
-              );
+              _loadSlumHealth();
             },
-            tooltip: 'Reset to Defaults',
+            tooltip: 'Reload health data',
           ),
         ],
       ),
@@ -259,164 +304,39 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
           children: [
             const Padding(
               padding: EdgeInsets.all(8.0),
-              child: TitleText('Archive Instances'),
+              child: TitleText('Mirrors & Providers'),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              child: Text(
-                'Drag to reorder priority. App tries each enabled instance 2x before moving to next.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Drag to reorder priority. Toggles pick which mirrors '
+                      'the app actually searches. Health badges come from '
+                      'open-slum.org.',
+                      style:
+                          TextStyle(fontSize: 12, color: colorScheme.tertiary),
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
               child: instancesAsync.when(
                 data: (instances) {
                   if (instances.isEmpty) {
-                    return const Center(
-                      child: Text('No instances available'),
-                    );
+                    return const Center(child: Text('No mirrors available'));
                   }
-
-                  return ReorderableListView.builder(
-                    itemCount: instances.length,
-                    onReorderItem: (oldIndex, newIndex) async {
-                      final newList = List<ArchiveInstance>.from(instances);
-                      final item = newList.removeAt(oldIndex);
-                      newList.insert(newIndex, item);
-
-                      final manager = ref.read(instanceManagerProvider);
-                      await manager.reorderInstances(newList);
-                      ref.invalidate(archiveInstancesProvider);
-                    },
-                    itemBuilder: (context, index) {
-                      final instance = instances[index];
-                      final responseTime = _responseTimes[instance.id];
-
-                      return Card(
-                        key: ValueKey(instance.id),
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        child: ListTile(
-                          leading: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.drag_handle,
-                                color: Theme.of(context).colorScheme.tertiary,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.tertiary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          title: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  instance.name,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              // Show response time badge if available
-                              if (_responseTimes.containsKey(instance.id))
-                                Container(
-                                  margin: const EdgeInsets.only(right: 4),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: responseTime != null
-                                        ? (responseTime < 500
-                                            ? Colors.green
-                                                .withValues(alpha: 0.2)
-                                            : responseTime < 1500
-                                                ? Colors.orange
-                                                    .withValues(alpha: 0.2)
-                                                : Colors.red
-                                                    .withValues(alpha: 0.2))
-                                        : Colors.grey.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    responseTime != null
-                                        ? '${responseTime}ms'
-                                        : 'offline',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: responseTime != null
-                                          ? (responseTime < 500
-                                              ? Colors.green
-                                              : responseTime < 1500
-                                                  ? Colors.orange
-                                                  : Colors.red)
-                                          : Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                              if (instance.isCustom)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'Custom',
-                                    style: TextStyle(
-                                        fontSize: 10, color: Colors.blue),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          subtitle: Text(
-                            instance.baseUrl,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Switch(
-                                value: instance.enabled,
-                                thumbColor: WidgetStateProperty.resolveWith(
-                                    (states) =>
-                                        states.contains(WidgetState.selected)
-                                            ? Colors.green
-                                            : null),
-                                onChanged: (value) async {
-                                  final manager =
-                                      ref.read(instanceManagerProvider);
-                                  await manager.toggleInstance(
-                                      instance.id, value);
-                                  ref.invalidate(archiveInstancesProvider);
-                                },
-                              ),
-                              if (instance.isCustom)
-                                IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: () =>
-                                      _showDeleteConfirmDialog(instance),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  );
+                  return _buildGroupedList(context, instances);
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, stack) => Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error, color: Colors.red, size: 48),
+                      Icon(Icons.error, color: colorScheme.error, size: 48),
                       const SizedBox(height: 16),
                       Text('Error: $error'),
                       const SizedBox(height: 16),
@@ -432,6 +352,200 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddInstanceDialog(MirrorService.annasArchive),
+        icon: const Icon(Icons.add),
+        label: const Text('Add mirror'),
+      ),
+    );
+  }
+
+  Widget _buildGroupedList(
+      BuildContext context, List<ArchiveInstance> instances) {
+    return ListView(
+      children: [
+        for (final service in _serviceOrder) ...[
+          _ServiceHeader(
+            title: _serviceTitles[service]!,
+            subtitle: _serviceSubtitles[service]!,
+            onAdd: () => _showAddInstanceDialog(service),
+          ),
+          for (final instance in instances.where((i) => i.service == service))
+            _MirrorCard(
+              instance: instance,
+              pingMs: _responseTimes[instance.id],
+              hasPingData: _responseTimes.isNotEmpty,
+              slumHealth:
+                  _slumHealth[Uri.tryParse(instance.baseUrl)?.host ?? ''],
+              onToggle: (value) async {
+                await ref
+                    .read(instanceManagerProvider)
+                    .toggleInstance(instance.id, value);
+                ref.invalidate(archiveInstancesProvider);
+              },
+              onDelete: () => _showDeleteConfirmDialog(instance),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _ServiceHeader extends StatelessWidget {
+  const _ServiceHeader(
+      {required this.title, required this.subtitle, required this.onAdd});
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                Text(subtitle,
+                    style:
+                        TextStyle(fontSize: 12, color: colorScheme.tertiary)),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add, size: 20),
+            onPressed: onAdd,
+            tooltip: 'Add a $title mirror',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single mirror row: drag-free list position mirrors priority;
+/// badges show ping (measured) and SLUM (external) health.
+class _MirrorCard extends StatelessWidget {
+  const _MirrorCard({
+    required this.instance,
+    required this.pingMs,
+    required this.hasPingData,
+    required this.slumHealth,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  final ArchiveInstance instance;
+  final int? pingMs;
+  final bool hasPingData;
+  final SlumHealth? slumHealth;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final host = Uri.tryParse(instance.baseUrl)?.host ?? instance.baseUrl;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ListTile(
+        leading: Icon(
+          instance.enabled ? Icons.link : Icons.link_off,
+          color: instance.enabled ? colorScheme.secondary : colorScheme.outline,
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                instance.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (slumHealth != null) ...[
+              const SizedBox(width: 4),
+              _SlumBadge(health: slumHealth!),
+            ],
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(host, style: const TextStyle(fontSize: 12)),
+            if (pingMs != null)
+              Text(
+                '$pingMs ms',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: pingMs! < 500
+                      ? Colors.green
+                      : pingMs! < 1500
+                          ? Colors.orange
+                          : Colors.red,
+                ),
+              )
+            else if (hasPingData)
+              Text('unreachable',
+                  style: TextStyle(fontSize: 11, color: colorScheme.error)),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Switch(
+              value: instance.enabled,
+              onChanged: onToggle,
+            ),
+            if (instance.isCustom)
+              IconButton(
+                icon: Icon(Icons.delete, color: colorScheme.error),
+                onPressed: onDelete,
+                tooltip: 'Delete mirror',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SlumBadge extends StatelessWidget {
+  const _SlumBadge({required this.health});
+
+  final SlumHealth health;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (health.status) {
+      SlumStatus.up => ('UP', Colors.green),
+      SlumStatus.protected => ('PROTECTED', Colors.blue),
+      SlumStatus.degraded => ('DEGRADED', Colors.orange),
+      SlumStatus.down => ('DOWN', Colors.red),
+      SlumStatus.unknown => ('?', Colors.grey),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style:
+            TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
       ),
     );
   }
