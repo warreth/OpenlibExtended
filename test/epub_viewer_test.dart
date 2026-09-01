@@ -18,6 +18,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 
 // Project imports:
 import 'package:openlib/ui/epub_viewer.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/state/state.dart' show filePathProvider;
 
@@ -133,7 +134,11 @@ void main() {
       overrides: [
         filePathProvider.overrideWith((ref, fileName) => gate.future),
       ],
-      child: const MaterialApp(home: EpubViewerWidget(fileName: 'sample.epub')),
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const EpubViewerWidget(fileName: 'sample.epub'),
+      ),
     ));
 
     await tester.pump();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/categories_page.dart';
@@ -33,7 +34,9 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TitleText(selectedIndex == 0 ? "Trending" : "Genres"),
+                TitleText(selectedIndex == 0
+        ? AppLocalizations.of(context).trending
+        : AppLocalizations.of(context).genres),
                 PelletContainer(
                   selectedIndex: selectedIndex,
                   onTrendingSelected: () => {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 class ReaderHelpOverlay extends StatelessWidget {
   final VoidCallback onDismiss;
@@ -86,7 +87,7 @@ class ReaderHelpOverlay extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 40, vertical: 15),
                   ),
-                  child: const Text("Got it!"),
+                  child: Text(AppLocalizations.of(context).gotIt),
                 ),
               ],
             ),

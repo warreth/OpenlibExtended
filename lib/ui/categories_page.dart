@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 // Package imports:
@@ -388,7 +389,7 @@ class CategoryListingPage extends ConsumerWidget {
     return Scaffold(
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          title: const Text("OpenlibExtended"),
+          title: Text(AppLocalizations.of(context).appTitle),
           titleTextStyle: Theme.of(context).textTheme.displayLarge,
         ),
         body: booksBasedOnGenre.when(

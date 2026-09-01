@@ -1,0 +1,848 @@
+{
+  "@@locale": "en",
+  "appTitle": "OpenlibExtended",
+  "@appTitle": {
+    "description": "Application name shown in the app bar and about page"
+  },
+  "navHome": "Home",
+  "@navHome": {
+    "description": "Bottom navigation label"
+  },
+  "navSearch": "Search",
+  "@navSearch": {
+    "description": "Bottom navigation label"
+  },
+  "navMyLibrary": "My Library",
+  "@navMyLibrary": {
+    "description": "Bottom navigation label"
+  },
+  "navSettings": "Settings",
+  "@navSettings": {
+    "description": "Bottom navigation label"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Common dismiss button"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Common confirm button"
+  },
+  "add": "Add",
+  "@add": {
+    "description": "Confirm a creation dialog"
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "Remove item action"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry a failed action"
+  },
+  "advancedSearch": "Advanced Search",
+  "@advancedSearch": {
+    "description": "Expandable metadata filter toggle on the search page"
+  },
+  "author": "Author",
+  "@author": {
+    "description": "Text field label for the author metadata filter"
+  },
+  "publisher": "Publisher",
+  "@publisher": {
+    "description": "Text field label for the publisher metadata filter"
+  },
+  "searchLibraryHint": "Search library (title, author, publisher, year)",
+  "@searchLibraryHint": {
+    "description": "Hint text of the library metadata search box"
+  },
+  "newCollection": "New collection",
+  "@newCollection": {
+    "description": "Button that opens the tag creation dialog"
+  },
+  "noResultsFound": "No results found",
+  "@noResultsFound": {
+    "description": "Shown when a search or filter returns nothing"
+  },
+  "resultsFor": "Results for '{query}'",
+  "@resultsFor": {
+    "description": "Title of the results page",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "followSystem": "Follow the System",
+  "@followSystem": {
+    "description": "Theme mode choice that follows the OS"
+  },
+  "lightTheme": "Light theme",
+  "@lightTheme": {
+    "description": "Theme mode choice"
+  },
+  "darkTheme": "Dark theme",
+  "@darkTheme": {
+    "description": "Theme mode choice"
+  },
+  "languageSetting": "Language",
+  "@languageSetting": {
+    "description": "Settings row label for the app language"
+  },
+  "systemLanguage": "System default",
+  "@systemLanguage": {
+    "description": "Language picker entry that follows the system locale"
+  },
+  "enableNotifications": "Enable Notifications",
+  "@enableNotifications": {
+    "description": "Onboarding notifications switch title"
+  },
+  "notificationsExplanation": "OpenlibExtended needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.",
+  "@notificationsExplanation": {
+    "description": "Dialog body explaining why notifications are needed"
+  },
+  "maybeLater": "Maybe Later",
+  "@maybeLater": {
+    "description": "Deferred consent button in the notification dialog"
+  },
+  "enable": "Enable",
+  "@enable": {
+    "description": "Confirm button granting a permission"
+  },
+  "statusUnread": "Unread",
+  "@statusUnread": {
+    "description": "Reading status filter chip"
+  },
+  "statusInProgress": "In Progress",
+  "@statusInProgress": {
+    "description": "Reading status filter chip"
+  },
+  "statusCompleted": "Completed",
+  "@statusCompleted": {
+    "description": "Reading status filter chip"
+  },
+  "collectionNameHint": "e.g. Favorites, Sci-Fi",
+  "@collectionNameHint": {
+    "description": "Hint for the new-collection name field"
+  },
+  "manageCollectionsHint": "Long-press any book to manage its collections",
+  "@manageCollectionsHint": {
+    "description": "Helper text in the collection editor sheet"
+  },
+  "results": "Results",
+  "@results": {
+    "description": "Page header above search results"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "Placeholder while content loads"
+  },
+  "unknown": "Unknown",
+  "@unknown": {
+    "description": "Fallback when a value cannot be read"
+  },
+  "about": "About",
+  "@about": {
+    "description": "About page title"
+  },
+  "aboutDescription": "An Open source app to download and read books from shadow library (Anna's Archive).",
+  "@aboutDescription": {
+    "description": "Short app description on the About page"
+  },
+  "aboutForkNote": "This is a forked version maintained by warreth for personal use and community updates.",
+  "@aboutForkNote": {
+    "description": "Fork attribution line"
+  },
+  "aboutOriginalNote": "Original app by dstark5 (https://github.com/dstark5/Openlib).",
+  "@aboutOriginalNote": {
+    "description": "Upstream attribution line"
+  },
+  "version": "Version",
+  "@version": {
+    "description": "Version section header"
+  },
+  "github": "Github",
+  "@github": {
+    "description": "Github section header"
+  },
+  "thisForkByWarreth": "This Fork (by warreth)",
+  "@thisForkByWarreth": {
+    "description": "Link label to this fork"
+  },
+  "reportAnIssue": "Report An Issue",
+  "@reportAnIssue": {
+    "description": "Link label to the issue tracker"
+  },
+  "originalProject": "Original Project (by dstark5)",
+  "@originalProject": {
+    "description": "Link label to the upstream project"
+  },
+  "licence": "Licence",
+  "@licence": {
+    "description": "Licence section header"
+  },
+  "gplLicense": "GPL v3.0 license",
+  "@gplLicense": {
+    "description": "Link label to the licence text"
+  },
+  "couldNotLaunch": "Could not launch {url}",
+  "@couldNotLaunch": {
+    "description": "Snackbar when opening an external link fails",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "Settings page header"
+  },
+  "searchProvidersSection": "Search Providers",
+  "@searchProvidersSection": {
+    "description": "Settings section header"
+  },
+  "libraryInstancesSection": "Library & Instances",
+  "@libraryInstancesSection": {
+    "description": "Settings section header"
+  },
+  "appearanceSection": "Appearance",
+  "@appearanceSection": {
+    "description": "Settings section header"
+  },
+  "generalSection": "General",
+  "@generalSection": {
+    "description": "Settings section header"
+  },
+  "readerSection": "Reader",
+  "@readerSection": {
+    "description": "Settings section header"
+  },
+  "advancedSection": "Advanced",
+  "@advancedSection": {
+    "description": "Settings section header"
+  },
+  "backupSection": "Backup",
+  "@backupSection": {
+    "description": "Settings section header"
+  },
+  "updatesSection": "Updates",
+  "@updatesSection": {
+    "description": "Settings section header"
+  },
+  "aboutSection": "About",
+  "@aboutSection": {
+    "description": "Settings section header"
+  },
+  "archiveInstance": "Archive Instance",
+  "@archiveInstance": {
+    "description": "Settings card title"
+  },
+  "mirrorsAndProviders": "Mirrors & Providers",
+  "@mirrorsAndProviders": {
+    "description": "Settings tile title"
+  },
+  "fontSizeTitle": "Font Size",
+  "@fontSizeTitle": {
+    "description": "Settings card title"
+  },
+  "scaleValue": "Scale: {value}x",
+  "@scaleValue": {
+    "description": "Font scale slider readout",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "preview": "Preview",
+  "@preview": {
+    "description": "Font scale preview label"
+  },
+  "storageLocation": "Storage Location",
+  "@storageLocation": {
+    "description": "Settings tile title"
+  },
+  "openPdfExternally": "Open PDF externally",
+  "@openPdfExternally": {
+    "description": "Settings switch tile title"
+  },
+  "useDefaultPdfViewer": "Use your default PDF viewer",
+  "@useDefaultPdfViewer": {
+    "description": "Settings switch tile subtitle"
+  },
+  "openEpubExternally": "Open EPUB externally",
+  "@openEpubExternally": {
+    "description": "Settings switch tile title"
+  },
+  "useDefaultEpubReader": "Use your default EPUB reader",
+  "@useDefaultEpubReader": {
+    "description": "Settings switch tile subtitle"
+  },
+  "manualDownloadButton": "Manual Download Button",
+  "@manualDownloadButton": {
+    "description": "Settings switch tile title"
+  },
+  "showManualDownloadHint": "Show button to manually trigger downloads",
+  "@showManualDownloadHint": {
+    "description": "Settings switch tile subtitle"
+  },
+  "donationKeyTitle": "Anna's Archive Donation Key",
+  "@donationKeyTitle": {
+    "description": "Settings tile title"
+  },
+  "enterKeyForFasterDownloads": "Enter key for faster downloads",
+  "@enterKeyForFasterDownloads": {
+    "description": "Settings tile subtitle"
+  },
+  "aboutOpenlib": "About OpenlibExtended",
+  "@aboutOpenlib": {
+    "description": "Settings tile title"
+  },
+  "redoOnboarding": "Redo Onboarding",
+  "@redoOnboarding": {
+    "description": "Settings tile title"
+  },
+  "resetAppSetup": "Reset app setup and start over",
+  "@resetAppSetup": {
+    "description": "Settings tile subtitle"
+  },
+  "exportLogs": "Export Logs",
+  "@exportLogs": {
+    "description": "Settings tile title"
+  },
+  "shareDiagnosticLogs": "Share diagnostic logs (last 5 min)",
+  "@shareDiagnosticLogs": {
+    "description": "Settings tile subtitle"
+  },
+  "failedExportLogs": "Failed to export logs: {error}",
+  "@failedExportLogs": {
+    "description": "Snackbar when log export fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "donationKeyDialog": "Donation Key",
+  "@donationKeyDialog": {
+    "description": "Dialog title for the donation key"
+  },
+  "enterYourKey": "Enter your key",
+  "@enterYourKey": {
+    "description": "Donation key field hint"
+  },
+  "instanceChanged": "Instance changed successfully",
+  "@instanceChanged": {
+    "description": "Snackbar after switching instance"
+  },
+  "rankingFailed": "Ranking failed: {error}",
+  "@rankingFailed": {
+    "description": "Snackbar when instance ranking fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "autoRankInstances": "Auto-Rank Instances",
+  "@autoRankInstances": {
+    "description": "Settings switch tile title"
+  },
+  "sortBySpeedOnStartup": "Automatically sort by speed on startup",
+  "@sortBySpeedOnStartup": {
+    "description": "Settings switch tile subtitle"
+  },
+  "rankInstancesNow": "Rank Instances Now",
+  "@rankInstancesNow": {
+    "description": "Settings tile title"
+  },
+  "onLatestVersion": "You're on the latest version ({version})",
+  "@onLatestVersion": {
+    "description": "Snackbar when no update is available",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "failedCheckUpdates": "Failed to check for updates: {error}",
+  "@failedCheckUpdates": {
+    "description": "Snackbar when the update check fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "includeBetaUpdates": "Include Beta Updates",
+  "@includeBetaUpdates": {
+    "description": "Settings switch tile title"
+  },
+  "getPreReleaseVersions": "Get pre-release versions",
+  "@getPreReleaseVersions": {
+    "description": "Settings switch tile subtitle"
+  },
+  "checkForUpdates": "Check for Updates",
+  "@checkForUpdates": {
+    "description": "Settings tile title"
+  },
+  "backupSaved": "Backup saved",
+  "@backupSaved": {
+    "description": "Snackbar after successful backup export"
+  },
+  "failedExportBackup": "Failed to export backup: {error}",
+  "@failedExportBackup": {
+    "description": "Snackbar when backup export fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestored": "Backup restored",
+  "@backupRestored": {
+    "description": "Snackbar after successful backup import"
+  },
+  "failedImportBackup": "Failed to import backup: {error}",
+  "@failedImportBackup": {
+    "description": "Snackbar when backup import fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "atLeastOneSource": "At least one search source is needed",
+  "@atLeastOneSource": {
+    "description": "Snackbar refusing to disable the last provider"
+  },
+  "rankedFastest": "Ranked! Fastest: {name} ({time}ms)",
+  "@rankedFastest": {
+    "description": "Snackbar summarizing instance ranking",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "rankingComplete": "Ranking complete",
+  "@rankingComplete": {
+    "description": "Snackbar when ranking finds no reachable instance"
+  },
+  "providerSourceOriginal": "The app's original source",
+  "@providerSourceOriginal": {
+    "description": "Anna's Archive provider subtitle"
+  },
+  "providerLibgenCatalog": "libgen.is public catalog",
+  "@providerLibgenCatalog": {
+    "description": "Libgen provider subtitle"
+  },
+  "providerZlibMirrors": "Mirrors rotate; may need a login",
+  "@providerZlibMirrors": {
+    "description": "Z-Library provider subtitle"
+  },
+  "themeTitle": "Theme",
+  "@themeTitle": {
+    "description": "Settings card title"
+  },
+  "saveBackupTitle": "Save Backup",
+  "@saveBackupTitle": {
+    "description": "Native save dialog title for backups"
+  },
+  "pickBackupFile": "Pick a backup file",
+  "@pickBackupFile": {
+    "description": "Native file picker dialog title"
+  },
+  "notABackup": "That file is not an OpenlibExtended backup",
+  "@notABackup": {
+    "description": "Snackbar when an imported file is invalid"
+  },
+  "donationKeyHelper": "Used for faster downloads on Anna's Archive",
+  "@donationKeyHelper": {
+    "description": "Helper text under the donation key field"
+  },
+  "mirrorsTestedRanked": "Mirrors tested and ranked by speed",
+  "@mirrorsTestedRanked": {
+    "description": "Snackbar after ranking mirrors"
+  },
+  "testingFailed": "Testing failed: {error}",
+  "@testingFailed": {
+    "description": "Snackbar when mirror testing fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "addCustomMirror": "Add Custom Mirror",
+  "@addCustomMirror": {
+    "description": "Dialog title for adding a mirror"
+  },
+  "nameLabel": "Name",
+  "@nameLabel": {
+    "description": "Mirror form field label"
+  },
+  "nameHint": "e.g., My LibGen mirror",
+  "@nameHint": {
+    "description": "Mirror name field hint"
+  },
+  "serviceLabel": "Service",
+  "@serviceLabel": {
+    "description": "Mirror service dropdown label"
+  },
+  "urlLabel": "URL",
+  "@urlLabel": {
+    "description": "Mirror URL field label"
+  },
+  "urlHint": "https://example.com",
+  "@urlHint": {
+    "description": "Mirror URL field hint"
+  },
+  "pleaseFillAllFields": "Please fill all fields",
+  "@pleaseFillAllFields": {
+    "description": "Validation snackbar for the mirror form"
+  },
+  "enterValidUrl": "Please enter a valid URL with http:// or https://",
+  "@enterValidUrl": {
+    "description": "URL validation snackbar"
+  },
+  "mirrorAdded": "Mirror added successfully",
+  "@mirrorAdded": {
+    "description": "Snackbar after adding a mirror"
+  },
+  "deleteMirror": "Delete Mirror",
+  "@deleteMirror": {
+    "description": "Dialog title for deleting a mirror"
+  },
+  "deleteMirrorConfirm": "Are you sure you want to delete \"{name}\"?",
+  "@deleteMirrorConfirm": {
+    "description": "Mirror deletion confirmation",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mirrorDeleted": "Mirror deleted",
+  "@mirrorDeleted": {
+    "description": "Snackbar after deleting a mirror"
+  },
+  "cannotDeleteDefaultMirrors": "Cannot delete default mirrors",
+  "@cannotDeleteDefaultMirrors": {
+    "description": "Snackbar refusing to delete a default mirror"
+  },
+  "manageMirrors": "Manage Mirrors",
+  "@manageMirrors": {
+    "description": "Screen title for mirror management"
+  },
+  "noMirrorsAvailable": "No mirrors available",
+  "@noMirrorsAvailable": {
+    "description": "Empty state when no mirrors exist"
+  },
+  "errorLabel": "Error: {error}",
+  "@errorLabel": {
+    "description": "Generic error display",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "addMirror": "Add mirror",
+  "@addMirror": {
+    "description": "Floating action button label"
+  },
+  "testRankMirrors": "Test & rank mirrors by speed",
+  "@testRankMirrors": {
+    "description": "Tooltip for the rank button"
+  },
+  "unreachable": "unreachable",
+  "@unreachable": {
+    "description": "Mirror status when ping fails"
+  },
+  "open": "Open",
+  "@open": {
+    "description": "Open the downloaded file button"
+  },
+  "unableToOpenFile": "Unable to open file!",
+  "@unableToOpenFile": {
+    "description": "Snackbar when opening a file fails"
+  },
+  "openInSite": "Open in site",
+  "@openInSite": {
+    "description": "Button opening the book page on the source site"
+  },
+  "bookDeleted": "Book has been Deleted!",
+  "@bookDeleted": {
+    "description": "Snackbar after deleting a book"
+  },
+  "deleteBook": "Delete Book",
+  "@deleteBook": {
+    "description": "Delete confirmation dialog title"
+  },
+  "deletePermanentWarning": "This is permanent and cannot be undone",
+  "@deletePermanentWarning": {
+    "description": "Delete confirmation dialog body"
+  },
+  "tryAgain": "Try Again",
+  "@tryAgain": {
+    "description": "Retry button on the error screen"
+  },
+  "showBlockedContent": "Show blocked page content",
+  "@showBlockedContent": {
+    "description": "Error screen action revealing page HTML"
+  },
+  "verifyInBrowser": "Verify in Browser",
+  "@verifyInBrowser": {
+    "description": "Error screen action for manual captcha solving"
+  },
+  "manualVerificationRequired": "Manual Verification Required",
+  "@manualVerificationRequired": {
+    "description": "Dialog title for the verification chooser"
+  },
+  "systemBrowser": "System Browser",
+  "@systemBrowser": {
+    "description": "Verification option label"
+  },
+  "embeddedBrowser": "Embedded Browser",
+  "@embeddedBrowser": {
+    "description": "Verification option label"
+  },
+  "unableToOpenVerification": "Unable to open verification page - no URL available",
+  "@unableToOpenVerification": {
+    "description": "Snackbar when the verification URL is missing"
+  },
+  "blockedPageContent": "Blocked Page Content",
+  "@blockedPageContent": {
+    "description": "Dialog title showing the blocked page HTML"
+  },
+  "copiedToClipboard": "Copied to clipboard",
+  "@copiedToClipboard": {
+    "description": "Snackbar after copying text"
+  },
+  "gotIt": "Got it!",
+  "@gotIt": {
+    "description": "Reader help overlay dismiss button"
+  },
+  "copy": "Copy",
+  "@copy": {
+    "description": "Copy-to-clipboard button"
+  },
+  "tryUsingVpn": "Try using a VPN",
+  "@tryUsingVpn": {
+    "description": "Error screen hint heading"
+  },
+  "trending": "Trending",
+  "@trending": {
+    "description": "Home page header for the trending tab"
+  },
+  "genres": "Genres",
+  "@genres": {
+    "description": "Home page header for the genres tab"
+  },
+  "copiedBookPath": "Copied the book path to your clipboard",
+  "@copiedBookPath": {
+    "description": "Snackbar after copying a book's file path"
+  },
+  "pauseDownload": "Pause download",
+  "@pauseDownload": {
+    "description": "Tooltip on the pause button"
+  },
+  "resumeDownload": "Resume download",
+  "@resumeDownload": {
+    "description": "Tooltip on the resume button"
+  },
+  "cancelDownload": "Cancel download",
+  "@cancelDownload": {
+    "description": "Tooltip on the cancel button"
+  },
+  "copiedBookLink": "Copied the book link to your clipboard",
+  "@copiedBookLink": {
+    "description": "Snackbar after copying a book link"
+  },
+  "noMirrors": "No mirrors available!",
+  "@noMirrors": {
+    "description": "Snackbar when no mirror can serve the book"
+  },
+  "addToMyLibrary": "Add To My Library",
+  "@addToMyLibrary": {
+    "description": "Button saving the book to the library"
+  },
+  "downloadStartedBackground": "Download started in background",
+  "@downloadStartedBackground": {
+    "description": "Snackbar when a download begins"
+  },
+  "bookDownloaded": "Book has been downloaded!",
+  "@bookDownloaded": {
+    "description": "Snackbar when a download completes"
+  },
+  "selectStorageToContinue": "Please select a storage folder to continue",
+  "@selectStorageToContinue": {
+    "description": "Snackbar when advancing without a folder"
+  },
+  "getStarted": "Get Started",
+  "@getStarted": {
+    "description": "Final onboarding button"
+  },
+  "next": "Next",
+  "@next": {
+    "description": "Onboarding advance button"
+  },
+  "welcomeTitle": "Welcome to OpenlibExtended",
+  "@welcomeTitle": {
+    "description": "Onboarding welcome heading"
+  },
+  "welcomeSubtitle": "Your personal gateway to a world of knowledge. Let's get you set up.",
+  "@welcomeSubtitle": {
+    "description": "Onboarding welcome body"
+  },
+  "whereToStoreBooks": "Where should we store your books?",
+  "@whereToStoreBooks": {
+    "description": "Onboarding storage page heading"
+  },
+  "noPathSelected": "No path selected",
+  "@noPathSelected": {
+    "description": "Storage path placeholder"
+  },
+  "selectFolder": "Select Folder",
+  "@selectFolder": {
+    "description": "Storage folder picker button"
+  },
+  "storageScanNote": "We'll only look for PDF/EPUB files in this folder. No recursive scanning of subfolders.",
+  "@storageScanNote": {
+    "description": "Storage folder explanation"
+  },
+  "automaticUpdates": "Automatic Updates",
+  "@automaticUpdates": {
+    "description": "Onboarding updates page heading"
+  },
+  "enableAutoUpdates": "Enable Auto-Updates",
+  "@enableAutoUpdates": {
+    "description": "Onboarding switch title"
+  },
+  "autoUpdatesFdroidNote": "Not recommended if you installed via F-Droid (F-Droid handles updates).",
+  "@autoUpdatesFdroidNote": {
+    "description": "Onboarding switch subtitle"
+  },
+  "enableBetaUpdatesOnboarding": "Enable Beta Updates",
+  "@enableBetaUpdatesOnboarding": {
+    "description": "Onboarding switch title"
+  },
+  "betaUpdatesNote": "Get pre-release versions (beta updates) when available.",
+  "@betaUpdatesNote": {
+    "description": "Onboarding switch subtitle"
+  },
+  "supportAnnasArchive": "Support Anna's Archive",
+  "@supportAnnasArchive": {
+    "description": "Onboarding donation page heading"
+  },
+  "donationPitch": "Donating to Anna's Archive provides faster downloads and helps them keep the service running for everyone. You can enter your secret key below.",
+  "@donationPitch": {
+    "description": "Onboarding donation page body"
+  },
+  "annasSecretKey": "Anna's Archive Secret Key",
+  "@annasSecretKey": {
+    "description": "Donation key field label on onboarding"
+  },
+  "supportThisApp": "Support This App",
+  "@supportThisApp": {
+    "description": "Onboarding sponsor page heading"
+  },
+  "sponsorPitch": "If you enjoy this app, consider supporting its development. It helps me dedicate more time to making it better!",
+  "@sponsorPitch": {
+    "description": "Onboarding sponsor page body"
+  },
+  "sponsorOnGithub": "Sponsor on GitHub",
+  "@sponsorOnGithub": {
+    "description": "Sponsor link button"
+  },
+  "stayUpdated": "Stay Updated",
+  "@stayUpdated": {
+    "description": "Onboarding notifications page heading"
+  },
+  "notifyOnComplete": "Get notified when downloads complete.",
+  "@notifyOnComplete": {
+    "description": "Onboarding notifications switch subtitle"
+  },
+  "chooseTheme": "Choose a Theme",
+  "@chooseTheme": {
+    "description": "Onboarding theme page heading"
+  },
+  "lightThemeShort": "Light",
+  "@lightThemeShort": {
+    "description": "Theme card label"
+  },
+  "darkThemeShort": "Dark",
+  "@darkThemeShort": {
+    "description": "Theme card label"
+  },
+  "verifyingAccess": "Verifying Access",
+  "@verifyingAccess": {
+    "description": "AppBar title on the challenge solver screen"
+  },
+  "done": "Done",
+  "@done": {
+    "description": "Webview verification finish button"
+  },
+  "nothingToRead": "Nothing to read on this page",
+  "@nothingToRead": {
+    "description": "Snackbar when TTS has no text"
+  },
+  "noVoiceAvailable": "No voice available for reading aloud",
+  "@noVoiceAvailable": {
+    "description": "Snackbar when TTS finds no voice"
+  },
+  "pauseReadingAloud": "Pause reading aloud",
+  "@pauseReadingAloud": {
+    "description": "TTS pause tooltip"
+  },
+  "resumeReadingAloud": "Read aloud",
+  "@resumeReadingAloud": {
+    "description": "TTS start/resume tooltip"
+  },
+  "stopReadingAloud": "Stop reading aloud",
+  "@stopReadingAloud": {
+    "description": "TTS stop tooltip"
+  },
+  "speechSpeed": "Speech speed",
+  "@speechSpeed": {
+    "description": "TTS speed control tooltip"
+  },
+  "decreaseFontSize": "Decrease font size",
+  "@decreaseFontSize": {
+    "description": "Reader font control tooltip"
+  },
+  "increaseFontSize": "Increase font size",
+  "@increaseFontSize": {
+    "description": "Reader font control tooltip"
+  },
+  "close": "Close",
+  "@close": {
+    "description": "Dialog dismiss button"
+  },
+  "sortLibrary": "Sort library",
+  "@sortLibrary": {
+    "description": "Library sort menu tooltip"
+  },
+  "reloadHealthData": "Reload health data",
+  "@reloadHealthData": {
+    "description": "Mirror health refresh tooltip"
+  },
+  "addServiceMirror": "Add a {title} mirror",
+  "@addServiceMirror": {
+    "description": "Tooltip for adding a mirror of a given service",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteMirrorTooltip": "Delete mirror",
+  "@deleteMirrorTooltip": {
+    "description": "Mirror delete button tooltip"
+  }
+}

@@ -228,6 +228,10 @@ final themeModeProvider =
 });
 final fontSizeScaleProvider = StateProvider<double>((ref) => 1.0);
 
+/// App language override: null follows the system locale; a value
+/// pins the app to that locale. Persisted as the 'locale' preference.
+final localeOverrideProvider = StateProvider<Locale?>((ref) => null);
+
 // Search Filter States
 final selectedTypeState = StateProvider<String>((ref) => "All");
 final selectedSortState = StateProvider<String>((ref) => "Most Relevant");

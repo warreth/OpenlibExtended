@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:cached_network_image/cached_network_image.dart';
@@ -103,8 +104,9 @@ class BookInfoWidget extends StatelessWidget {
                       builder: (context, snapshot) {
                         return OutlinedButton.icon(
                           icon: const Icon(Icons.open_in_new, size: 18),
-                          label: const Text("Open in site",
-                              style: TextStyle(fontSize: 13)),
+                          label: Text(
+                              AppLocalizations.of(context).openInSite,
+                              style: const TextStyle(fontSize: 13)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor:
                                 Theme.of(context).colorScheme.tertiary,

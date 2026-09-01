@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/update_checker.dart';
@@ -41,7 +42,8 @@ import 'package:openlib/state/state.dart'
         archiveInstancesProvider,
         donationKeyProvider,
         myLibraryProvider,
-        searchProviderToggles;
+        searchProviderToggles,
+        localeOverrideProvider;
 
 // Scans a directory for book files (epub, pdf) and imports them to the library database
 Future<void> scanAndImportBooks(
@@ -280,6 +282,7 @@ class SettingsPage extends ConsumerWidget {
     final openEpubExternal = ref.watch(openEpubWithExternalAppProvider);
     final showManualDownload = ref.watch(showManualDownloadButtonProvider);
     final fontSizeScale = ref.watch(fontSizeScaleProvider);
+    final l10n = AppLocalizations.of(context);
 
     MyLibraryDb dataBase = MyLibraryDb.instance;
 
@@ -289,17 +292,18 @@ class SettingsPage extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Settings", style: Theme.of(context).textTheme.displayLarge),
+            Text(l10n.settingsTitle,
+                style: Theme.of(context).textTheme.displayLarge),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("Search Providers"),
+            _SettingsSectionHeader(l10n.searchProvidersSection),
             const _SearchProvidersWidget(),
-            const _SettingsSectionHeader("Library & Instances"),
-            const _SettingsCard(
-              title: "Archive Instance",
+            _SettingsSectionHeader(l10n.libraryInstancesSection),
+            _SettingsCard(
+              title: l10n.archiveInstance,
               child: _InstanceSelectorWidget(),
             ),
             _SettingsTile(
-              title: "Mirrors & Providers",
+              title: l10n.mirrorsAndProviders,
               icon: Icons.dns,
               onTap: () {
                 Navigator.push(
@@ -310,23 +314,27 @@ class SettingsPage extends ConsumerWidget {
             ),
             const _AutoRankInstancesWidget(),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("Appearance"),
+            _SettingsSectionHeader(l10n.appearanceSection),
             _SettingsCard(
-              title: "Theme",
+              title: l10n.languageSetting,
+              child: _LanguageSelectorWidget(),
+            ),
+            _SettingsCard(
+              title: l10n.themeTitle,
               child: DropdownButtonFormField<ThemeMode>(
                 initialValue: themeMode,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                 ),
-                items: const [
+                items: [
                   DropdownMenuItem(
                       value: ThemeMode.system,
-                      child: Text("Follow the System")),
+                      child: Text(l10n.followSystem)),
                   DropdownMenuItem(
-                      value: ThemeMode.light, child: Text("Light theme")),
+                      value: ThemeMode.light, child: Text(l10n.lightTheme)),
                   DropdownMenuItem(
-                      value: ThemeMode.dark, child: Text("Dark theme")),
+                      value: ThemeMode.dark, child: Text(l10n.darkTheme)),
                 ],
                 onChanged: (ThemeMode? val) {
                   if (val != null) {
@@ -336,14 +344,14 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
             _SettingsCard(
-              title: "Font Size",
+              title: l10n.fontSizeTitle,
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Scale: ${fontSizeScale.toStringAsFixed(1)}x"),
-                      Text("Preview",
+                      Text(l10n.scaleValue(fontSizeScale.toStringAsFixed(1))),
+                      Text(l10n.preview,
                           textScaler: TextScaler.linear(fontSizeScale)),
                     ],
                   ),
@@ -364,7 +372,7 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("General"),
+            _SettingsSectionHeader(l10n.generalSection),
             FutureBuilder<dynamic>(
               future: dataBase.getPreference('bookStorageDirectory'),
               builder: (context, snapshot) {
@@ -373,7 +381,7 @@ class SettingsPage extends ConsumerWidget {
                   subtitle = snapshot.data as String;
                 }
                 return _SettingsTile(
-                  title: "Storage Location",
+                  title: l10n.storageLocation,
                   subtitle: subtitle,
                   icon: Icons.folder,
                   onTap: () async {
@@ -405,10 +413,10 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("Reader"),
+            _SettingsSectionHeader(l10n.readerSection),
             _SettingsSwitchTile(
-              title: "Open PDF externally",
-              subtitle: "Use your default PDF viewer",
+              title: l10n.openPdfExternally,
+              subtitle: l10n.useDefaultPdfViewer,
               value: openPdfExternal,
               onChanged: (val) {
                 ref.read(openPdfWithExternalAppProvider.notifier).state = val;
@@ -416,8 +424,8 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             _SettingsSwitchTile(
-              title: "Open EPUB externally",
-              subtitle: "Use your default EPUB reader",
+              title: l10n.openEpubExternally,
+              subtitle: l10n.useDefaultEpubReader,
               value: openEpubExternal,
               onChanged: (val) {
                 ref.read(openEpubWithExternalAppProvider.notifier).state = val;
@@ -425,10 +433,10 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("Advanced"),
+            _SettingsSectionHeader(l10n.advancedSection),
             _SettingsSwitchTile(
-              title: "Manual Download Button",
-              subtitle: "Show button to manually trigger downloads",
+              title: l10n.manualDownloadButton,
+              subtitle: l10n.showManualDownloadHint,
               value: showManualDownload,
               onChanged: (val) {
                 ref.read(showManualDownloadButtonProvider.notifier).state = val;
@@ -436,21 +444,21 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             _SettingsTile(
-              title: "Anna's Archive Donation Key",
-              subtitle: "Enter key for faster downloads",
+              title: l10n.donationKeyTitle,
+              subtitle: l10n.enterKeyForFasterDownloads,
               icon: Icons.key,
               onTap: () => _showDonationKeyDialog(context, ref, dataBase),
             ),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("Backup"),
+            _SettingsSectionHeader(l10n.backupSection),
             _BackupSettingsWidget(database: dataBase),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("Updates"),
+            _SettingsSectionHeader(l10n.updatesSection),
             const _UpdateSettingsWidget(),
             const SizedBox(height: 20),
-            const _SettingsSectionHeader("About"),
+            _SettingsSectionHeader(l10n.aboutSection),
             _SettingsTile(
-              title: "About OpenlibExtended",
+              title: l10n.aboutOpenlib,
               icon: Icons.info_outline,
               onTap: () {
                 Navigator.push(context,
@@ -458,8 +466,8 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             _SettingsTile(
-              title: "Redo Onboarding",
-              subtitle: "Reset app setup and start over",
+              title: l10n.redoOnboarding,
+              subtitle: l10n.resetAppSetup,
               icon: Icons.restart_alt,
               onTap: () async {
                 // Clear relevant preferences
@@ -475,16 +483,18 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             _SettingsTile(
-              title: "Export Logs",
-              subtitle: "Share diagnostic logs (last 5 min)",
+              title: l10n.exportLogs,
+              subtitle: l10n.shareDiagnosticLogs,
               icon: Icons.bug_report,
               onTap: () async {
+                final l10n = AppLocalizations.of(context);
                 try {
                   await AppLogger().exportLogs();
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Failed to export logs: $e")),
+                      SnackBar(
+                          content: Text(l10n.failedExportLogs('$e'))),
                     );
                   }
                 }
@@ -517,23 +527,24 @@ class SettingsPage extends ConsumerWidget {
 
   void _showDonationKeyDialog(
       BuildContext context, WidgetRef ref, MyLibraryDb dataBase) {
+    final dialogL10n = AppLocalizations.of(context);
     final currentKey = ref.read(donationKeyProvider);
     final controller = TextEditingController(text: currentKey);
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text("Donation Key"),
+        title: Text(AppLocalizations.of(context).donationKeyDialog),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: "Enter your key",
-            helperText: "Used for faster downloads on Anna's Archive",
+          decoration: InputDecoration(
+            hintText: dialogL10n.enterYourKey,
+            helperText: dialogL10n.donationKeyHelper,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Cancel"),
+            child: Text(dialogL10n.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -542,7 +553,7 @@ class SettingsPage extends ConsumerWidget {
               dataBase.savePreference('donationKey', newKey);
               Navigator.pop(dialogContext);
             },
-            child: const Text("Save"),
+            child: Text(dialogL10n.save),
           ),
         ],
       ),
@@ -632,6 +643,8 @@ class _InstanceSelectorWidgetState
                 if (newValue == null) return;
                 // Capture context-dependent objects before async gap
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final instanceChangedMsg =
+                    AppLocalizations.of(context).instanceChanged;
 
                 setState(() {
                   _selectedInstanceId = newValue;
@@ -642,9 +655,9 @@ class _InstanceSelectorWidgetState
 
                 if (!mounted) return;
                 scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Instance changed successfully'),
-                    duration: Duration(seconds: 2),
+                  SnackBar(
+                    content: Text(instanceChangedMsg),
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               },
@@ -717,6 +730,7 @@ class _AutoRankInstancesWidgetState
     });
 
     final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final rankL10n = AppLocalizations.of(context);
 
     try {
       final manager = ref.read(instanceManagerProvider);
@@ -744,8 +758,9 @@ class _AutoRankInstancesWidgetState
         SnackBar(
           content: Text(
             fastestTime != null
-                ? "Ranked! Fastest: $fastestName (${fastestTime}ms)"
-                : "Ranking complete",
+                ? rankL10n.rankedFastest(
+                    fastestName, '$fastestTime')
+                : rankL10n.rankingComplete,
           ),
           duration: const Duration(seconds: 3),
         ),
@@ -753,7 +768,7 @@ class _AutoRankInstancesWidgetState
     } catch (e) {
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text("Ranking failed: ${e.toString()}"),
+          content: Text(rankL10n.rankingFailed(e.toString())),
           backgroundColor: Colors.red,
         ),
       );
@@ -768,16 +783,17 @@ class _AutoRankInstancesWidgetState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         _SettingsSwitchTile(
-          title: "Auto-Rank Instances",
-          subtitle: "Automatically sort by speed on startup",
+          title: l10n.autoRankInstances,
+          subtitle: l10n.sortBySpeedOnStartup,
           value: _autoRankEnabled,
           onChanged: _toggleAutoRank,
         ),
         _SettingsTile(
-          title: "Rank Instances Now",
+          title: l10n.rankInstancesNow,
           icon: Icons.speed,
           busy: _isRanking,
           onTap: _isRanking ? null : _rankNow,
@@ -816,6 +832,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
   }
 
   Future<void> _checkForUpdates() async {
+    final updateL10n = AppLocalizations.of(context);
     setState(() {
       _isChecking = true;
     });
@@ -833,7 +850,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
-                Text("You're on the latest version (${result.currentVersion})"),
+                Text(updateL10n.onLatestVersion(result.currentVersion)),
             backgroundColor: Colors.green,
           ),
         );
@@ -842,7 +859,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Failed to check for updates: ${e.toString()}"),
+          content: Text(updateL10n.failedCheckUpdates(e.toString())),
           backgroundColor: Colors.red,
         ),
       );
@@ -857,11 +874,12 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         _SettingsSwitchTile(
-          title: "Include Beta Updates",
-          subtitle: "Get pre-release versions",
+          title: l10n.includeBetaUpdates,
+          subtitle: l10n.getPreReleaseVersions,
           value: _includePrereleases,
           onChanged: (bool value) async {
             setState(() {
@@ -871,7 +889,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
           },
         ),
         _SettingsTile(
-          title: "Check for Updates",
+          title: l10n.checkForUpdates,
           icon: Icons.refresh,
           busy: _isChecking,
           onTap: _isChecking ? null : _checkForUpdates,
@@ -888,6 +906,7 @@ class _SearchProvidersWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final enabled = ref.watch(searchProviderToggles);
 
     return enabled.when(
@@ -895,21 +914,21 @@ class _SearchProvidersWidget extends ConsumerWidget {
         final manager = SearchManager();
         return Column(
           children: [
-            for (final provider in const [
+            for (final provider in [
               (
                 SearchProviderId.annasArchive,
                 "Anna's Archive",
-                "The app's original source"
+                l10n.providerSourceOriginal
               ),
               (
                 SearchProviderId.libgen,
                 'Library Genesis',
-                'libgen.is public catalog'
+                l10n.providerLibgenCatalog
               ),
               (
                 SearchProviderId.zlibrary,
                 'Z-Library',
-                'Mirrors rotate; may need a login'
+                l10n.providerZlibMirrors
               ),
             ])
               _SettingsSwitchTile(
@@ -920,7 +939,7 @@ class _SearchProvidersWidget extends ConsumerWidget {
                   if (!on && enabledIds.length == 1) {
                     showSnackBar(
                         context: context,
-                        message: 'At least one search source is needed');
+                        message: l10n.atLeastOneSource);
                     return;
                   }
                   await manager.setProviderEnabled(provider.$1, on);
@@ -946,6 +965,7 @@ class _BackupSettingsWidget extends ConsumerWidget {
 
   Future<void> _export(BuildContext context) async {
     final service = BackupService(database: database);
+    final exportL10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
       final json = await service.createBackupJson();
@@ -957,7 +977,7 @@ class _BackupSettingsWidget extends ConsumerWidget {
 
       if (PlatformUtils.isDesktop) {
         final target = await FilePicker.saveFile(
-          dialogTitle: 'Save Backup',
+          dialogTitle: exportL10n.saveBackupTitle,
           fileName: fileName,
           type: FileType.custom,
           allowedExtensions: ['json'],
@@ -965,7 +985,9 @@ class _BackupSettingsWidget extends ConsumerWidget {
         );
         if (target == null) return;
         if (context.mounted) {
-          showSnackBar(context: context, message: 'Backup saved');
+          showSnackBar(
+              context: context,
+              message: AppLocalizations.of(context).backupSaved);
         }
       } else {
         final tempDir = await getTemporaryDirectory();
@@ -977,17 +999,18 @@ class _BackupSettingsWidget extends ConsumerWidget {
         ));
       }
     } catch (e) {
-      messenger
-          .showSnackBar(SnackBar(content: Text('Failed to export backup: $e')));
+      messenger.showSnackBar(
+          SnackBar(content: Text(exportL10n.failedExportBackup('$e'))));
     }
   }
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     final service = BackupService(database: database);
+    final importL10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
       final files = await FilePicker.pickFiles(
-        dialogTitle: 'Pick a backup file',
+        dialogTitle: importL10n.pickBackupFile,
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
@@ -999,7 +1022,7 @@ class _BackupSettingsWidget extends ConsumerWidget {
         if (context.mounted) {
           showSnackBar(
               context: context,
-              message: 'That file is not an OpenlibExtended backup');
+              message: importL10n.notABackup);
         }
         return;
       }
@@ -1009,11 +1032,13 @@ class _BackupSettingsWidget extends ConsumerWidget {
       // ignore: unused_result
       ref.refresh(searchProviderToggles);
       if (context.mounted) {
-        showSnackBar(context: context, message: 'Backup restored');
+        showSnackBar(
+            context: context,
+            message: AppLocalizations.of(context).backupRestored);
       }
     } catch (e) {
-      messenger
-          .showSnackBar(SnackBar(content: Text('Failed to import backup: $e')));
+      messenger.showSnackBar(
+          SnackBar(content: Text(importL10n.failedImportBackup('$e'))));
     }
   }
 
@@ -1034,6 +1059,55 @@ class _BackupSettingsWidget extends ConsumerWidget {
           onTap: () => _import(context, ref),
         ),
       ],
+    );
+  }
+}
+
+// ====================================================================
+// LANGUAGE SELECTOR
+// Dropdown that pins the app to one of the supported locales, or
+// follows the system default. Choice persists in the preferences
+// table under the 'locale' key.
+// ====================================================================
+class _LanguageSelectorWidget extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeOverrideProvider);
+    final l10n = AppLocalizations.of(context);
+
+    // Native display names: a French user should see 'Francais' even
+    // while the app still renders in English.
+    const nativeNames = {
+      'en': 'English',
+      'de': 'Deutsch',
+      'fr': 'Français',
+      'es': 'Español',
+    };
+
+    return DropdownButtonFormField<Locale?>(
+      initialValue: locale,
+      decoration: const InputDecoration(
+        border: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
+      ),
+      items: [
+        DropdownMenuItem(
+          value: null,
+          child: Text(l10n.systemLanguage),
+        ),
+        ...AppLocalizations.supportedLocales.map(
+          (loc) => DropdownMenuItem(
+            value: loc,
+            child: Text(nativeNames[loc.languageCode] ?? loc.languageCode),
+          ),
+        ),
+      ],
+      onChanged: (Locale? val) {
+        ref.read(localeOverrideProvider.notifier).state = val;
+        MyLibraryDb.instance
+            .savePreference('locale', val?.languageCode ?? '')
+            .catchError((_) => 0);
+      },
     );
   }
 }

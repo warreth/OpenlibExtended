@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +45,7 @@ class ShowDeleteDialog extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: Text(
-                      "Delete Book",
+                      AppLocalizations.of(context).deleteBook,
                       style: TextStyle(
                           fontSize: 19,
                           fontWeight: FontWeight.bold,
@@ -55,7 +56,8 @@ class ShowDeleteDialog extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: Text(
-                      "This is permanent and cannot be undone",
+                      AppLocalizations.of(context)
+                          .deletePermanentWarning,
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -94,14 +96,15 @@ class ShowDeleteDialog extends ConsumerWidget {
 
                             showSnackBar(
                                 context: context,
-                                message: 'Book has been Deleted!');
+                                message: AppLocalizations.of(context)
+                                    .bookDeleted);
 
                             onDelete();
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(5.0),
                             child: Text(
-                              'Delete',
+                              AppLocalizations.of(context).delete,
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -125,9 +128,10 @@ class ShowDeleteDialog extends ConsumerWidget {
                           onPressed: () {
                             Navigator.of(context).pop();
                           },
-                          child: const Padding(
-                            padding: EdgeInsets.all(5.0),
-                            child: Text('Cancel'),
+                          child: Padding(
+                            padding: const EdgeInsets.all(5.0),
+                            child: Text(
+                                AppLocalizations.of(context).cancel),
                           ),
                         )
                       ],

@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:dio/dio.dart' show CancelToken;
@@ -49,7 +50,7 @@ class BookInfoPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text("OpenlibExtended"),
+        title: Text(AppLocalizations.of(context).appTitle),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
         actions: [
           bookInfo.maybeWhen(data: (data) {
@@ -66,7 +67,8 @@ class BookInfoPage extends ConsumerWidget {
                 if (context.mounted && outcome == ShareOutcome.pathCopied) {
                   showSnackBar(
                       context: context,
-                      message: 'Copied the book link to your clipboard');
+                      message: AppLocalizations.of(context)
+                          .copiedBookLink);
                 }
               },
             );
@@ -274,11 +276,13 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                     } else {
                       if (context.mounted) {
                         showSnackBar(
-                            context: context, message: 'No mirrors available!');
+                            context: context,
+                            message:
+                                AppLocalizations.of(context).noMirrors);
                       }
                     }
                   },
-                  child: const Text('Add To My Library'),
+                  child: Text(AppLocalizations.of(context).addToMyLibrary),
                 ),
                 // Button for "Manual Download" (opens webview for captcha) - only shown if setting is enabled
                 if (showManualButton)
@@ -332,14 +336,17 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           if (context.mounted) {
                             showSnackBar(
                               context: context,
-                              message: 'Download started in background',
+                              message: AppLocalizations.of(context)
+                                  .downloadStartedBackground,
                             );
                           }
                           ref.invalidate(myLibraryProvider);
                         }
                       } else {
                         showSnackBar(
-                            context: context, message: 'No mirrors available!');
+                            context: context,
+                            message:
+                                AppLocalizations.of(context).noMirrors);
                       }
                     },
                     child: Text(
@@ -369,6 +376,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
 
 Future<void> downloadFileWidget(WidgetRef ref, BuildContext context,
     BookInfoData data, List<String> mirrors) async {
+  final l10n = AppLocalizations.of(context);
   showDialog(
       context: context,
       barrierDismissible: false,
@@ -435,7 +443,7 @@ Future<void> downloadFileWidget(WidgetRef ref, BuildContext context,
           ref.refresh(checkIdExists(data.md5));
           ref.invalidate(myLibraryProvider);
           // ignore: use_build_context_synchronously
-          showSnackBar(context: context, message: 'Book has been downloaded!');
+          showSnackBar(context: context, message: l10n.bookDownloaded);
         }
       },
       cancelDownlaod: (CancelToken downloadToken) {
@@ -718,9 +726,10 @@ class _ShowDialog extends ConsumerWidget {
                             ref.read(cancelCurrentDownload).cancel();
                             Navigator.of(context).pop();
                           },
-                          child: const Padding(
-                            padding: EdgeInsets.all(3.0),
-                            child: Text('Cancel'),
+                          child: Padding(
+                            padding: const EdgeInsets.all(3.0),
+                            child: Text(
+                                AppLocalizations.of(context).cancel),
                           ),
                         )
                       ],

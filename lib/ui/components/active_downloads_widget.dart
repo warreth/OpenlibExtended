@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -354,7 +355,8 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  tooltip: 'Pause download',
+                  tooltip:
+                      AppLocalizations.of(context).pauseDownload,
                 ),
                 const SizedBox(width: 8),
               ],
@@ -371,7 +373,8 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  tooltip: 'Resume download',
+                  tooltip:
+                      AppLocalizations.of(context).resumeDownload,
                 ),
                 const SizedBox(width: 8),
               ],
@@ -389,7 +392,8 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  tooltip: 'Cancel download',
+                  tooltip:
+                      AppLocalizations.of(context).cancelDownload,
                 ),
             ],
           ),

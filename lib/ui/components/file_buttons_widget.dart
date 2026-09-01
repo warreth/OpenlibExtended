@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,9 +56,9 @@ class FileOpenAndDeleteButtons extends ConsumerWidget {
                 await openCbrAndCbz(fileName: actualFileName, context: context);
               }
             },
-            child: const Padding(
-              padding: EdgeInsets.fromLTRB(17, 8, 17, 8),
-              child: Text('Open'),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(17, 8, 17, 8),
+              child: Text(AppLocalizations.of(context).open),
             ),
           ),
           const SizedBox(
@@ -106,6 +107,7 @@ class FileOpenAndDeleteButtons extends ConsumerWidget {
 
 Future<void> openCbrAndCbz(
     {required String fileName, required BuildContext context}) async {
+  final l10n = AppLocalizations.of(context);
   try {
     String path = await getFilePath(fileName);
     await OpenFile.open(path, linuxByProcess: true);
@@ -113,6 +115,6 @@ Future<void> openCbrAndCbz(
     // ignore: avoid_print
     // print(e);
     // ignore: use_build_context_synchronously
-    showSnackBar(context: context, message: 'Unable to open file!');
+    showSnackBar(context: context, message: l10n.unableToOpenFile);
   }
 }

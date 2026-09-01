@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -112,11 +113,11 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const TitleText("My Library"),
+          TitleText(AppLocalizations.of(context).navMyLibrary),
           Row(
             children: [
               PopupMenuButton<LibrarySortMode>(
-                tooltip: 'Sort library',
+                tooltip: AppLocalizations.of(context).sortLibrary,
                 icon: Icon(
                   Icons.sort,
                   color: Theme.of(context).colorScheme.secondary,
@@ -180,7 +181,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
         cursorColor: Theme.of(context).colorScheme.secondary,
         decoration: InputDecoration(
           isDense: true,
-          hintText: 'Search library (title, author, publisher, year)',
+          hintText: AppLocalizations.of(context).searchLibraryHint,
           hintStyle: const TextStyle(
               color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 11),
           prefixIcon: const Icon(Icons.search, size: 20),
@@ -207,6 +208,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
 
   /// The horizontal filter row: reading-status chips followed by tag chips.
   Widget _buildFilterChips(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tagFilter = ref.watch(libraryTagFilterProvider);
     final statusFilter = ref.watch(libraryStatusFilterProvider);
     final allTags = ref.watch(libraryTagsProvider).valueOrNull ?? const <String>{};
@@ -232,9 +234,9 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          statusChip('Unread', ReadingStatus.unread),
-          statusChip('In Progress', ReadingStatus.inProgress),
-          statusChip('Completed', ReadingStatus.completed),
+          statusChip(l10n.statusUnread, ReadingStatus.unread),
+          statusChip(l10n.statusInProgress, ReadingStatus.inProgress),
+          statusChip(l10n.statusCompleted, ReadingStatus.completed),
           for (final tag in allTags)
             Padding(
               padding: const EdgeInsets.only(right: 6),
@@ -501,24 +503,25 @@ class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
 
   Future<void> _createTag() async {
     final controller = TextEditingController();
+    final dialogL10n = AppLocalizations.of(context);
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('New collection'),
+        title: Text(dialogL10n.newCollection),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration:
-              const InputDecoration(hintText: 'e.g. Favorites, Sci-Fi'),
+              InputDecoration(hintText: dialogL10n.collectionNameHint),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(dialogL10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Add'),
+            child: Text(dialogL10n.add),
           ),
         ],
       ),
@@ -550,9 +553,9 @@ class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Long-press any book to manage its collections',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                Text(
+                  AppLocalizations.of(context).manageCollectionsHint,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -568,8 +571,8 @@ class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
                             : _removeTag(tag),
                       ),
                     ActionChip(
-                      label: const Text('New collection',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(AppLocalizations.of(context).newCollection,
+                          style: const TextStyle(fontSize: 12)),
                       avatar: const Icon(Icons.add, size: 15),
                       onPressed: _createTag,
                     ),

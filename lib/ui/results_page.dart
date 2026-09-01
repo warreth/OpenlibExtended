@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -118,7 +119,8 @@ class _ResultPageState extends ConsumerState<ResultPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Results for '$capitalizedQuery'"),
+        title: Text(AppLocalizations.of(context)
+            .resultsFor(capitalizedQuery)),
         titleTextStyle: Theme.of(context)
             .textTheme
             .titleLarge
@@ -133,10 +135,10 @@ class _ResultPageState extends ConsumerState<ResultPage> {
               child: CustomScrollView(
                 controller: _scrollController,
                 slivers: <Widget>[
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.only(bottom: 10),
-                      child: TitleText("Results"),
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: TitleText(AppLocalizations.of(context).results),
                     ),
                   ),
                   SliverList.builder(
@@ -202,8 +204,8 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    const Text(
-                      "No Results Found !",
+                    Text(
+                      AppLocalizations.of(context).noResultsFound,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 18,
@@ -239,10 +241,10 @@ class _ResultPageState extends ConsumerState<ResultPage> {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding:
-                    EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
-                child: TitleText("Results"),
+              Padding(
+                padding: const EdgeInsets.only(
+                    left: 10, right: 10, top: 10, bottom: 10),
+                child: TitleText(AppLocalizations.of(context).results),
               ),
               Expanded(
                 child: Center(

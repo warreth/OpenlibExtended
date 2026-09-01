@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:openlib/ui/components/book_info_widget.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 class _FakeBookData {
   final String md5 = '7b2e2c05501894b229e309e39ec0d05d';
@@ -27,6 +28,8 @@ void main() {
     final data = _FakeBookData();
 
     await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: BookInfoWidget(
           data: data,

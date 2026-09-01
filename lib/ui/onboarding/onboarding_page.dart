@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlib/main.dart' show MainScreen;
 import 'package:openlib/services/database.dart';
@@ -78,8 +79,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     if (_currentPage == 1 && _storagePath.isEmpty) {
       // Force storage selection
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Please select a storage folder to continue")),
+        SnackBar(
+            content: Text(
+                AppLocalizations.of(context).selectStorageToContinue)),
       );
       return;
     }
@@ -203,7 +205,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           ),
           ElevatedButton(
             onPressed: _nextPage,
-            child: Text(_currentPage == pageCount - 1 ? "Get Started" : "Next"),
+            child: Text(_currentPage == pageCount - 1
+                ? AppLocalizations.of(context).getStarted
+                : AppLocalizations.of(context).next),
           ),
         ],
       ),
@@ -220,13 +224,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               size: 80, color: Theme.of(context).colorScheme.secondary),
           const SizedBox(height: 30),
           Text(
-            "Welcome to OpenlibExtended",
+            AppLocalizations.of(context).welcomeTitle,
             style: Theme.of(context).textTheme.displayLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           Text(
-            "Your personal gateway to a world of knowledge. Let's get you set up.",
+            AppLocalizations.of(context).welcomeSubtitle,
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
@@ -243,7 +247,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         children: [
           const Icon(Icons.folder_open, size: 60),
           const SizedBox(height: 20),
-          Text("Where should we store your books?",
+          Text(AppLocalizations.of(context).whereToStoreBooks,
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
           Container(
@@ -253,7 +257,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-                _storagePath.isEmpty ? "No path selected" : _storagePath,
+                _storagePath.isEmpty
+                    ? AppLocalizations.of(context).noPathSelected
+                    : _storagePath,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -261,7 +267,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           ElevatedButton.icon(
             onPressed: _selectStorage,
             icon: const Icon(Icons.edit),
-            label: const Text("Select Folder"),
+            label: Text(AppLocalizations.of(context).selectFolder),
             style: ElevatedButton.styleFrom(
               // Ensure visible colors regardless of theme defaults
               backgroundColor: Theme.of(context).colorScheme.secondary,
@@ -269,8 +275,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            "We'll only look for PDF/EPUB files in this folder. No recursive scanning of subfolders.",
+          Text(
+            AppLocalizations.of(context).storageScanNote,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
@@ -287,7 +293,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         children: [
           const Icon(Icons.system_update, size: 60),
           const SizedBox(height: 20),
-          Text("Automatic Updates",
+          Text(AppLocalizations.of(context).automaticUpdates,
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
           Material(
@@ -302,9 +308,10 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               child: Column(
                 children: [
                   SwitchListTile(
-                    title: const Text("Enable Auto-Updates"),
-                    subtitle: const Text(
-                        "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
+                    title: Text(
+                        AppLocalizations.of(context).enableAutoUpdates),
+                    subtitle: Text(AppLocalizations.of(context)
+                        .autoUpdatesFdroidNote),
                     activeThumbColor: Theme.of(context).colorScheme.secondary,
                     activeTrackColor: Theme.of(context)
                         .colorScheme
@@ -329,9 +336,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   ),
                   const Divider(),
                   SwitchListTile(
-                    title: const Text("Enable Beta Updates"),
-                    subtitle: const Text(
-                        "Get pre-release versions (beta updates) when available."),
+                    title: Text(
+                        AppLocalizations.of(context)
+                            .enableBetaUpdatesOnboarding),
+                    subtitle: Text(
+                        AppLocalizations.of(context).betaUpdatesNote),
                     activeThumbColor: Colors.orange,
                     activeTrackColor: Colors.orangeAccent,
                     inactiveThumbColor: Colors.grey,
@@ -363,19 +372,20 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         children: [
           const Icon(Icons.favorite, size: 60, color: Colors.red),
           const SizedBox(height: 20),
-          Text("Support Anna's Archive",
+          Text(AppLocalizations.of(context).supportAnnasArchive,
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 20),
-          const Text(
-            "Donating to Anna's Archive provides faster downloads and helps them keep the service running for everyone. You can enter your secret key below.",
+          Text(
+            AppLocalizations.of(context).donationPitch,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
           TextField(
             controller: _donationKeyController,
-            decoration: const InputDecoration(
-              labelText: "Anna's Archive Secret Key",
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText:
+                  AppLocalizations.of(context).annasSecretKey,
+              border: const OutlineInputBorder(),
             ),
             onChanged: (value) {
               ref.read(donationKeyProvider.notifier).state = value;
@@ -394,11 +404,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         children: [
           const Icon(Icons.code, size: 60),
           const SizedBox(height: 20),
-          Text("Support This App",
+          Text(AppLocalizations.of(context).supportThisApp,
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
-          const Text(
-            "If you enjoy this app, consider supporting its development. It helps me dedicate more time to making it better!",
+          Text(
+            AppLocalizations.of(context).sponsorPitch,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
@@ -406,7 +416,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             onPressed: () =>
                 launchUrl(Uri.parse('https://github.com/sponsors/warreth')),
             icon: const Icon(Icons.open_in_new),
-            label: const Text("Sponsor on GitHub"),
+            label: Text(AppLocalizations.of(context).sponsorOnGithub),
           ),
         ],
       ),
@@ -421,12 +431,14 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         children: [
           const Icon(Icons.notifications, size: 60),
           const SizedBox(height: 20),
-          Text("Stay Updated",
+          Text(AppLocalizations.of(context).stayUpdated,
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
           SwitchListTile(
-            title: const Text("Enable Notifications"),
-            subtitle: const Text("Get notified when downloads complete."),
+            title: Text(
+                AppLocalizations.of(context).enableNotifications),
+            subtitle: Text(
+                AppLocalizations.of(context).notifyOnComplete),
             value: _enableNotifications,
             onChanged: (val) async {
               setState(() {
@@ -451,14 +463,14 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         children: [
           const Icon(Icons.palette, size: 60),
           const SizedBox(height: 20),
-          Text("Choose a Theme",
+          Text(AppLocalizations.of(context).chooseTheme,
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 30),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _ThemeCard(
-                  title: "Light",
+                  title: AppLocalizations.of(context).lightThemeShort,
                   icon: Icons.light_mode,
                   selected: mode == ThemeMode.light,
                   onTap: () {
@@ -468,7 +480,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   }),
               const SizedBox(width: 20),
               _ThemeCard(
-                  title: "Dark",
+                  title: AppLocalizations.of(context).darkThemeShort,
                   icon: Icons.dark_mode,
                   selected: mode == ThemeMode.dark,
                   onTap: () {

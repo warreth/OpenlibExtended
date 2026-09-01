@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,6 +87,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
     });
 
     final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final rankL10n = AppLocalizations.of(context);
     try {
       final manager = ref.read(instanceManagerProvider);
       final results = await manager.rankInstancesBySpeed();
@@ -98,9 +100,9 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
       ref.invalidate(archiveInstancesProvider);
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Mirrors tested and ranked by speed'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(rankL10n.mirrorsTestedRanked),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -109,7 +111,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
       setState(() => _isPinging = false);
       scaffoldMessenger.showSnackBar(
         SnackBar(
-            content: Text('Testing failed: $e'),
+            content: Text(rankL10n.testingFailed('$e')),
             backgroundColor: Theme.of(context).colorScheme.error),
       );
     }
@@ -119,27 +121,28 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
     _nameController.clear();
     _urlController.clear();
     var selectedService = service;
+    final dialogL10n = AppLocalizations.of(context);
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Add Custom Mirror'),
+            title: Text(AppLocalizations.of(context).addCustomMirror),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    hintText: 'e.g., My LibGen mirror',
+                  decoration: InputDecoration(
+                    labelText: dialogL10n.nameLabel,
+                    hintText: dialogL10n.nameHint,
                   ),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<MirrorService>(
                   initialValue: selectedService,
-                  decoration: const InputDecoration(labelText: 'Service'),
+                  decoration: InputDecoration(labelText: dialogL10n.serviceLabel),
                   items: [
                     for (final entry in _serviceTitles.entries)
                       DropdownMenuItem(
@@ -153,9 +156,9 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _urlController,
-                  decoration: const InputDecoration(
-                    labelText: 'URL',
-                    hintText: 'https://example.com',
+                  decoration: InputDecoration(
+                    labelText: dialogL10n.urlLabel,
+                    hintText: dialogL10n.urlHint,
                   ),
                   keyboardType: TextInputType.url,
                 ),
@@ -164,7 +167,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: Text(dialogL10n.cancel),
               ),
               TextButton(
                 onPressed: () async {
@@ -173,7 +176,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
 
                   if (name.isEmpty || url.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please fill all fields')),
+                      SnackBar(content: Text(dialogL10n.pleaseFillAllFields)),
                     );
                     return;
                   }
@@ -183,9 +186,8 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                       (uri.scheme != 'http' && uri.scheme != 'https') ||
                       uri.host.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Please enter a valid URL with http:// or https://'),
+                      SnackBar(
+                        content: Text(dialogL10n.enterValidUrl),
                       ),
                     );
                     return;
@@ -202,12 +204,12 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                   if (mounted) {
                     if (navigator.canPop()) navigator.pop();
                     scaffoldMessenger.showSnackBar(
-                      const SnackBar(
-                          content: Text('Mirror added successfully')),
+                      SnackBar(
+                          content: Text(dialogL10n.mirrorAdded)),
                     );
                   }
                 },
-                child: const Text('Add'),
+                child: Text(dialogL10n.add),
               ),
             ],
           ),
@@ -221,12 +223,13 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Delete Mirror'),
-          content: Text('Are you sure you want to delete "${instance.name}"?'),
+          title: Text(AppLocalizations.of(context).deleteMirror),
+          content: Text(AppLocalizations.of(context)
+              .deleteMirrorConfirm(instance.name)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(AppLocalizations.of(context).cancel),
             ),
             TextButton(
               onPressed: () async {
@@ -250,7 +253,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                   ),
                 );
               },
-              child: Text('Delete',
+              child: Text(AppLocalizations.of(context).delete,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           ],
@@ -266,7 +269,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manage Mirrors'),
+        title: Text(AppLocalizations.of(context).manageMirrors),
         actions: [
           if (_isFetchingSlum)
             const Padding(
@@ -285,7 +288,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                   )
                 : const Icon(Icons.speed),
             onPressed: _isPinging ? null : _pingAllInstances,
-            tooltip: 'Test & rank mirrors by speed',
+            tooltip: AppLocalizations.of(context).testRankMirrors,
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -293,7 +296,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
               ref.invalidate(archiveInstancesProvider);
               _loadSlumHealth();
             },
-            tooltip: 'Reload health data',
+            tooltip: AppLocalizations.of(context).reloadHealthData,
           ),
         ],
       ),
@@ -302,9 +305,10 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: TitleText('Mirrors & Providers'),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TitleText(AppLocalizations.of(context)
+                  .mirrorsAndProviders),
             ),
             Padding(
               padding:
@@ -327,7 +331,9 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
               child: instancesAsync.when(
                 data: (instances) {
                   if (instances.isEmpty) {
-                    return const Center(child: Text('No mirrors available'));
+                    return Center(
+                        child: Text(
+                            AppLocalizations.of(context).noMirrorsAvailable));
                   }
                   return _buildGroupedList(context, instances);
                 },
@@ -338,12 +344,13 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
                     children: [
                       Icon(Icons.error, color: colorScheme.error, size: 48),
                       const SizedBox(height: 16),
-                      Text('Error: $error'),
+                      Text(AppLocalizations.of(context)
+                          .errorLabel('$error')),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () =>
                             ref.invalidate(archiveInstancesProvider),
-                        child: const Text('Retry'),
+                        child: Text(AppLocalizations.of(context).retry),
                       ),
                     ],
                   ),
@@ -356,7 +363,7 @@ class _InstancesPageState extends ConsumerState<InstancesPage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddInstanceDialog(MirrorService.annasArchive),
         icon: const Icon(Icons.add),
-        label: const Text('Add mirror'),
+        label: Text(AppLocalizations.of(context).addMirror),
       ),
     );
   }
@@ -426,7 +433,8 @@ class _ServiceHeader extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.add, size: 20),
             onPressed: onAdd,
-            tooltip: 'Add a $title mirror',
+            tooltip: AppLocalizations.of(context)
+                .addServiceMirror(title),
           ),
         ],
       ),
@@ -497,7 +505,7 @@ class _MirrorCard extends StatelessWidget {
                 ),
               )
             else if (hasPingData)
-              Text('unreachable',
+              Text(AppLocalizations.of(context).unreachable,
                   style: TextStyle(fontSize: 11, color: colorScheme.error)),
           ],
         ),
@@ -512,7 +520,8 @@ class _MirrorCard extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.delete, color: colorScheme.error),
                 onPressed: onDelete,
-                tooltip: 'Delete mirror',
+                tooltip:
+                    AppLocalizations.of(context).deleteMirrorTooltip,
               ),
           ],
         ),

@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -153,7 +154,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           children: [
             const SizedBox(height: 8),
             const ActiveDownloadsWidget(),
-            const TitleText("Search"),
+            TitleText(AppLocalizations.of(context).navSearch),
             // Search Input Field
             Padding(
               padding: const EdgeInsets.only(left: 7, right: 7, top: 10),
@@ -567,7 +568,7 @@ class _AdvancedSearchPanelState extends ConsumerState<_AdvancedSearchPanel> {
                   color: Theme.of(context).colorScheme.secondary,
                 ),
                 label: Text(
-                  'Advanced Search',
+                  AppLocalizations.of(context).advancedSearch,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -593,7 +594,7 @@ class _AdvancedSearchPanelState extends ConsumerState<_AdvancedSearchPanel> {
                 children: [
                   TextField(
                     controller: _authorController,
-                    decoration: _decoration('Author'),
+                    decoration: _decoration(AppLocalizations.of(context).author),
                     style: const TextStyle(
                         fontSize: 12, fontWeight: FontWeight.bold),
                     onChanged: (value) =>
@@ -603,7 +604,7 @@ class _AdvancedSearchPanelState extends ConsumerState<_AdvancedSearchPanel> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: _publisherController,
-                    decoration: _decoration('Publisher'),
+                    decoration: _decoration(AppLocalizations.of(context).publisher),
                     style: const TextStyle(
                         fontSize: 12, fontWeight: FontWeight.bold),
                     onChanged: (value) => ref

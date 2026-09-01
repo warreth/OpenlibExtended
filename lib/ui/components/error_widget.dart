@@ -4,6 +4,7 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_svg/svg.dart';
@@ -258,8 +259,8 @@ class CustomErrorWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Try using a VPN",
+                Text(
+                  AppLocalizations.of(context).tryUsingVpn,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -288,7 +289,7 @@ class CustomErrorWidget extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onRefresh,
         icon: const Icon(Icons.refresh_rounded),
-        label: const Text("Try Again"),
+        label: Text(AppLocalizations.of(context).tryAgain),
         style: ElevatedButton.styleFrom(
           backgroundColor: Theme.of(context).colorScheme.secondary,
           foregroundColor: Colors.white,
@@ -308,7 +309,8 @@ class CustomErrorWidget extends StatelessWidget {
       child: TextButton.icon(
         onPressed: () => _showDetailsDialog(context, networkError),
         icon: const Icon(Icons.info_outline_rounded, size: 18),
-        label: const Text("Show blocked page content"),
+        label: Text(
+            AppLocalizations.of(context).showBlockedContent),
         style: TextButton.styleFrom(
           foregroundColor: Colors.grey[600],
         ),
@@ -322,7 +324,7 @@ class CustomErrorWidget extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: () => _openInBrowser(context),
         icon: const Icon(Icons.open_in_browser_rounded),
-        label: const Text("Verify in Browser"),
+        label: Text(AppLocalizations.of(context).verifyInBrowser),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.orange,
           foregroundColor: Colors.white,
@@ -344,11 +346,12 @@ class CustomErrorWidget extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.security_rounded, color: Colors.orange),
-            SizedBox(width: 12),
-            Text("Manual Verification Required"),
+            const Icon(Icons.security_rounded, color: Colors.orange),
+            const SizedBox(width: 12),
+            Text(AppLocalizations.of(context)
+                .manualVerificationRequired),
           ],
         ),
         content: SingleChildScrollView(
@@ -390,7 +393,7 @@ class CustomErrorWidget extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           if (targetUrl != null)
             OutlinedButton.icon(
@@ -400,7 +403,8 @@ class CustomErrorWidget extends StatelessWidget {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               },
               icon: const Icon(Icons.language),
-              label: const Text("System Browser"),
+              label: Text(
+                  AppLocalizations.of(context).systemBrowser),
             ),
           ElevatedButton.icon(
             onPressed: () {
@@ -409,7 +413,8 @@ class CustomErrorWidget extends StatelessWidget {
               _triggerBrowserVerification(context);
             },
             icon: const Icon(Icons.open_in_browser),
-            label: const Text("Embedded Browser"),
+            label: Text(
+                AppLocalizations.of(context).embeddedBrowser),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
             ),
@@ -429,9 +434,10 @@ class CustomErrorWidget extends StatelessWidget {
 
     if (targetUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Unable to open verification page - no URL available"),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)
+              .unableToOpenVerification),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
@@ -459,11 +465,12 @@ class CustomErrorWidget extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.code_rounded, size: 24),
-            SizedBox(width: 8),
-            Text("Blocked Page Content"),
+            const Icon(Icons.code_rounded, size: 24),
+            const SizedBox(width: 8),
+            Text(AppLocalizations.of(context)
+                .blockedPageContent),
           ],
         ),
         content: SizedBox(
@@ -509,14 +516,16 @@ class CustomErrorWidget extends StatelessWidget {
                 text: networkError.rawResponseBody ?? "",
               ));
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Copied to clipboard")),
+                SnackBar(
+                    content: Text(
+                        AppLocalizations.of(context).copiedToClipboard)),
               );
             },
-            child: const Text("Copy"),
+            child: Text(AppLocalizations.of(context).copy),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
+            child: Text(AppLocalizations.of(context).close),
           ),
         ],
       ),

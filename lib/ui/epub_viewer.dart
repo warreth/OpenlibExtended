@@ -3,6 +3,7 @@ import 'dart:io';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:epub_view/epub_view.dart';
@@ -82,7 +83,7 @@ class _EpubViewState extends ConsumerState<EpubViewerWidget> {
         return Scaffold(
           appBar: AppBar(
             backgroundColor: Theme.of(context).colorScheme.primary,
-            title: const Text("OpenlibExtended"),
+            title: Text(AppLocalizations.of(context).appTitle),
             titleTextStyle: Theme.of(context).textTheme.displayLarge,
           ),
           body: Center(child: Text(error.toString())),
@@ -92,7 +93,7 @@ class _EpubViewState extends ConsumerState<EpubViewerWidget> {
         return Scaffold(
           appBar: AppBar(
             backgroundColor: Theme.of(context).colorScheme.primary,
-            title: const Text("OpenlibExtended"),
+            title: Text(AppLocalizations.of(context).appTitle),
             titleTextStyle: Theme.of(context).textTheme.displayLarge,
           ),
           body: Center(
@@ -202,7 +203,9 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
     final text = htmlToSpeechText(html);
     if (text.isEmpty) {
       if (mounted) {
-        showSnackBar(context: context, message: 'Nothing to read on this page');
+        showSnackBar(
+      context: context,
+      message: AppLocalizations.of(context).nothingToRead);
       }
       return;
     }
@@ -215,7 +218,8 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
     if (!languageOk) {
       if (mounted) {
         showSnackBar(
-            context: context, message: 'No voice available for reading aloud');
+            context: context,
+    message: AppLocalizations.of(context).noVoiceAvailable);
       }
       return;
     }
@@ -348,7 +352,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
         backgroundColor: isDarkMode
             ? Theme.of(context).colorScheme.surface
             : Theme.of(context).colorScheme.primary,
-        title: const Text("OpenlibExtended"),
+        title: Text(AppLocalizations.of(context).appTitle),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
         leading: IconButton(
           icon: Icon(Icons.arrow_back,
@@ -359,10 +363,10 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
           if (_tts != null) ...[
             IconButton(
               tooltip: _ttsState == TtsState.playing
-                  ? 'Pause reading aloud'
+                  ? AppLocalizations.of(context).pauseReadingAloud
                   : _ttsState == TtsState.paused
-                      ? 'Resume reading aloud'
-                      : 'Read aloud',
+                      ? AppLocalizations.of(context).resumeReadingAloud
+                      : AppLocalizations.of(context).resumeReadingAloud,
               icon: Icon(
                 _ttsState == TtsState.playing
                     ? Icons.pause_circle
@@ -375,7 +379,8 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
             ),
             if (_ttsState != TtsState.idle)
               IconButton(
-                tooltip: 'Stop reading aloud',
+                tooltip:
+                    AppLocalizations.of(context).stopReadingAloud,
                 icon: Icon(Icons.stop_circle,
                     color: Theme.of(context).colorScheme.tertiary),
                 onPressed: _stopTts,
@@ -383,7 +388,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
             // Speech rate lives between start/stop so it is reachable
             // while listening without crowding the bar when idle.
             IconButton(
-              tooltip: 'Speech speed',
+              tooltip: AppLocalizations.of(context).speechSpeed,
               icon: Text(
                 _ttsRateLabel,
                 style: TextStyle(
@@ -396,7 +401,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
             ),
           ],
           IconButton(
-            tooltip: 'Decrease font size',
+            tooltip: AppLocalizations.of(context).decreaseFontSize,
             icon: Icon(Icons.text_decrease,
                 color: Theme.of(context).colorScheme.tertiary),
             onPressed: () => _changeFontSize(-_fontSizeStep),
@@ -410,7 +415,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
             ),
           ),
           IconButton(
-            tooltip: 'Increase font size',
+            tooltip: AppLocalizations.of(context).increaseFontSize,
             icon: Icon(Icons.text_increase,
                 color: Theme.of(context).colorScheme.tertiary),
             onPressed: () => _changeFontSize(_fontSizeStep),

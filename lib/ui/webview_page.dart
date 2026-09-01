@@ -4,6 +4,7 @@ import 'dart:io' as io;
 
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -293,7 +294,7 @@ class _WebviewState extends ConsumerState<Webview> {
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: true,
-          title: const Text("Verifying Access"),
+          title: Text(AppLocalizations.of(context).verifyingAccess),
           actions: [
             TextButton.icon(
               onPressed: () {
@@ -307,7 +308,7 @@ class _WebviewState extends ConsumerState<Webview> {
                 }
               },
               icon: const Icon(Icons.check_circle),
-              label: const Text("Done"),
+              label: Text(AppLocalizations.of(context).done),
             ),
           ],
         ),
@@ -366,7 +367,7 @@ class _WebviewState extends ConsumerState<Webview> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
-        title: const Text("Verifying Access"),
+        title: Text(AppLocalizations.of(context).verifyingAccess),
       ),
       body: SafeArea(
         child: Stack(

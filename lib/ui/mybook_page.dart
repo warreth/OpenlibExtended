@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +25,7 @@ class BookPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text("OpenlibExtended"),
+        title: Text(AppLocalizations.of(context).appTitle),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
         actions: [
           FutureBuilder(
@@ -48,7 +49,8 @@ class BookPage extends StatelessWidget {
                           outcome == ShareOutcome.pathCopied) {
                         showSnackBar(
                             context: context,
-                            message: 'Copied the book path to your clipboard');
+                            message: AppLocalizations.of(context)
+                                .copiedBookPath);
                       }
                     },
                   );

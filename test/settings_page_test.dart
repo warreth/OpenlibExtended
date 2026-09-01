@@ -21,6 +21,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:openlib/services/database.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/settings_page.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   static const base = '/tmp/openlib_settings_test';
@@ -50,6 +51,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: ThemeData.light(),
           darkTheme: ThemeData.dark(),
           home: const Scaffold(body: SettingsPage()),

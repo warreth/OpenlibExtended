@@ -9,6 +9,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -91,7 +92,8 @@ class _ChallengeSolverPageState extends State<ChallengeSolverPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Verifying Access")),
+      appBar: AppBar(
+        title: Text(AppLocalizations.of(context).verifyingAccess)),
       body: SafeArea(
         child: InAppWebView(
           initialUrlRequest: URLRequest(url: WebUri(widget.url)),

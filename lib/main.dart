@@ -7,12 +7,14 @@ import 'package:flutter/rendering.dart'; // <-- REQUIRED
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:openlib/ui/home_page.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 
 // Project imports:
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/update_checker.dart';
@@ -34,6 +36,7 @@ import 'package:openlib/state/state.dart'
         selectedIndexProvider,
         themeModeProvider,
         fontSizeScaleProvider,
+        localeOverrideProvider,
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
@@ -131,6 +134,18 @@ void main(List<String> args) async {
           .catchError((e) => '') as String? ??
       '';
 
+  // Load saved language override; empty or unknown values follow the
+  // system locale.
+  final savedLocaleCode = await dataBase
+          .getPreference('locale')
+          .catchError((e) => '') as String? ??
+      '';
+  Locale? startLocale;
+  final supported = AppLocalizations.supportedLocales;
+  for (final locale in supported) {
+    if (locale.languageCode == savedLocaleCode) startLocale = locale;
+  }
+
   // Check onboarding status
   bool onboardingCompleted = await dataBase
           .getPreference('onboardingCompleted')
@@ -149,6 +164,7 @@ void main(List<String> args) async {
         themeModeProvider
             .overrideWith((ref) => ThemeModeNotifier(startThemeMode)),
         fontSizeScaleProvider.overrideWith((ref) => fontSizeScale),
+        localeOverrideProvider.overrideWith((ref) => startLocale),
         openPdfWithExternalAppProvider
             .overrideWith((ref) => openPdfwithExternalapp),
         openEpubWithExternalAppProvider
@@ -193,6 +209,14 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       scrollBehavior: const _SmoothScrollBehavior(),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: ref.watch(localeOverrideProvider),
       builder: (context, child) {
         final scale = ref.watch(fontSizeScaleProvider);
         return MediaQuery(
@@ -335,14 +359,14 @@ class _MainScreenState extends ConsumerState<MainScreen>
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
-            'Enable Notifications',
+            AppLocalizations.of(context).enableNotifications,
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.secondary,
             ),
           ),
           content: Text(
-            'OpenlibExtended needs notification permission to show download progress in the background. This helps you track your book downloads even when the app is minimized.',
+            AppLocalizations.of(context).notificationsExplanation,
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context)
@@ -358,7 +382,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                 // Don't mark as asked so we can ask again later
               },
               child: Text(
-                'Maybe Later',
+                AppLocalizations.of(context).maybeLater,
                 style: TextStyle(
                   color: Theme.of(context)
                       .colorScheme
@@ -378,7 +402,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                     .savePreference('hasAskedNotificationPermission', 1);
               },
               child: Text(
-                'Enable',
+                AppLocalizations.of(context).enable,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.secondary,
@@ -395,6 +419,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final selectedIndex = ref.watch(selectedIndexProvider);
+    final l10n = AppLocalizations.of(context);
 
     // Calculate proper header height including status bar on mobile
     final statusBarHeight = MediaQuery.of(context).padding.top;
@@ -422,7 +447,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
               child: AppBar(
                 toolbarHeight: kToolbarHeight,
                 backgroundColor: Theme.of(context).colorScheme.surface,
-                title: const Text("OpenlibExtended"),
+                title: Text(l10n.appTitle),
                 titleTextStyle: Theme.of(context).textTheme.displayLarge,
               ),
             ),
@@ -454,13 +479,14 @@ class _MainScreenState extends ConsumerState<MainScreen>
             iconSize: 20,
             tabBackgroundColor: Theme.of(context).colorScheme.secondary,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            tabs: const [
-              GButton(icon: Icons.trending_up, text: 'Home'),
-              GButton(icon: Icons.search, text: 'Search'),
+            tabs: [
+              GButton(
+                  icon: Icons.trending_up, text: l10n.navHome),
+              GButton(icon: Icons.search, text: l10n.navSearch),
               GButton(
                   icon: Icons.collections_bookmark,
-                  text: 'Library'), // Shortened text
-              GButton(icon: Icons.settings, text: 'Settings'),
+                  text: l10n.navMyLibrary), // Shortened text
+              GButton(icon: Icons.settings, text: l10n.navSettings),
             ],
             selectedIndex: selectedIndex,
             onTabChange: (index) {

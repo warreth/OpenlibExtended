@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/components/book_card_widget.dart';
 import 'package:openlib/ui/results_page.dart';
@@ -41,7 +42,11 @@ void main() {
       overrides: [
         searchProvider.overrideWith((ref, key) => fakeSearch(key)),
       ],
-      child: const MaterialApp(home: ResultPage(searchQuery: 'docker')),
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const ResultPage(searchQuery: 'docker'),
+      ),
     ));
     // Bounded pumping: the bottom loader keeps its animation alive, so
     // pumpAndSettle never settles.
