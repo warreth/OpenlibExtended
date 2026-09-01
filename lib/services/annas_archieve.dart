@@ -247,6 +247,20 @@ class AnnasArchieve {
         .trim();
   }
 
+  /// Text of an element as the browser would show it: script and style
+  /// contents are skipped. Anna's Archive embeds click handlers as inline
+  /// <script> tags inside the info boxes, and the html package happily
+  /// includes their source in `.text`.
+  String _visibleText(dom.Element? element) {
+    if (element == null) return '';
+    final clone = element.clone(true);
+    // Detaching is enough; the cloned nodes are never attached to the tree.
+    for (final node in clone.querySelectorAll('script, style')) {
+      node.remove();
+    }
+    return clone.text.trim();
+  }
+
   String getFormat(String info) {
     final infoLower = info.toLowerCase();
     if (infoLower.contains('pdf')) {
@@ -464,7 +478,7 @@ class AnnasArchieve {
     if (descriptionLabel?.text.trim().toLowerCase() == 'description') {
       descriptionElement = descriptionLabel?.nextElementSibling;
     }
-    String description = descriptionElement?.text.trim() ?? " ";
+    String description = _visibleText(descriptionElement);
 
     if (titleElement == null) {
       return null;
@@ -480,7 +494,7 @@ class AnnasArchieve {
         cleanText(publisherLinkElement?.text.trim() ?? "unknown");
     // NOTE: If you extract any numeric data from the 'info' string later in your app (e.g., file size or page count)
     // and attempt to convert it to an integer or double, that's where you should use _safeParse.
-    final String info = infoElement?.text.trim() ?? '';
+    final String info = _visibleText(infoElement);
 
     return BookInfoData(
       title: title,
@@ -818,8 +832,18 @@ class AnnasArchieve {
           if (data != null) {
             return data;
           } else {
+            // The page rendered fine but holds no book details - the md5
+            // led to a search redirect. This is a dead link, not a block.
             _logger.warning('Webview HTML parsed but returned null bookInfo',
                 tag: 'AnnasArchive');
+            throw NetworkError(
+              type: NetworkErrorType.unknown,
+              userMessage: "Book not found",
+              solution:
+                  "The page loaded but no book details were on it. The md5 link may be outdated - try searching for the title instead.",
+              technicalDetails:
+                  "Parser returned null for solved page: $targetUrl",
+            );
           }
         } else {
           _logger.warning('Webview solver returned no usable HTML for bookInfo',

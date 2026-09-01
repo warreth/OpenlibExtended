@@ -145,5 +145,52 @@ void main() {
       expect(bookInfo.mirror, equals('https://annas-archive.pk/slow_download/cleancode_slow'));
       expect(bookInfo.description, contains('Even bad code can function'));
     });
+
+    test('real book page: no page scripts leak into info or description',
+        () async {
+      // Captured from a live md5 page after the DDoS-Guard challenge was
+      // solved in a real webview. The page embeds the "Save to list"
+      // button handler as an inline <script> right next to the metadata,
+      // and package:html's .text includes script source text - which is
+      // how "(function() { var scriptParent = ..." ended up in the
+      // description users saw.
+      final fixture = File('test/fixtures/real_aa_book_page.html');
+      final realHtml = fixture.readAsStringSync();
+      expect(realHtml, contains('document.currentScript'),
+          reason: 'fixture must still contain the inline handler');
+
+      final bookInfo = await api.bookInfoParser(
+        realHtml,
+        'https://annas-archive.gl/md5/0b2d8c9a4a4e7f3a1d5c9e2b8a7f6d4e',
+        'https://annas-archive.gl',
+      );
+
+      expect(bookInfo, isNotNull,
+          reason: 'Parser must handle the real page layout');
+      final info = bookInfo!.info;
+      final description = bookInfo.description ?? '';
+
+      expect(info, isNot(contains('scriptParent')));
+      expect(info, isNot(contains('(function()')));
+      expect(info, isNot(contains('addEventListener')));
+      expect(description, isNot(contains('scriptParent')));
+      expect(description, isNot(contains('currentScript')));
+      expect(info, isNotEmpty);
+    });
+
+    test('non-book page parses to null instead of fake data', () async {
+      // An md5 that no longer resolves: Anna's Archive answers with a
+      // search page. The parser must return null so bookInfo can tell the
+      // user the link is dead - not fabricate a book from the page chrome.
+      final fixture = File('test/fixtures/search_results_sample.html');
+      final searchHtml = fixture.readAsStringSync();
+
+      final bookInfo = await api.bookInfoParser(
+        searchHtml,
+        'https://annas-archive.gl/md5/0b2d8c9a4a4e7f3a1d5c9e2b8a7f6d4e',
+        'https://annas-archive.gl',
+      );
+      expect(bookInfo, isNull);
+    });
   });
 }
