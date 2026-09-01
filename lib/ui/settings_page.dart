@@ -1,5 +1,11 @@
 // Dart imports:
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:openlib/services/backup_service.dart';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
@@ -435,6 +441,9 @@ class SettingsPage extends ConsumerWidget {
               icon: Icons.key,
               onTap: () => _showDonationKeyDialog(context, ref, dataBase),
             ),
+            const SizedBox(height: 20),
+            const _SettingsSectionHeader("Backup"),
+            _BackupSettingsWidget(database: dataBase),
             const SizedBox(height: 20),
             const _SettingsSectionHeader("Updates"),
             const _UpdateSettingsWidget(),
@@ -924,6 +933,107 @@ class _SearchProvidersWidget extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (e, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Export/import the whole app state: settings, saved books, reading
+/// positions, instances. One JSON file, shareable or pickable.
+class _BackupSettingsWidget extends ConsumerWidget {
+  const _BackupSettingsWidget({required this.database});
+
+  final MyLibraryDb database;
+
+  Future<void> _export(BuildContext context) async {
+    final service = BackupService(database: database);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final json = await service.createBackupJson();
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('.', '-');
+      final fileName = 'openlib_backup_$timestamp.json';
+
+      if (PlatformUtils.isDesktop) {
+        final target = await FilePicker.saveFile(
+          dialogTitle: 'Save Backup',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+          bytes: Uint8List.fromList(utf8.encode(json)),
+        );
+        if (target == null) return;
+        if (context.mounted) {
+          showSnackBar(context: context, message: 'Backup saved');
+        }
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsString(json);
+        await SharePlus.instance.share(ShareParams(
+          files: [XFile(file.path)],
+          text: 'OpenlibExtended backup',
+        ));
+      }
+    } catch (e) {
+      messenger
+          .showSnackBar(SnackBar(content: Text('Failed to export backup: $e')));
+    }
+  }
+
+  Future<void> _import(BuildContext context, WidgetRef ref) async {
+    final service = BackupService(database: database);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final files = await FilePicker.pickFiles(
+        dialogTitle: 'Pick a backup file',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      final path = files.single.path;
+      if (path == null) return;
+
+      final restored = await service.restoreBackupFile(path);
+      if (!restored) {
+        if (context.mounted) {
+          showSnackBar(
+              context: context,
+              message: 'That file is not an OpenlibExtended backup');
+        }
+        return;
+      }
+      // Imported preferences/instances must reach the live UI.
+      // ignore: unused_result
+      ref.refresh(myLibraryProvider);
+      // ignore: unused_result
+      ref.refresh(searchProviderToggles);
+      if (context.mounted) {
+        showSnackBar(context: context, message: 'Backup restored');
+      }
+    } catch (e) {
+      messenger
+          .showSnackBar(SnackBar(content: Text('Failed to import backup: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        _SettingsTile(
+          title: 'Export Backup',
+          subtitle: 'Save settings, books and instances to a JSON file',
+          icon: Icons.file_upload_outlined,
+          onTap: () => _export(context),
+        ),
+        _SettingsTile(
+          title: 'Import Backup',
+          subtitle: 'Restore from a backup file (replaces current data)',
+          icon: Icons.file_download_outlined,
+          onTap: () => _import(context, ref),
+        ),
+      ],
     );
   }
 }
