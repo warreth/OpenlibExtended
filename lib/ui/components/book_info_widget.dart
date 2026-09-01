@@ -26,168 +26,175 @@ class BookInfoWidget extends StatelessWidget {
     String description = data.description.toString().length < 3
         ? "No Description available"
         : data.description.toString();
-    return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 15, right: 15, top: 10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(
-              width: double.infinity,
-              height: 30,
-            ),
-            Center(
-              child: CachedNetworkImage(
-                height: 230,
-                width: 170,
-                imageUrl: data.thumbnail,
-                imageBuilder: (context, imageProvider) => Container(
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
-                    image: DecorationImage(
-                      image: imageProvider,
-                      fit: BoxFit.fill,
-                    ),
-                  ),
-                ),
-                placeholder: (context, url) => Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color: Colors.grey,
-                  ),
+    // SelectionArea makes title, author, info and description copyable.
+    // The container must not be selectable itself, or taps on buttons in
+    // the child slot stop working.
+    return SelectionArea(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 15, right: 15, top: 10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(
+                width: double.infinity,
+                height: 30,
+              ),
+              Center(
+                child: CachedNetworkImage(
                   height: 230,
                   width: 170,
-                ),
-                errorWidget: (context, url, error) {
-                  return Container(
+                  imageUrl: data.thumbnail,
+                  imageBuilder: (context, imageProvider) => Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      image: DecorationImage(
+                        image: imageProvider,
+                        fit: BoxFit.fill,
+                      ),
+                    ),
+                  ),
+                  placeholder: (context, url) => Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
                       color: Colors.grey,
                     ),
                     height: 230,
                     width: 170,
-                    child: const Center(
-                      child: Icon(Icons.image_rounded),
-                    ),
-                  );
-                },
-              ),
-            ),
-            // Title row with AA button inline
-            Padding(
-              padding: const EdgeInsets.only(top: 15, bottom: 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Text(
-                      data.title,
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                        color: Theme.of(context).colorScheme.tertiary,
-                        letterSpacing: 0.5,
+                  ),
+                  errorWidget: (context, url, error) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.grey,
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  FutureBuilder<String>(
-                    future: _getCurrentAAUrl(data.md5),
-                    builder: (context, snapshot) {
-                      return OutlinedButton.icon(
-                        icon: const Icon(Icons.open_in_new, size: 18),
-                        label: const Text("Open in site",
-                            style: TextStyle(fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor:
-                              Theme.of(context).colorScheme.tertiary,
-                          side: BorderSide(
-                              color: Theme.of(context).colorScheme.tertiary),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: snapshot.hasData
-                            ? () async {
-                                final aaUrl = snapshot.data!;
-                                if (await canLaunchUrl(Uri.parse(aaUrl))) {
-                                  await launchUrl(Uri.parse(aaUrl),
-                                      mode: LaunchMode.externalApplication);
-                                } else if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            "Could not open Anna's Archive.")),
-                                  );
-                                }
-                              }
-                            : null,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            _TopPaddedText(
-              text: data.publisher ?? "unknown",
-              fontSize: 15,
-              topPadding: 7,
-              color: Theme.of(context).textTheme.headlineMedium!.color!,
-              maxLines: 4,
-            ),
-            _TopPaddedText(
-              text: data.author ?? "unknown",
-              fontSize: 13,
-              topPadding: 7,
-              color: Theme.of(context).textTheme.headlineSmall!.color!,
-              maxLines: 3,
-            ),
-            _TopPaddedText(
-              text: data.info ?? "",
-              fontSize: 11,
-              topPadding: 9,
-              color: Theme.of(context)
-                  .textTheme
-                  .headlineSmall!
-                  .color!
-                  .withAlpha(155),
-              maxLines: 4,
-            ),
-            // child slot of page
-            child,
-            Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Description",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+                      height: 230,
+                      width: 170,
+                      child: const Center(
+                        child: Icon(Icons.image_rounded),
+                      ),
+                    );
+                  },
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 7, bottom: 10),
-                  child: Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color:
-                          Theme.of(context).colorScheme.tertiary.withAlpha(150),
-                      letterSpacing: 1.5,
+              ),
+              // Title row with AA button inline
+              Padding(
+                padding: const EdgeInsets.only(top: 15, bottom: 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        data.title,
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: Theme.of(context).colorScheme.tertiary,
+                          letterSpacing: 0.5,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    FutureBuilder<String>(
+                      future: _getCurrentAAUrl(data.md5),
+                      builder: (context, snapshot) {
+                        return OutlinedButton.icon(
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: const Text("Open in site",
+                              style: TextStyle(fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor:
+                                Theme.of(context).colorScheme.tertiary,
+                            side: BorderSide(
+                                color: Theme.of(context).colorScheme.tertiary),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: snapshot.hasData
+                              ? () async {
+                                  final aaUrl = snapshot.data!;
+                                  if (await canLaunchUrl(Uri.parse(aaUrl))) {
+                                    await launchUrl(Uri.parse(aaUrl),
+                                        mode: LaunchMode.externalApplication);
+                                  } else if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              "Could not open Anna's Archive.")),
+                                    );
+                                  }
+                                }
+                              : null,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              _TopPaddedText(
+                text: data.publisher ?? "unknown",
+                fontSize: 15,
+                topPadding: 7,
+                color: Theme.of(context).textTheme.headlineMedium!.color!,
+                maxLines: 4,
+              ),
+              _TopPaddedText(
+                text: data.author ?? "unknown",
+                fontSize: 13,
+                topPadding: 7,
+                color: Theme.of(context).textTheme.headlineSmall!.color!,
+                maxLines: 3,
+              ),
+              _TopPaddedText(
+                text: data.info ?? "",
+                fontSize: 11,
+                topPadding: 9,
+                color: Theme.of(context)
+                    .textTheme
+                    .headlineSmall!
+                    .color!
+                    .withAlpha(155),
+                maxLines: 4,
+              ),
+              // child slot of page
+              child,
+              Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Description",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Theme.of(context).colorScheme.tertiary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                )
-              ],
-            )
-          ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 7, bottom: 10),
+                    child: Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .tertiary
+                            .withAlpha(150),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  )
+                ],
+              )
+            ],
+          ),
         ),
       ),
     );

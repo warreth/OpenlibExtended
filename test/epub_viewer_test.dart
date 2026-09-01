@@ -18,6 +18,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 
 // Project imports:
 import 'package:openlib/ui/epub_viewer.dart';
+import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/state/state.dart' show filePathProvider;
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -46,11 +47,17 @@ void main() {
   // The real getFilePath flow reads the bookStorageDirectory preference from
   // the sqlite database; give it a real local database so the code path is
   // the production one (preference lookup misses -> error -> snackbar).
-  setUpAll(() {
+  setUpAll(() async {
     if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
       PathProviderPlatform.instance = _FakePathProvider();
+
+      // The size label test asserts absolute values, so a font size
+      // persisted by an earlier test run must not leak in. setUpAll runs
+      // in the plain zone; the same write inside a widget test would
+      // hang on real I/O.
+      await MyLibraryDb.instance.savePreference('readerFontSize', 16);
     }
   });
 
@@ -133,7 +140,11 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('OpenlibExtended'), findsOneWidget);
 
-    gate.complete('${tmpDir.path}/sample.epub');
+    // Unmount so no pending provider work bleeds into the next test -
+    // leftover viewers contend on the shared sqlite singleton and leave
+    // sqflite busy-watchers that fail teardown.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
   });
 }
 

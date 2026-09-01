@@ -124,6 +124,12 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
   bool _showTutorial = false;
   final FocusNode _focusNode = FocusNode();
 
+  static const _defaultFontSize = 16.0;
+  static const _minFontSize = 10.0;
+  static const _maxFontSize = 32.0;
+  static const _fontSizeStep = 2.0;
+  double _fontSize = _defaultFontSize;
+
   @override
   void initState() {
     super.initState();
@@ -133,10 +139,36 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
       // NOTE: We'll set CFI later in onDocumentLoaded because we need to fetch it async
     );
 
+    _loadFontSize();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkTutorial();
       _focusNode.requestFocus();
     });
+  }
+
+  Future<void> _loadFontSize() async {
+    final saved = await MyLibraryDb.instance
+        .getPreference('readerFontSize')
+        .catchError((_) => null);
+    if (saved != null && mounted) {
+      final parsed = double.tryParse(saved.toString());
+      if (parsed != null && parsed >= _minFontSize && parsed <= _maxFontSize) {
+        setState(() => _fontSize = parsed);
+      }
+    }
+  }
+
+  Future<void> _changeFontSize(double delta) async {
+    final next = (_fontSize + delta).clamp(_minFontSize, _maxFontSize);
+    if (next == _fontSize) return;
+    setState(() => _fontSize = next);
+    // savePreference only accepts bool/int/String, so the double goes in
+    // as text; _loadFontSize parses it back out. Writing here (not on
+    // close) keeps tests free of lifecycle writes.
+    await MyLibraryDb.instance
+        .savePreference('readerFontSize', next.toString())
+        .catchError((_) {});
   }
 
   Future<void> _checkTutorial() async {
@@ -190,6 +222,28 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
               color: Theme.of(context).colorScheme.tertiary),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Decrease font size',
+            icon: Icon(Icons.text_decrease,
+                color: Theme.of(context).colorScheme.tertiary),
+            onPressed: () => _changeFontSize(-_fontSizeStep),
+          ),
+          Text(
+            _fontSize.round().toString(),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: Theme.of(context).colorScheme.tertiary,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Increase font size',
+            icon: Icon(Icons.text_increase,
+                color: Theme.of(context).colorScheme.tertiary),
+            onPressed: () => _changeFontSize(_fontSizeStep),
+          ),
+        ],
       ),
       endDrawer: Drawer(
         child: EpubViewTableOfContents(controller: _epubReaderController),
@@ -197,43 +251,49 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
       // Use standard EpubView without interfering gestures first to ensure it works
       body: Stack(
         children: [
-          Focus(
-            focusNode: _focusNode,
-            autofocus: true,
-            child: positionAsync.when(
-              data: (savedCfi) {
-                return EpubView(
-                  controller: _epubReaderController,
-                  onDocumentLoaded: (document) {
-                    // Restore position if available
-                    if (savedCfi != null && savedCfi.isNotEmpty) {
-                      _epubReaderController.gotoEpubCfi(savedCfi);
-                    }
-                  },
-                  onChapterChanged: (value) {
-                    // Optional: auto-save on chapter change
-                    // saveEpubState(widget.fileName, _epubReaderController.generateEpubCfi(), ref);
-                  },
-                  builders: EpubViewBuilders<DefaultBuilderOptions>(
-                    options: DefaultBuilderOptions(
-                      textStyle: TextStyle(
-                        height: 1.25,
-                        fontSize: 16,
-                        color:
-                            isDarkMode ? const Color(0xfff5f5f5) : Colors.black,
+          // SelectionArea lets readers select and copy text from the book.
+          // Buttons and links inside the Html still work: SelectionArea only
+          // captures drags that start on text.
+          SelectionArea(
+            child: Focus(
+              focusNode: _focusNode,
+              autofocus: true,
+              child: positionAsync.when(
+                data: (savedCfi) {
+                  return EpubView(
+                    controller: _epubReaderController,
+                    onDocumentLoaded: (document) {
+                      // Restore position if available
+                      if (savedCfi != null && savedCfi.isNotEmpty) {
+                        _epubReaderController.gotoEpubCfi(savedCfi);
+                      }
+                    },
+                    onChapterChanged: (value) {
+                      // Optional: auto-save on chapter change
+                      // saveEpubState(widget.fileName, _epubReaderController.generateEpubCfi(), ref);
+                    },
+                    builders: EpubViewBuilders<DefaultBuilderOptions>(
+                      options: DefaultBuilderOptions(
+                        textStyle: TextStyle(
+                          height: 1.25,
+                          fontSize: _fontSize,
+                          color: isDarkMode
+                              ? const Color(0xfff5f5f5)
+                              : Colors.black,
+                        ),
                       ),
+                      chapterDividerBuilder: (_) => const Divider(),
                     ),
-                    chapterDividerBuilder: (_) => const Divider(),
+                  );
+                },
+                loading: () => Center(
+                  child: CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.secondary,
                   ),
-                );
-              },
-              loading: () => Center(
-                child: CircularProgressIndicator(
-                  color: Theme.of(context).colorScheme.secondary,
                 ),
+                error: (err, stack) =>
+                    Center(child: Text("Error loading book: $err")),
               ),
-              error: (err, stack) =>
-                  Center(child: Text("Error loading book: $err")),
             ),
           ),
           if (_showTutorial)
