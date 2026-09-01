@@ -373,13 +373,16 @@ class SettingsPage extends ConsumerWidget {
                   onTap: () async {
                     final currentDirectory =
                         await dataBase.getPreference('bookStorageDirectory');
-                    final internalDirectory =
-                        await getBookStorageDefaultDirectory;
                     String? pickedDirectory = await pickBookStorageDirectory();
                     if (pickedDirectory == null) return;
                     await requestStoragePermission();
 
-                    if (currentDirectory == internalDirectory) {
+                    // Move the books from wherever they live now - the
+                    // old code only moved them when leaving the internal
+                    // default, so switching between two custom folders
+                    // left every file behind and the library showed
+                    // "File not found" on the next open.
+                    if (currentDirectory != pickedDirectory) {
                       await moveLibraryFiles(currentDirectory, pickedDirectory);
                     }
 
