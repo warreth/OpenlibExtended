@@ -387,23 +387,42 @@ final getSubCategoryTypeList = FutureProvider.family
   return uniqueArray;
 });
 
-// Provider for search results across all enabled providers
+/// One page of search results: the query and the 1-based page number
+/// ride together as the family key so page 2 of "docker" and page 1 of
+/// "docker" are separate cache entries.
+@immutable
+class SearchPageKey {
+  final String query;
+  final int page;
+
+  const SearchPageKey(this.query, this.page);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SearchPageKey && other.query == query && other.page == page;
+
+  @override
+  int get hashCode => Object.hash(query, page);
+}
+
+// Provider for one page of search results across all enabled providers
 final searchProvider = FutureProvider.family
-    .autoDispose<List<BookData>, String>((ref, searchQuery) async {
-  if (searchQuery.isEmpty) {
+    .autoDispose<List<BookData>, SearchPageKey>((ref, key) async {
+  if (key.query.isEmpty) {
     return []; // Return empty list if search query is empty
   }
 
   // A provider failure must not swallow results from the others: the
   // manager returns what it got and lists the stragglers by name.
   final result = await SearchManager().search(SearchQuery(
-    text: searchQuery,
+    text: key.query,
     content: ref.watch(getTypeValue),
     sort: ref.watch(getSortValue),
     fileType: ref.watch(getFileTypeValue),
     language: ref.watch(getLanguageValue),
     year: ref.watch(getYearValue),
     filtersEnabled: ref.watch(enableFiltersState),
+    page: key.page,
   ));
   if (result.failedProviders.isNotEmpty &&
       result.books.isEmpty &&

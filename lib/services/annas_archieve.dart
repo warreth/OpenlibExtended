@@ -77,7 +77,8 @@ class AnnasArchieve {
     "accept":
         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "accept-language": "en-US,en;q=0.9",
-    "sec-ch-ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "sec-ch-ua":
+        '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Linux"',
     "sec-fetch-dest": "document",
@@ -127,14 +128,16 @@ class AnnasArchieve {
               'statusCode': response.statusCode,
               'headers': response.headers.map.toString(),
             });
-        
+
         // Log first 500 chars of response for debugging
         final preview = response.data?.toString().substring(
-            0, response.data.toString().length > 500 ? 500 : response.data.toString().length);
-        _logger.debug('Response preview', 
-            tag: 'AnnasArchive',
-            metadata: {'preview': preview});
-        
+            0,
+            response.data.toString().length > 500
+                ? 500
+                : response.data.toString().length);
+        _logger.debug('Response preview',
+            tag: 'AnnasArchive', metadata: {'preview': preview});
+
         return true;
       }
     }
@@ -276,19 +279,18 @@ class AnnasArchieve {
   // --------------------------------------------------------------------
   // _parser FUNCTION (Search Results - Fixed nth-of-type issue)
   // --------------------------------------------------------------------
-  List<BookData> _parser(dynamic resData, String fileType, String currentBaseUrl) {
+  List<BookData> _parser(
+      dynamic resData, String fileType, String currentBaseUrl) {
     var document = parse(resData.toString());
 
     var bookContainers =
         document.querySelectorAll('div.flex.pt-3.pb-3.border-b');
 
-    _logger.debug('Parser started',
-        tag: 'AnnasArchive',
-        metadata: {
-          'containerCount': bookContainers.length,
-          'fileType': fileType,
-          'currentBaseUrl': currentBaseUrl,
-        });
+    _logger.debug('Parser started', tag: 'AnnasArchive', metadata: {
+      'containerCount': bookContainers.length,
+      'fileType': fileType,
+      'currentBaseUrl': currentBaseUrl,
+    });
 
     // FALLBACK: If primary selector finds nothing, try alternative selectors
     // because Anna's Archive changes its HTML structure periodically.
@@ -308,13 +310,16 @@ class AnnasArchieve {
 
       // Try 3: any div containing md5 link
       if (md5Links.isNotEmpty) {
-        bookContainers = md5Links.map((link) {
-          var parent = link.parent;
-          while (parent != null && parent.localName != 'div') {
-            parent = parent.parent;
-          }
-          return parent;
-        }).whereType<dom.Element>().toList();
+        bookContainers = md5Links
+            .map((link) {
+              var parent = link.parent;
+              while (parent != null && parent.localName != 'div') {
+                parent = parent.parent;
+              }
+              return parent;
+            })
+            .whereType<dom.Element>()
+            .toList();
         _logger.debug('Using fallback: md5 link parents',
             tag: 'AnnasArchive', metadata: {'count': bookContainers.length});
       }
@@ -383,8 +388,8 @@ class AnnasArchieve {
             tag: 'AnnasArchive',
             metadata: {
               'containerIdx': idx,
-              'title': title.substring(
-                  0, title.length > 50 ? 50 : title.length),
+              'title':
+                  title.substring(0, title.length > 50 ? 50 : title.length),
               'info': info ?? '(null)',
               'fileType': fileType,
             });
@@ -402,28 +407,27 @@ class AnnasArchieve {
       );
       bookList.add(book);
 
-      _logger.debug('Added book',
-          tag: 'AnnasArchive',
-          metadata: {
-            'title': title.substring(0, title.length > 50 ? 50 : title.length),
-            'md5': md5,
-          });
+      _logger.debug('Added book', tag: 'AnnasArchive', metadata: {
+        'title': title.substring(0, title.length > 50 ? 50 : title.length),
+        'md5': md5,
+      });
     }
 
     _logger.info('Parser completed',
-        tag: 'AnnasArchive',
-        metadata: {'booksFound': bookList.length});
+        tag: 'AnnasArchive', metadata: {'booksFound': bookList.length});
     return bookList;
   }
 
   /// Test-only wrappers around the private parsers so tests can verify real
   /// HTML parsing without going through the network layer.
   @visibleForTesting
-  List<BookData> parser(dynamic resData, String fileType, String currentBaseUrl) =>
+  List<BookData> parser(
+          dynamic resData, String fileType, String currentBaseUrl) =>
       _parser(resData, fileType, currentBaseUrl);
 
   @visibleForTesting
-  Future<BookInfoData?> bookInfoParser(dynamic resData, String url, String currentBaseUrl) =>
+  Future<BookInfoData?> bookInfoParser(
+          dynamic resData, String url, String currentBaseUrl) =>
       _bookInfoParser(resData, url, currentBaseUrl);
   // --------------------------------------------------------------------
 
@@ -519,10 +523,15 @@ class AnnasArchieve {
       required String language,
       required String year,
       required bool enableFilters,
-      required String currentBaseUrl}) {
+      required String currentBaseUrl,
+      int page = 1}) {
     searchQuery = searchQuery.replaceAll(" ", "+");
+    // Anna's Archive paginates with &page=N after the query; page 1 is
+    // the default and the parameter is omitted to keep cached challenge
+    // pages matching.
+    final pageParam = page > 1 ? '&page=$page' : '';
     if (!enableFilters) {
-      return '$currentBaseUrl/search?q=$searchQuery';
+      return '$currentBaseUrl/search?q=$searchQuery$pageParam';
     }
 
     // Build URL with parameters in correct order for Anna's Archive
@@ -565,7 +574,7 @@ class AnnasArchieve {
       }
     }
 
-    return url;
+    return '$url$pageParam';
   }
 
   Future<List<BookData>> searchBooks(
@@ -575,7 +584,8 @@ class AnnasArchieve {
       String fileType = "",
       String language = "",
       String year = "",
-      bool enableFilters = true}) async {
+      bool enableFilters = true,
+      int page = 1}) async {
     _logger.info('Searching books', tag: 'AnnasArchive', metadata: {
       'query': searchQuery,
       'content': content,
@@ -597,7 +607,8 @@ class AnnasArchieve {
             language: language,
             year: year,
             enableFilters: enableFilters,
-            currentBaseUrl: currentBaseUrl);
+            currentBaseUrl: currentBaseUrl,
+            page: page);
 
         // If the challenge solver already captured this page in a browser,
         // use it directly - Dio can never pass the challenge itself.
@@ -613,13 +624,12 @@ class AnnasArchieve {
         final response = await _makeRequest(encodedURL);
 
         // Log response details for debugging
-        _logger.debug('Search response received',
-            tag: 'AnnasArchive',
-            metadata: {
-              'statusCode': response.statusCode,
-              'contentType': response.headers.value('content-type'),
-              'responseLength': response.data?.toString().length ?? 0,
-            });
+        _logger
+            .debug('Search response received', tag: 'AnnasArchive', metadata: {
+          'statusCode': response.statusCode,
+          'contentType': response.headers.value('content-type'),
+          'responseLength': response.data?.toString().length ?? 0,
+        });
 
         // Check for Cloudflare block in the response
         if (_isCloudflareBlocked(response)) {
@@ -752,7 +762,8 @@ class AnnasArchieve {
         if (cached != null) {
           _logger.info('Using cached challenge HTML for bookInfo',
               tag: 'AnnasArchive', metadata: {'url': adjustedUrl});
-          final data = await _bookInfoParser(cached, adjustedUrl, currentBaseUrl);
+          final data =
+              await _bookInfoParser(cached, adjustedUrl, currentBaseUrl);
           if (data != null) return data;
         }
 
@@ -762,7 +773,8 @@ class AnnasArchieve {
 
         // Check for Cloudflare block in the response
         if (_isCloudflareBlocked(response)) {
-          _logger.warning('Cloudflare/DDoS block detected in book info response',
+          _logger.warning(
+              'Cloudflare/DDoS block detected in book info response',
               tag: 'AnnasArchive');
           throw NetworkError(
             type: NetworkErrorType.cloudflareBlock,
@@ -792,7 +804,7 @@ class AnnasArchieve {
                 'statusCode': response.statusCode,
                 'preview': preview,
               });
-          
+
           throw NetworkError(
             type: NetworkErrorType.unknown,
             userMessage: "Unable to load book details",
@@ -822,8 +834,8 @@ class AnnasArchieve {
             tag: 'AnnasArchive');
 
         final targetUrl = networkErr.blockedUrl!;
-        final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(
-            targetUrl);
+        final html =
+            await WebviewChallengeSolver.fetchHtmlAfterChallenge(targetUrl);
         if (html != null && html.length > 1000) {
           _logger.info('Challenge solved, parsing bookInfo from webview HTML',
               tag: 'AnnasArchive');

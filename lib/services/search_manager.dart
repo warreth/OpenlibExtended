@@ -86,6 +86,7 @@ class AnnasArchiveProvider implements SearchProvider {
       language: query.language,
       year: query.year,
       enableFilters: query.filtersEnabled,
+      page: query.page,
     );
   }
 }

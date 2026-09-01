@@ -35,7 +35,38 @@ void main() {
       expect(url, contains('year_end=2024'));
     });
 
-    test('cleanText removes emojis, non-standard symbols and excess whitespace', () {
+    test('urlEncoder paginates with &page= and omits it on page 1', () {
+      final page1 = api.urlEncoder(
+        searchQuery: 'docker',
+        content: '',
+        sort: '',
+        fileType: '',
+        language: '',
+        year: '',
+        enableFilters: true,
+        currentBaseUrl: 'https://annas-archive.gl',
+      );
+      final page2 = api.urlEncoder(
+        searchQuery: 'docker',
+        content: '',
+        sort: '',
+        fileType: '',
+        language: '',
+        year: '',
+        enableFilters: true,
+        currentBaseUrl: 'https://annas-archive.gl',
+        page: 2,
+      );
+
+      // Page 1 keeps the bare URL so cached challenge pages still match.
+      expect(page1, isNot(contains('page=')));
+      expect(page2, contains('&page=2'));
+      expect(page2.startsWith(page1), isTrue,
+          reason: 'pagination must only append the page parameter');
+    });
+
+    test('cleanText removes emojis, non-standard symbols and excess whitespace',
+        () {
       const rawText = ' 📚  Harry Potter & the Philosopher\'s Stone 🔍 ✨   ';
       final cleaned = api.cleanText(rawText);
       expect(cleaned, equals("Harry Potter & the Philosopher's Stone"));
@@ -46,11 +77,14 @@ void main() {
       expect(api.getFormat('German [de], PDF, 15.1MB'), equals('pdf'));
       expect(api.getFormat('Comic, CBR, 45MB'), equals('cbr'));
       expect(api.getFormat('Comic, CBZ, 30MB'), equals('cbz'));
-      expect(api.getFormat('Unknown format string'), equals('epub')); // default fallback
+      expect(api.getFormat('Unknown format string'),
+          equals('epub')); // default fallback
     });
 
     test('getMd5 extracts md5 from path or URL correctly', () {
-      expect(api.getMd5('https://annas-archive.pk/md5/9fbeb1ac79a509bcc8a17d6137b929e7'),
+      expect(
+          api.getMd5(
+              'https://annas-archive.pk/md5/9fbeb1ac79a509bcc8a17d6137b929e7'),
           equals('9fbeb1ac79a509bcc8a17d6137b929e7'));
       expect(api.getMd5('/md5/cda91c52cd7cd89abf2104e265365e07'),
           equals('cda91c52cd7cd89abf2104e265365e07'));
@@ -83,7 +117,10 @@ void main() {
       expect(books.first.author, equals('Daniel Kahneman'));
       expect(books.first.publisher, equals('Farrar, Straus and Giroux'));
       expect(books.first.md5, equals('1b0142979e5db11b7f0fb37c28f24cd1'));
-      expect(books.first.link, equals('https://annas-archive.pk/md5/1b0142979e5db11b7f0fb37c28f24cd1'));
+      expect(
+          books.first.link,
+          equals(
+              'https://annas-archive.pk/md5/1b0142979e5db11b7f0fb37c28f24cd1'));
     });
 
     test('Parser parses REAL Anna\'s Archive HTML captured from live site', () {
@@ -138,11 +175,13 @@ void main() {
       );
 
       expect(bookInfo, isNotNull);
-      expect(bookInfo!.title, equals('Clean Code: A Handbook of Agile Software Craftsmanship'));
+      expect(bookInfo!.title,
+          equals('Clean Code: A Handbook of Agile Software Craftsmanship'));
       expect(bookInfo.author, equals('Robert C. Martin'));
       expect(bookInfo.publisher, equals('Prentice Hall'));
       expect(bookInfo.format, equals('pdf'));
-      expect(bookInfo.mirror, equals('https://annas-archive.pk/slow_download/cleancode_slow'));
+      expect(bookInfo.mirror,
+          equals('https://annas-archive.pk/slow_download/cleancode_slow'));
       expect(bookInfo.description, contains('Even bad code can function'));
     });
 
