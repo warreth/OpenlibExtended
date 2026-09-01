@@ -12,6 +12,7 @@ import 'package:html/parser.dart' as html_parser;
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/diamwall_solver.dart';
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 
@@ -271,9 +272,10 @@ class LibgenProvider implements SearchProvider {
   }
 }
 
-/// Z-Library: public mirrors rotate constantly and gate search behind
-/// logins, so it ships disabled by default and yields an empty result
-/// when its mirrors are unreachable instead of failing the whole search.
+/// Z-Library: mirrors sit behind a DiamWall proof-of-work gate, so the
+/// provider solves the 503 challenge headlessly (no webview) before
+/// parsing results. It still yields an empty result when every mirror
+/// fails instead of failing the whole search.
 class ZlibraryProvider implements SearchProvider {
   ZlibraryProvider({Dio? dio, List<String>? mirrors})
       : _dio = dio ??
@@ -282,10 +284,55 @@ class ZlibraryProvider implements SearchProvider {
               receiveTimeout: const Duration(seconds: 30),
               headers: _browserHeaders,
             )),
-        _mirrors = mirrors;
+        _mirrors = mirrors,
+        _solver = DiamWallSolver();
+
+  /// Default mirror order when no explicit list is given and the
+  /// instance manager has nothing enabled: z-lib.gd first (the only
+  /// mirror with working anonymous book pages and downloads over
+  /// https), then z-lib.gl and articles.sk (https, 503-tier PoW), then
+  /// the plain-http variants of z-library.sk and 1lib.sk whose https
+  /// side sits behind the browser-only DiamWall v2 tier. z-lib.fm is
+  /// v2-only on both schemes and is deliberately absent.
+  static const defaultMirrors = [
+    'https://z-lib.gd',
+    'https://z-lib.gl',
+    'https://articles.sk',
+    'http://z-library.sk',
+    'http://1lib.sk',
+  ];
+
+  /// The enabled Z-Library instances, best mirror first; falls back to
+  /// [defaultMirrors] when the instance manager is unavailable or has
+  /// nothing enabled. Never throws.
+  Future<List<String>> _resolveMirrors() async {
+    try {
+      final enabled =
+          await InstanceManager().getEnabledUrls(MirrorService.zlibrary);
+      if (enabled.isNotEmpty) {
+        // Prefer the known-good order: any default mirror keeps its
+        // default rank, unknown/custom mirrors go after them.
+        enabled.sort((a, b) {
+          final ra = defaultMirrors.indexOf(_normalizeMirror(a));
+          final rb = defaultMirrors.indexOf(_normalizeMirror(b));
+          return _mirrorRank(ra).compareTo(_mirrorRank(rb));
+        });
+        return enabled;
+      }
+    } catch (_) {
+      // Instance manager unavailable; defaults below.
+    }
+    return defaultMirrors;
+  }
+
+  int _mirrorRank(int defaultIndex) => defaultIndex >= 0 ? defaultIndex : 99;
+
+  String _normalizeMirror(String url) =>
+      url.endsWith('/') ? url.substring(0, url.length - 1) : url;
 
   final Dio _dio;
   final List<String>? _mirrors;
+  final DiamWallSolver _solver;
 
   @override
   SearchProviderId get id => SearchProviderId.zlibrary;
@@ -295,16 +342,43 @@ class ZlibraryProvider implements SearchProvider {
 
   @override
   Future<List<BookData>> search(SearchQuery query) async {
-    final mirrors = _mirrors ??
-        await InstanceManager().getEnabledUrls(MirrorService.zlibrary);
+    final mirrors = _mirrors ?? await _resolveMirrors();
+
+    // Dio throws on non-2xx by default; the DiamWall gate is a 503
+    // whose body we must read, so accept any status and inspect.
+    final acceptAnyStatus = Options(validateStatus: (_) => true);
+
     for (final mirror in mirrors) {
       try {
-        final response = await _dio.get(
+        var response = await _dio.get(
           '$mirror/s/${Uri.encodeQueryComponent(query.text)}',
           queryParameters: {if (query.page > 1) 'page': query.page},
+          options: acceptAnyStatus,
         );
+        if (_solver.looksLikeChallenge(
+            response.statusCode ?? 0, response.data.toString())) {
+          // DiamWall 503: solve the embedded SHA1 proof-of-work,
+          // attach the resulting cookies and retry once.
+          final cookies = await _solver.solve(response.data.toString());
+          if (cookies != null) {
+            final cookieHeader =
+                cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+            try {
+              response = await _dio.get(
+                '$mirror/s/${Uri.encodeQueryComponent(query.text)}',
+                queryParameters: {if (query.page > 1) 'page': query.page},
+                options:
+                    acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}),
+              );
+            } catch (_) {
+              continue; // Next mirror.
+            }
+          } else {
+            continue; // Unsolvable challenge; next mirror.
+          }
+        }
         if (response.statusCode != 200) continue;
-        final books = _parse(response.data.toString(), mirror);
+        final books = parseResults(response.data.toString(), mirror);
         if (books.isNotEmpty) return books;
       } catch (_) {
         // Next mirror; Z-Library mirrors are unstable by nature.
@@ -313,30 +387,49 @@ class ZlibraryProvider implements SearchProvider {
     return const [];
   }
 
-  /// Z-Library lists books as item blocks; selectors keep to the parts
-  /// that survived its markup generations.
-  List<BookData> _parse(String html, String baseUrl) {
+  /// Parses a Z-Library results page. Public so tests can feed a
+  /// captured page without network. Live markup uses custom
+  /// `z-bookcard` elements - there are no `<a href="/book/">` anchors -
+  /// with metadata in attributes (`extension`, `filesize`, `year`,
+  /// `language`, `publisher`, `rating`) and in `slot=` divs (`title`,
+  /// `author`).
+  List<BookData> parseResults(String html, String baseUrl) {
     final document = html_parser.parse(html);
-    final items = document.querySelectorAll('div.z-book-item, div.book-item');
     final books = <BookData>[];
-    for (final item in items) {
-      final link = item.querySelector('a[href*="/book/"]');
-      final title = link?.text.trim() ?? '';
-      if (link == null || title.isEmpty) continue;
-      final href = link.attributes['href']!;
+    for (final card in document.querySelectorAll('z-bookcard')) {
+      final href = card.attributes['href'];
+      final title = card.querySelector('div[slot="title"]')?.text.trim() ?? '';
+      if (href == null || href.isEmpty || title.isEmpty) continue;
+
+      final author =
+          card.querySelector('div[slot="author"]')?.text.trim() ?? '';
+      final cover = card.querySelector('img')?.attributes['data-src'] ??
+          card.querySelector('img')?.attributes['src'];
+
+      final info = [
+        card.attributes['language'],
+        card.attributes['extension']?.toUpperCase(),
+        card.attributes['filesize'],
+        card.attributes['year'],
+      ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
+
       books.add(BookData(
         title: title,
-        author: item.querySelector('a[href*="authorsName"]')?.text.trim() ??
-            'Unknown',
-        thumbnail: null,
+        author: author.isEmpty ? 'Unknown' : author,
+        thumbnail: cover,
         link: href.startsWith('http') ? href : '$baseUrl$href',
-        md5: href,
-        publisher: null,
-        info: null,
+        md5: _bookIdFromHref(href) ?? href,
+        publisher: card.attributes['publisher'],
+        info: info.isEmpty ? null : info,
       ));
     }
     return books;
   }
+
+  /// Z-Library has no md5 on its search pages; the book href's id
+  /// segment (`/book/<id>/slug.html`) is the stable unique id instead.
+  String? _bookIdFromHref(String href) =>
+      RegExp(r'/book/([0-9a-zA-Z]+)').firstMatch(href)?.group(1);
 }
 
 /// Combined outcome of a fan-out search.

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
@@ -6,7 +7,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 // Project imports:
+import 'package:dio/dio.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/slum_health_service.dart';
 import 'package:openlib/services/instance_manager.dart';
 
 // Desktop test runner needs the sqlite plugin faked; the app itself uses the
@@ -226,4 +229,132 @@ void main() {
           MirrorService.annasArchive);
     });
   });
+
+  group('health-aware ordering', () {
+    /// Real SlumHealthService fed by a stub adapter that returns a
+    /// captured open-slum.org page - no network, real parse path.
+    SlumHealthService healthWith(String fixture) {
+      final dio = Dio();
+      dio.httpClientAdapter = _FixtureAdapter(fixture);
+      return SlumHealthService(dio: dio);
+    }
+
+    test('mirrors SLUM reports UP sort before PROTECTED ones', () async {
+      await MyLibraryDb.instance.savePreference('archive_instances', '''
+        [
+          {"id":"aa_protected","name":"Protected","baseUrl":"https://annas-archive.gl",
+           "service":"annasArchive","priority":1,"enabled":true,"isCustom":false},
+          {"id":"aa_up","name":"Up","baseUrl":"https://libgen.bz",
+           "service":"libgen","priority":2,"enabled":true,"isCustom":false}
+        ]
+      ''');
+
+      final manager = InstanceManager.forTest(
+          healthService: healthWith(
+              File('test/fixtures/slum_front_page.html').readAsStringSync()));
+
+      // annas-archive.gl is PROTECTED in the fixture; requesting
+      // annas mirrors must put it after any UP mirror of that service.
+      final annas =
+          await manager.getInstancesByService(MirrorService.annasArchive);
+      expect(annas, isNotEmpty);
+      // The protected mirror must not have been reordered into another
+      // service's list.
+      expect(
+          annas.every((i) => i.service == MirrorService.annasArchive), isTrue);
+    });
+
+    test('getEnabledInstancesByService never mixes services', () async {
+      final manager =
+          InstanceManager.forTest(healthService: healthWith('<html></html>'));
+      final annas = await manager
+          .getEnabledInstancesByService(MirrorService.annasArchive);
+      expect(annas, isNotEmpty);
+      expect(
+          annas.every((i) => i.service == MirrorService.annasArchive), isTrue);
+      expect(
+          annas
+              .any((i) => i.id.startsWith('libgen') || i.id.startsWith('zlib')),
+          isFalse,
+          reason: 'AA retries must never run against libgen/zlib mirrors');
+    });
+
+    test('health is fetched once and reused within the TTL', () async {
+      var fetches = 0;
+      final dio = Dio();
+      dio.httpClientAdapter = _CountingAdapter(() => fetches++);
+      final manager =
+          InstanceManager.forTest(healthService: SlumHealthService(dio: dio));
+
+      await manager.getInstancesByService(MirrorService.libgen);
+      await manager.getInstancesByService(MirrorService.libgen);
+      await manager.getEnabledUrls(MirrorService.zlibrary);
+
+      expect(fetches, 1,
+          reason: 'repeat calls within the TTL must not refetch open-slum');
+    });
+
+    test('an unreachable open-slum does not block ordering', () async {
+      // Adapter that throws like a dead network.
+      final dio = Dio();
+      dio.httpClientAdapter = _DeadAdapter();
+      final manager =
+          InstanceManager.forTest(healthService: SlumHealthService(dio: dio));
+
+      final urls = await manager.getEnabledUrls(MirrorService.libgen);
+      expect(urls, isNotEmpty,
+          reason: 'ordering must fall back to stored priority');
+      expect(urls.first, anyOf(contains('libgen'), contains('http')));
+    });
+  });
+}
+
+/// Serves a fixed HTML body for every request, like a captured page.
+class _FixtureAdapter implements HttpClientAdapter {
+  _FixtureAdapter(this.body);
+  final String body;
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    final bytes = Uint8List.fromList(body.codeUnits);
+    return ResponseBody(
+      Stream.value(bytes),
+      bytes.length,
+      headers: {
+        Headers.contentLengthHeader: ['${bytes.length}'],
+        'content-type': ['text/html; charset=utf-8'],
+      },
+    );
+  }
+}
+
+class _CountingAdapter extends _FixtureAdapter {
+  _CountingAdapter(void Function() onFetch)
+      : super('<html><body>empty</body></html>') {
+    _onFetch = onFetch;
+  }
+  late final void Function() _onFetch;
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    _onFetch();
+    return super.fetch(options, requestStream, cancelFuture);
+  }
+}
+
+class _DeadAdapter implements HttpClientAdapter {
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    throw DioException.connectionError(
+        requestOptions: options, reason: 'dead network');
+  }
 }

@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'dart:async';
 
 // Package imports:
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/slum_health_service.dart';
 
 // ====================================================================
 // INSTANCE DATA MODEL
@@ -100,11 +102,48 @@ class ArchiveInstance {
 class InstanceManager {
   static final InstanceManager _instance = InstanceManager._internal();
   factory InstanceManager() => _instance;
-  InstanceManager._internal();
+
+  /// Tests inject a fake health service; production always hits the
+  /// singleton, so the private constructor stays.
+  @visibleForTesting
+  InstanceManager.forTest({SlumHealthService? healthService})
+      : _slumHealth = healthService ?? SlumHealthService();
+
+  InstanceManager._internal() : _slumHealth = SlumHealthService();
 
   final MyLibraryDb _database = MyLibraryDb.instance;
   static const String _storageKey = 'archive_instances';
   static const String _selectedInstanceKey = 'selected_instance_id';
+
+  /// SLUM (open-slum.org) health snapshot, keyed by mirror host.
+  /// Injectable so tests seed health without network; the shared
+  /// singleton uses the real service.
+  final SlumHealthService _slumHealth;
+  Map<String, SlumHealth> _healthByHost = {};
+  DateTime? _healthFetchedAt;
+
+  /// How long a health snapshot stays fresh. Open-slum checks every few
+  /// minutes; re-fetching more often only adds latency to searches.
+  static const healthTtl = Duration(minutes: 10);
+
+  /// True when health data is missing or older than [healthTtl].
+  bool get _healthStale =>
+      _healthFetchedAt == null ||
+      DateTime.now().difference(_healthFetchedAt!) > healthTtl;
+
+  /// Refreshes mirror health from open-slum.org. Never throws - SLUM
+  /// data is a nice-to-have, so failures keep the last snapshot and a
+  /// failed fetch still counts as fetched (an unreachable SLUM must
+  /// not add a 10s timeout to every search).
+  Future<void> refreshHealth({bool force = false}) async {
+    if (!force && !_healthStale) return;
+    try {
+      _healthByHost = await _slumHealth.fetchHealth();
+    } catch (_) {
+      // fetchHealth swallows its own errors; this is belt and suspenders.
+    }
+    _healthFetchedAt = DateTime.now();
+  }
 
   // Default mirrors per service. Libgen and Z-Library mirrors rotate
   // often; open-slum.org tracks which are alive.
@@ -254,18 +293,66 @@ class InstanceManager {
     return instances.where((instance) => instance.enabled).toList();
   }
 
-  /// All mirrors of one service, sorted by priority.
+  /// All mirrors of one service, ordered: mirrors open-slum.org reports
+  /// reachable without a JS challenge (up, degraded) first, then
+  /// protected/unknown, then down. Within a tier the stored priority
+  /// (ping/drag order) is kept.
+  ///
+  /// The global [ArchiveInstance.priority] stays a storage detail shared
+  /// across services; per-service order is list position within this
+  /// service's slice.
   Future<List<ArchiveInstance>> getInstancesByService(
       MirrorService service) async {
     final instances = await getInstances();
-    return instances.where((i) => i.service == service).toList();
+    final scoped = instances.where((i) => i.service == service).toList();
+    if (_healthStale) {
+      await refreshHealth();
+    }
+    _sortScopedByHealthTier(scoped);
+    return scoped;
   }
 
-  /// Enabled base URLs of one service, priority-ordered. Search
+  /// Enabled instances of one service, health-ordered (see
+  /// [getInstancesByService]). This is the mirror list AA requests must
+  /// retry across - never libgen/zlib.
+  Future<List<ArchiveInstance>> getEnabledInstancesByService(
+      MirrorService service) async {
+    final instances = await getInstancesByService(service);
+    return instances.where((i) => i.enabled).toList();
+  }
+
+  /// Enabled base URLs of one service, health-ordered. Search
   /// providers use this as their mirror list.
   Future<List<String>> getEnabledUrls(MirrorService service) async {
-    final instances = await getInstancesByService(service);
-    return instances.where((i) => i.enabled).map((i) => i.baseUrl).toList();
+    final instances = await getEnabledInstancesByService(service);
+    return instances.map((i) => i.baseUrl).toList();
+  }
+
+  /// Sorts a single-service list so non-protected mirrors come first.
+  /// Tier order: up(0) < degraded(1) < protected/unknown(2) < down(3);
+  /// mirrors with no SLUM data count as unknown. Stable within tiers.
+  void _sortScopedByHealthTier(List<ArchiveInstance> scoped) {
+    int tier(ArchiveInstance i) {
+      switch (_healthByHost[Uri.tryParse(i.baseUrl)?.host ?? '']?.status) {
+        case SlumStatus.up:
+          return 0;
+        case SlumStatus.degraded:
+          return 1;
+        case SlumStatus.protected:
+          return 2;
+        case SlumStatus.down:
+          return 3;
+        default: // null (no SLUM data) or unknown
+          return 2;
+      }
+    }
+
+    final tiers = {for (final i in scoped) i: tier(i)};
+    scoped.sort((a, b) {
+      final byTier = tiers[a]!.compareTo(tiers[b]!);
+      if (byTier != 0) return byTier;
+      return a.priority.compareTo(b.priority);
+    });
   }
 
   // Save instances to database
@@ -504,28 +591,44 @@ class InstanceManager {
         entry.key: entry.value != null ? "${entry.value}ms" : "unreachable"
     });
 
-    // Sort enabled instances by response time (reachable first, then by speed)
-    enabledInstances.sort((a, b) {
-      final timeA = responseTimeMap[a.id];
-      final timeB = responseTimeMap[b.id];
+    // A ping says nothing about Cloudflare/DiamWall-gated mirrors: Dio
+    // gets refused where browsers pass. Fetch SLUM's view once, then
+    // sort each service's mirrors: reachable-without-challenge first,
+    // then merely protected, then down - pings break ties inside a tier.
+    await refreshHealth();
 
-      // Both unreachable - keep original order
-      if (timeA == null && timeB == null) {
-        return a.priority.compareTo(b.priority);
+    // Rebuild the whole list, service slice by service slice, so
+    // priorities never interleave across services.
+    final allSorted = <ArchiveInstance>[];
+    final fastest = <MirrorService, String>{};
+    for (final service in MirrorService.values) {
+      final scoped = instances.where((i) => i.service == service).toList();
+      final scopedEnabled = scoped.where((i) => i.enabled).toList();
+
+      // Ping sort within this service (reachable first, then speed).
+      scopedEnabled.sort((a, b) {
+        final timeA = responseTimeMap[a.id];
+        final timeB = responseTimeMap[b.id];
+        if (timeA == null && timeB == null) {
+          return a.priority.compareTo(b.priority);
+        }
+        if (timeA == null) return 1;
+        if (timeB == null) return -1;
+        return timeA.compareTo(timeB);
+      });
+
+      // Health tiering on top: mirrors SLUM can vouch for come before
+      // protected ones, whatever the ping said.
+      _sortScopedByHealthTier(scopedEnabled);
+      if (scopedEnabled.isNotEmpty) {
+        fastest[service] = scopedEnabled.first.name;
       }
-      // A unreachable - B comes first
-      if (timeA == null) return 1;
-      // B unreachable - A comes first
-      if (timeB == null) return -1;
-      // Both reachable - sort by speed
-      return timeA.compareTo(timeB);
-    });
 
-    // Rebuild the full list maintaining disabled instances at their positions
-    final disabledInstances = instances.where((i) => !i.enabled).toList();
-    final allSorted = [...enabledInstances, ...disabledInstances];
+      allSorted.addAll(scopedEnabled);
+      allSorted.addAll(scoped.where((i) => !i.enabled));
+    }
 
-    // Update priorities
+    // Update priorities (global ints remain a storage detail).
     for (int i = 0; i < allSorted.length; i++) {
       allSorted[i] = allSorted[i].copyWith(priority: i);
     }
@@ -538,8 +641,9 @@ class InstanceManager {
 
     _logger
         .info('Instance ranking completed', tag: 'InstanceManager', metadata: {
-      'fastest':
-          enabledInstances.isNotEmpty ? enabledInstances.first.name : 'none',
+      for (final service in MirrorService.values)
+        'fastest${service.name[0].toUpperCase()}${service.name.substring(1)}':
+            fastest[service] ?? 'none',
     });
 
     return responseTimeMap;

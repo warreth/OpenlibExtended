@@ -155,7 +155,10 @@ class AnnasArchieve {
   Future<T> _requestWithRetry<T>(
     Future<T> Function(String baseUrl) requestFn,
   ) async {
-    final instances = await _instanceManager.getEnabledInstances();
+    // Anna's Archive requests must only retry across Anna's mirrors -
+    // libgen/zlib mirrors 404 on AA paths and waste every retry slot.
+    final instances = await _instanceManager
+        .getEnabledInstancesByService(MirrorService.annasArchive);
 
     if (instances.isEmpty) {
       // Use default if no instances are enabled

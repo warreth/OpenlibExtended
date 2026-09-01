@@ -163,8 +163,17 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                     String? downloadUrl = widget.data.mirror;
                     bool isFastDownload = widget.data.isFastDownload;
 
+                    // Libgen serves its files directly (get.php -> CDN);
+                    // no mirror scraping or donation key applies.
+                    final isDirectLink = downloadUrl != null &&
+                        downloadUrl.contains('/get.php?');
+                    if (isDirectLink) {
+                      isFastDownload = true;
+                    }
+
                     // Try to fetch fast download link if key is present and not already fast
-                    final donationKey = ref.read(donationKeyProvider);
+                    final donationKey =
+                        isDirectLink ? '' : ref.read(donationKeyProvider);
                     if (donationKey.isNotEmpty && !isFastDownload) {
                       try {
                         final annasArchive = AnnasArchieve();

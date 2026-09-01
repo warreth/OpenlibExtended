@@ -206,6 +206,45 @@ void main() {
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 60)));
 
+    test('libgen-style direct link (get.php -> CDN redirect) downloads',
+        () async {
+      // The libgen flow passes the get.php URL as a direct mirror link
+      // (isDirectLink), which must download without any scraping.
+      final bytes = Uint8List.fromList(
+          List.generate(1024 * 150, (i) => (i * 7) % 251));
+      server = await _RangeServer.start(bytes: bytes);
+      server._server.listen(server.handle);
+
+      final task = DownloadTask(
+        id: 'md5hash_libgen',
+        md5: 'md5hash_libgen',
+        title: 'Flutter for Beginners',
+        mirrors: const [],
+        mirrorUrl: server.url.toString(),
+        isDirectLink: true,
+        format: 'epub',
+        link: server.url.toString(),
+      );
+
+      final completer = Completer<void>();
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[task.id];
+        if (t != null && t.status == DownloadStatus.completed) {
+          completer.complete();
+        }
+      });
+
+      await manager.addDownloadWithMirrorUrl(task, server.url.toString());
+      await completer.future.timeout(const Duration(seconds: 30));
+
+      final saved = File(
+          '$saveDir/${generateBookFileName(title: 'Flutter for Beginners', format: 'epub', md5: 'md5hash_libgen')}');
+      expect(saved.existsSync(), isTrue);
+      expect(saved.readAsBytesSync(), bytes);
+
+      manager.removeDownload(task.id);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
     test('pause mid-download then resume continues from disk (Range server)',
         () async {
       final bytes =
