@@ -813,6 +813,11 @@ class DownloadManager {
       // stuck at its last progress value.
       final sinkDone = sink.done;
 
+      // Notification throttling: Android's notification channel chokes if
+      // an update lands per network chunk. Track the last percentage the
+      // channel saw and only repost when it moved by a whole step.
+      int lastNotifiedPercent =
+          (received / (total > 0 ? total : 1) * 100).clamp(0, 99).toInt();
       await response.data.stream.listen(
         (data) {
           sink.add(data);
@@ -821,13 +826,14 @@ class DownloadManager {
           double progress = total > 0 ? received / total : 0;
           _updateTaskProgress(taskId, progress, received, total);
 
-          if (received % (1024 * 1024) == 0) {
-            // Update notification roughly every 1MB
+          final percent = (progress * 100).clamp(0, 99).toInt();
+          if (shouldNotifyProgress(lastNotifiedPercent, percent)) {
+            lastNotifiedPercent = percent;
             _notificationService.showDownloadNotification(
               id: taskId.hashCode,
               title: _activeDownloads[taskId]?.title ?? 'Downloading',
-              body: 'Downloading...',
-              progress: (progress * 100).toInt(),
+              body: 'Downloading... $percent%',
+              progress: percent,
             );
           }
         },

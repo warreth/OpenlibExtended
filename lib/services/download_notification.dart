@@ -11,6 +11,18 @@ import 'package:permission_handler/permission_handler.dart';
 // Project imports:
 import 'package:openlib/services/platform_utils.dart';
 
+/// Minimum whole-percent change before the notification re-posts.
+/// Debounces the Android channel so a fast download does not spam
+/// updates per network chunk (the channel is rate-limited by the OS
+/// anyway - burning through it makes later updates laggy).
+const notificationProgressStepPercent = 2;
+
+/// True when a progress change is large enough to re-post the
+/// notification. Pure so the download loop and tests share one rule.
+bool shouldNotifyProgress(int lastNotifiedPercent, int newPercent) {
+  return newPercent - lastNotifiedPercent >= notificationProgressStepPercent;
+}
+
 class DownloadNotificationService {
   static final DownloadNotificationService _instance =
       DownloadNotificationService._internal();
@@ -94,6 +106,10 @@ class DownloadNotificationService {
         autoCancel: false,
         playSound: false,
         enableVibration: false,
+        // Percentage updates re-show the same notification dozens of
+        // times per book; onlyAlertOnce keeps each update silent and
+        // instant instead of re-alerting.
+        onlyAlertOnce: true,
         icon: '@mipmap/launcher_icon',
         styleInformation: BigTextStyleInformation(
           body ?? '',
