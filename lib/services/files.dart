@@ -8,7 +8,8 @@ import 'package:path_provider/path_provider.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
-import 'package:openlib/state/state.dart' show myLibraryProvider;
+import 'package:openlib/state/state.dart'
+    show libraryBooksProvider, libraryTagsProvider, myLibraryProvider;
 
 MyLibraryDb dataBase = MyLibraryDb.instance;
 
@@ -228,6 +229,10 @@ Future<void> deleteFileWithDbData(Ref ref, String md5, String format,
     await dataBase.deleteBookState(actualFileName);
     // ignore: unused_result
     ref.refresh(myLibraryProvider);
+    // ignore: unused_result
+    ref.refresh(libraryBooksProvider);
+    // ignore: unused_result
+    ref.refresh(libraryTagsProvider);
   } catch (e) {
     // print(e);
     rethrow;

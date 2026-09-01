@@ -15,11 +15,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // NOTE: These imports are crucial and must exist in your project structure.
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/libgen_service.dart';
 import 'package:openlib/services/search_manager.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/open_library.dart';
 import 'package:openlib/services/goodreads.dart';
 import 'package:openlib/services/instance_manager.dart';
+import 'package:openlib/services/library_organization.dart';
 import 'package:openlib/services/download_manager.dart';
 // Assuming OpenLibrary, Goodreads, PenguinRandomHouse, BookDigits, and SubCategoriesTypeList are defined
 // or are simple placeholder services/models that work as intended.
@@ -443,8 +445,19 @@ final searchProviderToggles = FutureProvider<Set<SearchProviderId>>(
     (ref) => SearchManager().enabledProviders());
 
 // Provider for Book Info Details
+//
+// Routes by URL: libgen detail pages (ads.php?md5=) are parsed by the
+// libgen service, everything else falls through to Anna's Archive.
 final bookInfoProvider =
     FutureProvider.family<BookInfoData, String>((ref, url) async {
+  if (url.contains('ads.php?md5=')) {
+    final data = await LibgenService().bookInfo(url);
+    if (data == null) {
+      throw Exception('Could not read this libgen book page');
+    }
+    return data;
+  }
+
   final AnnasArchieve annasArchieve = AnnasArchieve();
   final donationKey = ref.watch(donationKeyProvider);
   BookInfoData data =
@@ -455,6 +468,75 @@ final bookInfoProvider =
 // My Library Database Providers
 final myLibraryProvider = FutureProvider((ref) async {
   return dataBase.getAll();
+});
+
+// ====================================================================
+// LIBRARY ORGANIZATION (sorting, tags, reading status filters)
+// ====================================================================
+
+/// The library enriched with tags, reading status and file sizes -
+/// the data every sort/filter view derives from.
+final libraryBooksProvider = FutureProvider<List<LibraryBook>>((ref) async {
+  final books = await dataBase.getAll();
+  if (books.isEmpty) return const [];
+  final tags = await dataBase.getTagsForAll();
+  final positions = await dataBase.getPositionsForAll();
+  final completed = await dataBase.getCompletedForAll();
+  return [
+    for (final book in books)
+      LibraryBook(
+        book: book,
+        tags: tags[book.id] ?? const {},
+        status: _readingStatus(
+          position: positions[book.getFileName()],
+          completed: completed[book.getFileName()] ?? false,
+        ),
+        fileSizeBytes: await _fileSizeOf(book),
+      ),
+  ];
+});
+
+ReadingStatus _readingStatus({String? position, required bool completed}) {
+  if (completed) return ReadingStatus.completed;
+  if (position == null || position.isEmpty) return ReadingStatus.unread;
+  return ReadingStatus.inProgress;
+}
+
+Future<int?> _fileSizeOf(MyBook book) async {
+  try {
+    final path = await getFilePath(book.getFileName());
+    final file = File(path);
+    if (await file.exists()) return await file.length();
+  } catch (_) {}
+  return null;
+}
+
+/// User's chosen sort order, persisted as its stable key.
+final librarySortModeProvider = StateProvider<LibrarySortMode>(
+    (ref) => LibrarySortMode.dateAddedDesc);
+
+/// Active tag filters; empty set means no tag filter.
+final libraryTagFilterProvider = StateProvider<Set<String>>((ref) => {});
+
+/// Active reading-status filter; null means no status filter.
+final libraryStatusFilterProvider =
+    StateProvider<ReadingStatus?>((ref) => null);
+
+/// All tags in use across the library.
+final libraryTagsProvider = FutureProvider<Set<String>>((ref) async {
+  return (await dataBase.getAllTags()).toSet();
+});
+
+/// The final, organized library: filtered then sorted.
+final organizedLibraryProvider = Provider<List<LibraryBook>>((ref) {
+  final books = ref.watch(libraryBooksProvider).valueOrNull ?? const [];
+  final mode = ref.watch(librarySortModeProvider);
+  final tagFilter = ref.watch(libraryTagFilterProvider);
+  final statusFilter = ref.watch(libraryStatusFilterProvider);
+  return sortLibrary(
+    filterLibrary(books, tagFilter: tagFilter, statusFilter: statusFilter),
+    mode,
+  );
 });
 
 final checkIdExists =

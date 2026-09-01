@@ -58,6 +58,7 @@ class BookInfoCard extends ConsumerWidget {
     required this.info,
     required this.link,
     required this.onClick,
+    this.onLongPress,
     this.md5,
   });
 
@@ -68,6 +69,7 @@ class BookInfoCard extends ConsumerWidget {
   final String? info;
   final String link;
   final VoidCallback onClick;
+  final VoidCallback? onLongPress;
   final String? md5;
 
   @override
@@ -82,6 +84,7 @@ class BookInfoCard extends ConsumerWidget {
 
     return InkWell(
       onTap: onClick,
+      onLongPress: onLongPress,
       child: Container(
         width: double.infinity,
         height: 120,

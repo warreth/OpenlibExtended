@@ -93,7 +93,7 @@ class MyLibraryDb {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: (Database db, int version) async {
         await db.execute(
             'CREATE TABLE mybooks (id TEXT PRIMARY KEY, title TEXT,author TEXT,thumbnail TEXT,link TEXT,publisher TEXT,info TEXT,format TEXT,description TEXT,fileName TEXT)');
@@ -101,9 +101,11 @@ class MyLibraryDb {
             'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
         // Create these tables for all platforms (both mobile and desktop)
         await db.execute(
-            'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
+            'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT,completed INTEGER DEFAULT 0)');
         await db.execute(
             'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
+        await db.execute(
+            'CREATE TABLE booktags (bookId TEXT,tag TEXT,PRIMARY KEY (bookId,tag))');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         List<dynamic> isTableExist = await db.query('sqlite_master',
@@ -130,6 +132,21 @@ class MyLibraryDb {
         if (oldVersion < 6) {
           try {
             await db.execute('ALTER TABLE mybooks ADD COLUMN fileName TEXT');
+          } catch (_) {
+            // Column might already exist
+          }
+        }
+        // Tags and reading completion arrive with schema v7
+        if (oldVersion < 7) {
+          final hasTags = await db.query('sqlite_master',
+              where: 'name = ?', whereArgs: ['booktags']);
+          if (hasTags.isEmpty) {
+            await db.execute(
+                'CREATE TABLE booktags (bookId TEXT,tag TEXT,PRIMARY KEY (bookId,tag))');
+          }
+          try {
+            await db.execute(
+                'ALTER TABLE bookposition ADD COLUMN completed INTEGER DEFAULT 0');
           } catch (_) {
             // Column might already exist
           }
@@ -168,6 +185,11 @@ class MyLibraryDb {
 
   Future<void> delete(String id) async {
     final dbInstance = await instance.database;
+    await dbInstance.delete(
+      'booktags',
+      where: 'bookId = ?',
+      whereArgs: [id],
+    );
     await dbInstance.delete(
       tableName,
       where: 'id = ?',
@@ -227,6 +249,102 @@ class MyLibraryDb {
       {'fileName': fileName, 'position': position},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // ------------------------------------------------------------------
+  // Tags: user-defined collections a book can belong to ('Favorites',
+  // 'Sci-Fi', 'To Read', ...). One book, many tags; one tag, many books.
+  // ------------------------------------------------------------------
+
+  /// Assigns one tag to a book. Adding an existing pair is a no-op.
+  Future<void> addTag(String bookId, String tag) async {
+    final dbInstance = await instance.database;
+    await dbInstance.insert(
+      'booktags',
+      {'bookId': bookId, 'tag': tag.trim()},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  /// Removes one tag from a book.
+  Future<void> removeTag(String bookId, String tag) async {
+    final dbInstance = await instance.database;
+    await dbInstance.delete(
+      'booktags',
+      where: 'bookId = ? AND tag = ?',
+      whereArgs: [bookId, tag],
+    );
+  }
+
+  /// All tags of one book.
+  Future<Set<String>> getTags(String bookId) async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance
+        .query('booktags', where: 'bookId = ?', whereArgs: [bookId]);
+    return rows.map((r) => r['tag'].toString()).toSet();
+  }
+
+  /// Every distinct tag in use, sorted alphabetically.
+  Future<List<String>> getAllTags() async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query('booktags',
+        columns: ['tag'], groupBy: 'tag', orderBy: 'tag COLLATE NOCASE');
+    return rows.map((r) => r['tag'].toString()).toList();
+  }
+
+  /// Map of bookId to its tag set, in one query - used to enrich the
+  /// whole library without N+1 lookups.
+  Future<Map<String, Set<String>>> getTagsForAll() async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query('booktags');
+    final map = <String, Set<String>>{};
+    for (final row in rows) {
+      map.putIfAbsent(row['bookId'].toString(), () => {}).add(row['tag'].toString());
+    }
+    return map;
+  }
+
+  // ------------------------------------------------------------------
+  // Reading status: a book is completed when its position row is
+  // flagged; in progress when a position exists but is not flagged.
+  // ------------------------------------------------------------------
+
+  /// Marks (or unmarks) a book as finished. The fileName key matches
+  /// the bookposition table.
+  Future<void> setCompleted(String fileName, bool completed) async {
+    final dbInstance = await instance.database;
+    await dbInstance.insert(
+      'bookposition',
+      {'fileName': fileName, 'position': '', 'completed': completed ? 1 : 0},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// True when the book is flagged completed.
+  Future<bool> isCompleted(String fileName) async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query('bookposition',
+        where: 'fileName = ?', whereArgs: [fileName]);
+    if (rows.isEmpty) return false;
+    return rows.first['completed'] == 1;
+  }
+
+  /// Map of fileName to saved position for the whole library - used
+  /// to derive reading status without N+1 lookups.
+  Future<Map<String, String?>> getPositionsForAll() async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query('bookposition');
+    return {for (final row in rows) row['fileName'].toString(): row['position']?.toString()};
+  }
+
+  /// Map of fileName to completed flag for the whole library.
+  Future<Map<String, bool>> getCompletedForAll() async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query('bookposition');
+    return {
+      for (final row in rows)
+        row['fileName'].toString(): row['completed'] == 1
+    };
   }
 
   Future<void> deleteBookState(String fileName) async {
