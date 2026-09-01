@@ -75,6 +75,7 @@ dependencies:
   desktop_webview_window: ^0.3.0
   android_package_installer: ^0.0.3
   apk_sideload: ^0.0.2
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   archive: ^3.6.1
