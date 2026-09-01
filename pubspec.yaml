@@ -64,6 +64,7 @@ dependencies:
   crypto: ^3.0.3
   meta:
   file_picker: ^12.1.2
+  file_picker_platform_interface: ^3.2.0
   device_info_plus: ^13.2.0
   flutter_inappwebview: ^6.0.0
   http: ^1.2.2

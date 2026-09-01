@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlib/main.dart' show MainScreen;
@@ -115,7 +114,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 
   Future<void> _selectStorage() async {
-    String? pickedDirectory = await FilePicker.getDirectoryPath();
+    String? pickedDirectory = await pickBookStorageDirectory();
     if (pickedDirectory != null) {
       // If we are selecting a new path, we should probably check permissions if android
       if (Platform.isAndroid) {
@@ -307,8 +306,10 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                     subtitle: const Text(
                         "Not recommended if you installed via F-Droid (F-Droid handles updates)."),
                     activeThumbColor: Theme.of(context).colorScheme.secondary,
-                    activeTrackColor:
-                        Theme.of(context).colorScheme.secondary.withValues(alpha: 0.5),
+                    activeTrackColor: Theme.of(context)
+                        .colorScheme
+                        .secondary
+                        .withValues(alpha: 0.5),
                     inactiveThumbColor: Colors.grey,
                     inactiveTrackColor: Colors.grey.withValues(alpha: 0.5),
                     value: _enableAutoUpdate,

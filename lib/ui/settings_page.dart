@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:openlib/services/files.dart';
@@ -376,8 +375,7 @@ class SettingsPage extends ConsumerWidget {
                         await dataBase.getPreference('bookStorageDirectory');
                     final internalDirectory =
                         await getBookStorageDefaultDirectory;
-                    String? pickedDirectory =
-                        await FilePicker.getDirectoryPath();
+                    String? pickedDirectory = await pickBookStorageDirectory();
                     if (pickedDirectory == null) return;
                     await requestStoragePermission();
 

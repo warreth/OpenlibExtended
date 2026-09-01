@@ -298,7 +298,7 @@ packages:
     source: hosted
     version: "1.0.2"
   file_picker_platform_interface:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: file_picker_platform_interface
       sha256: "11ef1b5c14d9186b4788cc273dd8d5cb81bca847145060991a28234ff7916fc1"

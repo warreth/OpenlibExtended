@@ -3,6 +3,7 @@ import 'dart:io';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 // Project imports:
@@ -103,6 +104,30 @@ String generateBookFileName({
   }
 
   return "$baseName.$format";
+}
+
+/// Lets the user pick the folder books are stored in.
+///
+/// On iOS the native folder picker can end up unusable (the Open button
+/// greyed out on some document providers), so a cancelled pick falls
+/// back to the app's Documents directory instead of leaving the user
+/// stuck. Returns null only when a real pick succeeded and was applied.
+Future<String?> pickBookStorageDirectory({bool? isIOS}) async {
+  final onIOS = isIOS ?? Platform.isIOS;
+  try {
+    final picked = await FilePicker.getDirectoryPath();
+    // null means the user cancelled - not an error, no fallback.
+    return picked;
+  } catch (e) {
+    if (onIOS) {
+      // The picker itself is broken (greyed-out Open button on some
+      // document providers): fall back to the app's Documents
+      // directory, which is always writable and shows up in the
+      // Files app through UIFileSharingEnabled.
+      return getApplicationDocumentsDirectory().then((dir) => dir.path);
+    }
+    rethrow;
+  }
 }
 
 Future<String> get getBookStorageDefaultDirectory async {

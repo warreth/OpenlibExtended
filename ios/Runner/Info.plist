@@ -47,5 +47,12 @@
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
+		<!-- The storage picker (UIDocumentPickerViewController in folder
+		     mode) needs these to select directories and keep files in
+		     place; without them the Open button stays greyed out. -->
+		<key>UIFileSharingEnabled</key>
+		<true/>
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<true/>
 	</dict>
 </plist>
