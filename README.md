@@ -60,6 +60,21 @@
 
 Grab the latest release from [GitHub Releases](https://github.com/warreth/OpenlibExtended/releases).
 
+### Windows (Scoop)
+
+Install via the [Scoop](https://scoop.sh) package manager using this repository as a bucket:
+
+```powershell
+scoop bucket add openlibextended https://github.com/warreth/OpenlibExtended
+scoop install openlibextended
+```
+
+The manifest (`bucket/openlibextended.json`) is updated automatically whenever a new release is published, so `scoop update` picks up new versions normally.
+
+### Other platforms
+
+Download the APK, IPA, AppImage, tar.gz or Windows installer directly from the [releases page](https://github.com/warreth/OpenlibExtended/releases).
+
 **Note:** Publishing this app to the Play Store violates their terms.
 
 ## Development 🛠️

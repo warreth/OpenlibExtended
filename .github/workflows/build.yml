@@ -423,3 +423,35 @@ jobs:
             artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Scoop manifest job - keeps bucket/openlibextended.json in sync
+  # with the release so 'scoop install' always tracks the latest exe.
+  update-scoop-manifest:
+    name: Update Scoop manifest
+    needs: [prepare, build-windows, release]
+    if: ${{ always() && github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update manifest from release assets
+        run: |
+          python3 tool/update_scoop_manifest.py "${{ github.ref_name }}"
+      - name: Commit and push manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bucket/openlibextended.json
+          if git diff --cached --quiet; then
+            echo "Manifest already up to date"
+            exit 0
+          fi
+          git commit -m "chore: update scoop manifest for ${{ github.ref_name }}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
