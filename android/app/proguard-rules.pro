@@ -52,3 +52,8 @@
 # on some platforms; absence at runtime is handled by the plugins.
 -dontwarn javax.annotation.**
 -dontwarn com.google.errorprone.annotations.**
+
+# Play Core split-install APIs are referenced by the Flutter embedding
+# but only present when the app ships as an App Bundle with dynamic
+# features; plain APK builds never load them.
+-dontwarn com.google.android.play.core.**

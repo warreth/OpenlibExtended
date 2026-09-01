@@ -79,18 +79,10 @@ android {
         }
     }
 
-    // Per-ABI APKs instead of one fat APK with every architecture's
-    // native libs. Mirrors `flutter build apk --split-per-abi`, which
-    // the release workflow already uses; keeping the config here
-    // means a plain `flutter build apk` also produces small APKs.
-    splits {
-        abi {
-            enable = true
-            reset()
-            include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
-            universalApk false
-        }
-    }
+    // Per-ABI APKs come from `flutter build apk --split-per-abi` (the
+    // release workflow already runs it). Setting `splits` here used to
+    // be a harmless duplicate, but AGP 8.11 rejects it when the
+    // Flutter plugin sets ndk.abiFilters, so it stays out.
 }
 
 flutter {
@@ -98,5 +90,5 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
