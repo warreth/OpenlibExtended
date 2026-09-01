@@ -68,6 +68,7 @@ void main() {
     await pumpPage(tester);
 
     for (final label in [
+      'Search Providers',
       'Library & Instances',
       'Appearance',
       'General',
@@ -106,7 +107,13 @@ void main() {
     await pumpPage(tester);
 
     // The provider defaults to light mode, so the closed dropdown shows
-    // "Light theme". Tap it to open, then pick "Dark theme".
+    // "Light theme". The search-provider section pushed it below the
+    // default test viewport - drag it into view first.
+    await tester.scrollUntilVisible(
+      find.text('Light theme'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Light theme'));
     await tester.pump(const Duration(milliseconds: 600));
 

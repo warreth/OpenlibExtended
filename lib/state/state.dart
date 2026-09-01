@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // NOTE: These imports are crucial and must exist in your project structure.
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/search_manager.dart';
 import 'package:openlib/services/files.dart';
 import 'package:openlib/services/open_library.dart';
 import 'package:openlib/services/goodreads.dart';
@@ -386,24 +387,36 @@ final getSubCategoryTypeList = FutureProvider.family
   return uniqueArray;
 });
 
-// Provider for Anna's Archive Search Results
+// Provider for search results across all enabled providers
 final searchProvider = FutureProvider.family
     .autoDispose<List<BookData>, String>((ref, searchQuery) async {
   if (searchQuery.isEmpty) {
     return []; // Return empty list if search query is empty
   }
 
-  final AnnasArchieve annasArchieve = AnnasArchieve();
-  List<BookData> data = await annasArchieve.searchBooks(
-      searchQuery: searchQuery,
-      content: ref.watch(getTypeValue),
-      sort: ref.watch(getSortValue),
-      fileType: ref.watch(getFileTypeValue),
-      language: ref.watch(getLanguageValue),
-      year: ref.watch(getYearValue),
-      enableFilters: ref.watch(enableFiltersState));
-  return data;
+  // A provider failure must not swallow results from the others: the
+  // manager returns what it got and lists the stragglers by name.
+  final result = await SearchManager().search(SearchQuery(
+    text: searchQuery,
+    content: ref.watch(getTypeValue),
+    sort: ref.watch(getSortValue),
+    fileType: ref.watch(getFileTypeValue),
+    language: ref.watch(getLanguageValue),
+    year: ref.watch(getYearValue),
+    filtersEnabled: ref.watch(enableFiltersState),
+  ));
+  if (result.failedProviders.isNotEmpty &&
+      result.books.isEmpty &&
+      result.failedProviders.length == 1) {
+    // Exactly one enabled provider and it failed: surface a real error.
+    throw Exception('${result.failedProviders.first} is unreachable');
+  }
+  return result.books;
 });
+
+// Which sources the user turned on in settings.
+final searchProviderToggles = FutureProvider<Set<SearchProviderId>>(
+    (ref) => SearchManager().enabledProviders());
 
 // Provider for Book Info Details
 final bookInfoProvider =

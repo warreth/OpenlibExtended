@@ -17,6 +17,8 @@ import 'package:permission_handler/permission_handler.dart';
 // Project imports:
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/logger.dart';
+import 'package:openlib/services/search_manager.dart';
+import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
 import 'package:openlib/ui/onboarding/onboarding_page.dart';
@@ -33,7 +35,8 @@ import 'package:openlib/state/state.dart'
         currentInstanceProvider,
         archiveInstancesProvider,
         donationKeyProvider,
-        myLibraryProvider;
+        myLibraryProvider,
+        searchProviderToggles;
 
 // Scans a directory for book files (epub, pdf) and imports them to the library database
 Future<void> scanAndImportBooks(
@@ -211,11 +214,9 @@ class _SettingsTile extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           onTap: onTap,
-          leading: icon != null
-              ? Icon(icon, color: scheme.secondary)
-              : null,
-          title: Text(title,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          leading: icon != null ? Icon(icon, color: scheme.secondary) : null,
+          title:
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: subtitle != null
               ? Text(subtitle!, style: const TextStyle(fontSize: 12))
               : null,
@@ -252,8 +253,8 @@ class _SettingsSwitchTile extends StatelessWidget {
           value: value,
           onChanged: onChanged,
           activeThumbColor: Theme.of(context).colorScheme.secondary,
-          title: Text(title,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          title:
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: subtitle != null
               ? Text(subtitle!, style: const TextStyle(fontSize: 12))
               : null,
@@ -285,7 +286,8 @@ class SettingsPage extends ConsumerWidget {
           children: [
             Text("Settings", style: Theme.of(context).textTheme.displayLarge),
             const SizedBox(height: 20),
-
+            const _SettingsSectionHeader("Search Providers"),
+            const _SearchProvidersWidget(),
             const _SettingsSectionHeader("Library & Instances"),
             const _SettingsCard(
               title: "Archive Instance",
@@ -303,7 +305,6 @@ class SettingsPage extends ConsumerWidget {
             ),
             const _AutoRankInstancesWidget(),
             const SizedBox(height: 20),
-
             const _SettingsSectionHeader("Appearance"),
             _SettingsCard(
               title: "Theme",
@@ -351,15 +352,13 @@ class SettingsPage extends ConsumerWidget {
                       ref.read(fontSizeScaleProvider.notifier).state = val;
                     },
                     onChangeEnd: (val) {
-                      dataBase.savePreference(
-                          'fontSizeScale', val.toString());
+                      dataBase.savePreference('fontSizeScale', val.toString());
                     },
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-
             const _SettingsSectionHeader("General"),
             FutureBuilder<dynamic>(
               future: dataBase.getPreference('bookStorageDirectory'),
@@ -383,8 +382,7 @@ class SettingsPage extends ConsumerWidget {
                     await requestStoragePermission();
 
                     if (currentDirectory == internalDirectory) {
-                      await moveLibraryFiles(
-                          currentDirectory, pickedDirectory);
+                      await moveLibraryFiles(currentDirectory, pickedDirectory);
                     }
 
                     await dataBase.savePreference(
@@ -400,7 +398,6 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 20),
-
             const _SettingsSectionHeader("Reader"),
             _SettingsSwitchTile(
               title: "Open PDF externally",
@@ -421,15 +418,13 @@ class SettingsPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 20),
-
             const _SettingsSectionHeader("Advanced"),
             _SettingsSwitchTile(
               title: "Manual Download Button",
               subtitle: "Show button to manually trigger downloads",
               value: showManualDownload,
               onChanged: (val) {
-                ref.read(showManualDownloadButtonProvider.notifier).state =
-                    val;
+                ref.read(showManualDownloadButtonProvider.notifier).state = val;
                 dataBase.savePreference('showManualDownloadButton', val);
               },
             ),
@@ -440,11 +435,9 @@ class SettingsPage extends ConsumerWidget {
               onTap: () => _showDonationKeyDialog(context, ref, dataBase),
             ),
             const SizedBox(height: 20),
-
             const _SettingsSectionHeader("Updates"),
             const _UpdateSettingsWidget(),
             const SizedBox(height: 20),
-
             const _SettingsSectionHeader("About"),
             _SettingsTile(
               title: "About OpenlibExtended",
@@ -874,6 +867,62 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
           onTap: _isChecking ? null : _checkForUpdates,
         ),
       ],
+    );
+  }
+}
+
+/// Toggles which catalogs the search fans out to. Disabling the last
+/// source is refused - there is nothing to search without one.
+class _SearchProvidersWidget extends ConsumerWidget {
+  const _SearchProvidersWidget();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(searchProviderToggles);
+
+    return enabled.when(
+      data: (enabledIds) {
+        final manager = SearchManager();
+        return Column(
+          children: [
+            for (final provider in const [
+              (
+                SearchProviderId.annasArchive,
+                "Anna's Archive",
+                "The app's original source"
+              ),
+              (
+                SearchProviderId.libgen,
+                'Library Genesis',
+                'libgen.is public catalog'
+              ),
+              (
+                SearchProviderId.zlibrary,
+                'Z-Library',
+                'Mirrors rotate; may need a login'
+              ),
+            ])
+              _SettingsSwitchTile(
+                title: provider.$2,
+                subtitle: provider.$3,
+                value: enabledIds.contains(provider.$1),
+                onChanged: (on) async {
+                  if (!on && enabledIds.length == 1) {
+                    showSnackBar(
+                        context: context,
+                        message: 'At least one search source is needed');
+                    return;
+                  }
+                  await manager.setProviderEnabled(provider.$1, on);
+                  // ignore: unused_result
+                  ref.refresh(searchProviderToggles);
+                },
+              ),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => const SizedBox.shrink(),
     );
   }
 }
