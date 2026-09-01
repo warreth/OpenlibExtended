@@ -169,6 +169,22 @@ void main(List<String> args) async {
   );
 }
 
+/// Scrolling tuned for the snappy complaint on newer Androids: touch
+/// input gets momentum-based physics with a clamped stop at the edges
+/// (no iOS-style bounce-back), so lists decelerate naturally instead of
+/// halting on a dime when the finger lifts.
+class _SmoothScrollBehavior extends MaterialScrollBehavior {
+  const _SmoothScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      decelerationRate: ScrollDecelerationRate.fast,
+      parent: AlwaysScrollableScrollPhysics(),
+    );
+  }
+}
+
 class MyApp extends ConsumerWidget {
   final bool onboardingCompleted;
   const MyApp({super.key, this.onboardingCompleted = false});
@@ -176,6 +192,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
+      scrollBehavior: const _SmoothScrollBehavior(),
       builder: (context, child) {
         final scale = ref.watch(fontSizeScaleProvider);
         return MediaQuery(
