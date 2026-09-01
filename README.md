@@ -75,6 +75,8 @@ The manifest (`bucket/openlibextended.json`) is updated automatically whenever a
 
 Download the APK, IPA, AppImage, tar.gz or Windows installer directly from the [releases page](https://github.com/warreth/OpenlibExtended/releases).
 
+**Android:** releases ship per-ABI APKs — pick the one matching your device's architecture: `arm64-v8a` (most modern phones), `armeabi-v7a` (older 32-bit devices) or `x86_64` (emulators). Each APK contains only the native libraries for its architecture, keeping downloads roughly a third of a universal APK.
+
 **Note:** Publishing this app to the Play Store violates their terms.
 
 ## Development 🛠️

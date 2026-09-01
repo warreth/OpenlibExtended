@@ -66,9 +66,29 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
             }
-            
-            minifyEnabled = false
-            shrinkResources = false
+
+            // Code shrinking (R8) and resource shrinking keep release
+            // APKs small enough for lightweight repos like F-Droid /
+            // IzzyOnDroid. Rules live in proguard-rules.pro.
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile('proguard-android-optimize.txt'),
+                'proguard-rules.pro'
+            )
+        }
+    }
+
+    // Per-ABI APKs instead of one fat APK with every architecture's
+    // native libs. Mirrors `flutter build apk --split-per-abi`, which
+    // the release workflow already uses; keeping the config here
+    // means a plain `flutter build apk` also produces small APKs.
+    splits {
+        abi {
+            enable = true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            universalApk false
         }
     }
 }
