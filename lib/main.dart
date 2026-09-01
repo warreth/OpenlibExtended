@@ -26,7 +26,6 @@ import 'package:openlib/ui/onboarding/onboarding_page.dart';
 
 import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
-import 'package:openlib/services/challenge_warmup.dart';
 import 'package:openlib/services/download_manager.dart';
 import 'package:openlib/services/download_notification.dart';
 import 'package:openlib/services/instance_manager.dart';
@@ -270,11 +269,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
     // Auto-rank instances on startup if enabled
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoRankInstancesOnStartup();
-    });
-    // Warm the DDoS challenge once per run: later searches/downloads then
-    // hit an already-cleared webview context instead of a 2+ min challenge.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ChallengeWarmup.warmAfterLaunch();
     });
   }
 
