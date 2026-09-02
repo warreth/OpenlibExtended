@@ -177,17 +177,24 @@ void main() {
   });
 
   group('SearchManager fan-out', () {
-    test('merges results and reports the failed provider', () async {
+    test('stops at the first provider with results, reports failures',
+        () async {
+      // Libgen first in the chain: fails -> chain moves on to AA, which
+      // delivers, and zlib (never reached) stays at 0 calls.
+      final failing = _FakeProvider('libgen', [], error: Exception('down'));
       final ok = _FakeProvider('annasArchive', [
         BookData(title: 'AA Book', link: 'https://a/md5/x1', md5: 'md5-1'),
       ]);
-      final failing = _FakeProvider('libgen', [], error: Exception('down'));
+      final never = _FakeProvider('zlibrary', [
+        BookData(title: 'Z', link: 'https://z/md5/x1', md5: 'md5-z'),
+      ]);
       final manager = SearchManager(
         database: MyLibraryDb.instance,
-        providers: [ok, failing],
+        providers: [failing, ok, never],
       );
-      await manager.setProviderEnabled(SearchProviderId.annasArchive, true);
       await manager.setProviderEnabled(SearchProviderId.libgen, true);
+      await manager.setProviderEnabled(SearchProviderId.annasArchive, true);
+      await manager.setProviderEnabled(SearchProviderId.zlibrary, true);
 
       final result = await manager.search(const SearchQuery(text: 'wizard'));
 
@@ -195,30 +202,32 @@ void main() {
       expect(result.books.first.title, 'AA Book');
       expect(result.failedProviders, ['libgen']);
       expect(failing.calls, 1); // it was tried, not skipped
+      expect(never.calls, 0); // chain stopped at the first hit
     });
 
-    test('drops duplicate md5s, keeping the first provider result', () async {
-      final first = _FakeProvider('annasArchive', [
-        BookData(title: 'From AA', link: 'https://a/md5/x', md5: 'same-md5'),
-      ]);
+    test('drops duplicate md5s within one provider result page', () async {
+      // The chain stops at the first provider with hits, so dedupe now
+      // matters inside a single provider's page (libgen mirrors can
+      // return the same edition twice).
       final dupe = BookData(
           title: 'From Libgen', link: 'https://l/md5/x', md5: 'same-md5');
-      final second = _FakeProvider('libgen', [
+      final provider = _FakeProvider('libgen', [
         dupe,
+        BookData(
+            title: 'From Mirror 2', link: 'https://l/md5/x2', md5: 'same-md5'),
         BookData(title: 'Unique', link: 'https://l/md5/y', md5: 'other')
       ]);
       final manager = SearchManager(
         database: MyLibraryDb.instance,
-        providers: [first, second],
+        providers: [provider],
       );
-      await manager.setProviderEnabled(SearchProviderId.annasArchive, true);
       await manager.setProviderEnabled(SearchProviderId.libgen, true);
 
       final result = await manager.search(const SearchQuery(text: 'dupes'));
 
       expect(result.books.length, 2);
-      expect(
-          result.books.firstWhere((b) => b.md5 == 'same-md5').title, 'From AA');
+      expect(result.books.firstWhere((b) => b.md5 == 'same-md5').title,
+          'From Libgen');
     });
 
     test('searches only enabled providers', () async {
@@ -232,12 +241,29 @@ void main() {
         database: MyLibraryDb.instance,
         providers: [on, off],
       );
-      // Default set: annasArchive only.
+      // Stored preference (seeded by setUp): annasArchive only.
 
       final result = await manager.search(const SearchQuery(text: 'q'));
 
       expect(result.books.length, 1);
       expect(off.calls, 0);
+    });
+
+    // A fresh install has no stored preference; the chain must cover
+    // every provider, libgen first.
+    test('with no stored preference, all providers are on', () async {
+      final db = MyLibraryDb.instance;
+      final raw = await db.database;
+      await raw.delete('preferences',
+          where: 'name = ?', whereArgs: ['searchProviders']);
+      addTearDown(() async {
+        await db.savePreference('searchProviders', 'annasArchive');
+      });
+
+      final manager = SearchManager(database: db);
+      final enabled = await manager.enabledProviders();
+
+      expect(enabled, containsAll(SearchProviderId.values));
     });
 
     test('last provider cannot be disabled', () async {

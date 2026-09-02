@@ -80,7 +80,7 @@ android {
     }
 
     // Per-ABI APKs come from `flutter build apk --split-per-abi` (the
-    // release workflow already runs it). Setting `splits` here used to
+    // release workflow already runs it). A per-ABI block here used to
     // be a harmless duplicate, but AGP 8.11 rejects it when the
     // Flutter plugin sets ndk.abiFilters, so it stays out.
 }

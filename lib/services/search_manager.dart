@@ -64,7 +64,8 @@ class SearchQuery {
     this.page = 1,
   });
 
-  bool get isEmpty => text.trim().isEmpty && author.trim().isEmpty && publisher.trim().isEmpty;
+  bool get isEmpty =>
+      text.trim().isEmpty && author.trim().isEmpty && publisher.trim().isEmpty;
 }
 
 /// The plain-HTML header most library mirrors expect from a browser.
@@ -256,8 +257,8 @@ class LibgenProvider implements SearchProvider {
     // 'Asimov' finds books BY Asimov, not books mentioning him.
     final author = query.author.trim();
     final publisher = query.publisher.trim();
-    final useColumns = query.filtersEnabled &&
-        (author.isNotEmpty || publisher.isNotEmpty);
+    final useColumns =
+        query.filtersEnabled && (author.isNotEmpty || publisher.isNotEmpty);
     final req = useColumns
         ? [
             if (author.isNotEmpty) author,
@@ -483,9 +484,9 @@ class SearchManager {
       : _database = database ?? MyLibraryDb.instance,
         _providers = providers ??
             [
-              AnnasArchiveProvider(),
               LibgenProvider(),
               ZlibraryProvider(),
+              AnnasArchiveProvider(),
             ];
 
   final MyLibraryDb _database;
@@ -493,9 +494,9 @@ class SearchManager {
 
   static const _providerPrefsKey = 'searchProviders';
 
-  /// Which providers the user enabled in settings. Defaults to
-  /// Anna's Archive only - it was the app's only source before, so a
-  /// fresh install keeps its behavior identical.
+  /// Which providers the user enabled in settings. Defaults to all three:
+  /// LibGen downloads fast and works without a browser challenge, so it
+  /// leads; Anna's Archive is behind DDoS-Guard and arrives last.
   Future<Set<SearchProviderId>> enabledProviders() async {
     try {
       final stored = await _database.getPreference(_providerPrefsKey);
@@ -506,7 +507,11 @@ class SearchManager {
           .whereType<SearchProviderId>()
           .toSet();
     } catch (_) {
-      return {SearchProviderId.annasArchive};
+      return {
+        SearchProviderId.libgen,
+        SearchProviderId.zlibrary,
+        SearchProviderId.annasArchive,
+      };
     }
   }
 
@@ -523,7 +528,12 @@ class SearchManager {
         _providerPrefsKey, current.map((p) => p.name).join(','));
   }
 
-  /// Searches all enabled providers concurrently and merges results.
+  /// Searches the enabled providers in order and stops at the first one
+  /// that returns results. The order is the provider list order:
+  /// LibGen (fast, challenge-free downloads) first, then Z-Library, then
+  /// Anna's Archive (behind DDoS-Guard). A provider that finds nothing
+  /// (empty, not an error) does not stop the chain - the next one runs.
+  /// Errors are collected and surface only when every provider fails.
   Future<SearchManagerResult> search(SearchQuery query) async {
     final enabled = await enabledProviders();
     final active = _providers.where((p) => enabled.contains(p.id)).toList();
@@ -532,17 +542,16 @@ class SearchManager {
     }
 
     final logger = AppLogger();
-    final outcomes =
-        await Future.wait(active.map((p) => _searchOne(p, query, logger)));
-
     final books = <BookData>[];
     final failed = <String>[];
-    for (final outcome in outcomes) {
+    for (final provider in active) {
+      final outcome = await _searchOne(provider, query, logger);
       if (outcome.error != null) {
-        failed.add(outcome.provider.displayName);
+        failed.add(provider.displayName);
       } else {
         books.addAll(outcome.books);
       }
+      if (books.isNotEmpty) break;
     }
 
     return SearchManagerResult(books: _dedupe(books), failedProviders: failed);
@@ -560,8 +569,9 @@ class SearchManager {
     }
   }
 
-  /// Keeps the first occurrence per md5. AA runs first in the provider
-  /// list, so AA's richer metadata wins over the same edition on libgen.
+  /// Keeps the first occurrence per md5. LibGen runs first in the
+  /// provider list (fastest, challenge-free downloads), so its entry
+  /// wins over the same edition on the other sources.
   List<BookData> _dedupe(List<BookData> books) {
     final seen = <String>{};
     return books.where((b) => seen.add(b.md5)).toList();

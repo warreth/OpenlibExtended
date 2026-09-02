@@ -40,11 +40,15 @@ void main() {
     });
 
     test('ABI splits produce per-architecture APKs', () {
-      expect(gradle, contains('splits'));
-      for (final abi in ['armeabi-v7a', 'arm64-v8a', 'x86_64']) {
-        expect(gradle, contains("'$abi'"));
-      }
-      expect(gradle, contains('universalApk false'));
+      // Per-ABI APKs come from `flutter build apk --split-per-abi` in
+      // the release workflow. AGP 8.11 rejects a `splits` block here
+      // because the Flutter plugin already sets ndk.abiFilters, so the
+      // gradle file must NOT carry one and the workflow must ask for
+      // the split instead.
+      expect(gradle, isNot(contains('splits')));
+      final workflow =
+          File('.github/workflows/build.yml').readAsStringSync();
+      expect(workflow, contains('flutter build apk --split-per-abi'));
     });
   });
 
