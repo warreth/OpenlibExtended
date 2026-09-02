@@ -283,6 +283,18 @@
   "@manualDownloadButton": {
     "description": "Settings switch tile title"
   },
+  "backgroundVerification": "Verify challenges in background",
+  "@backgroundVerification": {
+    "description": "Background challenge verification toggle"
+  },
+  "backgroundVerificationHint": "Solve DDoS checks invisibly. Some devices fail this - turn it off to verify in a visible window instead",
+  "@backgroundVerificationHint": {
+    "description": "Background challenge verification toggle"
+  },
+  "backgroundVerificationFix": "If verification keeps failing, try turning off \"Verify challenges in background\" in Settings - some devices cannot solve checks invisibly.",
+  "@backgroundVerificationFix": {
+    "description": "Background challenge verification toggle"
+  },
   "showManualDownloadHint": "Show button to manually trigger downloads",
   "@showManualDownloadHint": {
     "description": "Settings switch tile subtitle"
@@ -433,11 +445,11 @@
   "@rankingComplete": {
     "description": "Snackbar when ranking finds no reachable instance"
   },
-  "providerSourceOriginal": "The app's original source",
+  "providerSourceOriginal": "Searched last - protected by DDoS-Guard",
   "@providerSourceOriginal": {
     "description": "Anna's Archive provider subtitle"
   },
-  "providerLibgenCatalog": "libgen.is public catalog",
+  "providerLibgenCatalog": "Fast, direct downloads - searched first",
   "@providerLibgenCatalog": {
     "description": "Libgen provider subtitle"
   },

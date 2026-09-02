@@ -222,6 +222,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get manualDownloadButton => 'Manual Download Button';
 
   @override
+  String get backgroundVerification => 'Verify challenges in background';
+
+  @override
+  String get backgroundVerificationHint =>
+      'Solve DDoS checks invisibly. Some devices fail this - turn it off to verify in a visible window instead';
+
+  @override
+  String get backgroundVerificationFix =>
+      'If verification keeps failing, try turning off \"Verify challenges in background\" in Settings - some devices cannot solve checks invisibly.';
+
+  @override
   String get showManualDownloadHint =>
       'Show button to manually trigger downloads';
 
@@ -321,10 +332,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rankingComplete => 'Ranking complete';
 
   @override
-  String get providerSourceOriginal => 'The app\'s original source';
+  String get providerSourceOriginal =>
+      'Searched last - protected by DDoS-Guard';
 
   @override
-  String get providerLibgenCatalog => 'libgen.is public catalog';
+  String get providerLibgenCatalog => 'Fast, direct downloads - searched first';
 
   @override
   String get providerZlibMirrors => 'Mirrors rotate; may need a login';

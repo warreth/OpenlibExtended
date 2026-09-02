@@ -222,6 +222,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get manualDownloadButton => 'Bouton de téléchargement manuel';
 
   @override
+  String get backgroundVerification => 'Vérifier en arrière-plan';
+
+  @override
+  String get backgroundVerificationHint =>
+      'Résout les vérifications DDoS de façon invisible. Échoue sur certains appareils - désactivez-le pour vérifier dans une fenêtre visible';
+
+  @override
+  String get backgroundVerificationFix =>
+      'Si la vérification échoue sans arrêt, désactivez « Vérifier en arrière-plan » dans les paramètres - certains appareils ne peuvent pas résoudre les vérifications de façon invisible.';
+
+  @override
   String get showManualDownloadHint =>
       'Afficher le bouton pour lancer les téléchargements manuellement';
 
@@ -325,10 +336,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get rankingComplete => 'Classement terminé';
 
   @override
-  String get providerSourceOriginal => 'La source d\'origine de l\'application';
+  String get providerSourceOriginal =>
+      'Recherché en dernier - protégé par DDoS-Guard';
 
   @override
-  String get providerLibgenCatalog => 'Catalogue public de libgen.is';
+  String get providerLibgenCatalog =>
+      'Téléchargements rapides et directs - recherché en premier';
 
   @override
   String get providerZlibMirrors =>

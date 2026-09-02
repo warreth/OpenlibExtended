@@ -504,6 +504,24 @@ abstract class AppLocalizations {
   /// **'Manual Download Button'**
   String get manualDownloadButton;
 
+  /// Background challenge verification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Verify challenges in background'**
+  String get backgroundVerification;
+
+  /// Background challenge verification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Solve DDoS checks invisibly. Some devices fail this - turn it off to verify in a visible window instead'**
+  String get backgroundVerificationHint;
+
+  /// Background challenge verification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'If verification keeps failing, try turning off \"Verify challenges in background\" in Settings - some devices cannot solve checks invisibly.'**
+  String get backgroundVerificationFix;
+
   /// Settings switch tile subtitle
   ///
   /// In en, this message translates to:
@@ -675,13 +693,13 @@ abstract class AppLocalizations {
   /// Anna's Archive provider subtitle
   ///
   /// In en, this message translates to:
-  /// **'The app\'s original source'**
+  /// **'Searched last - protected by DDoS-Guard'**
   String get providerSourceOriginal;
 
   /// Libgen provider subtitle
   ///
   /// In en, this message translates to:
-  /// **'libgen.is public catalog'**
+  /// **'Fast, direct downloads - searched first'**
   String get providerLibgenCatalog;
 
   /// Z-Library provider subtitle

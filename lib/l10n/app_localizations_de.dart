@@ -222,6 +222,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get manualDownloadButton => 'Manuelle Download-Schaltfläche';
 
   @override
+  String get backgroundVerification => 'Verifizierung im Hintergrund';
+
+  @override
+  String get backgroundVerificationHint =>
+      'Löst DDoS-Prüfungen unsichtbar. Auf manchen Geräten schlägt das fehl - ausschalten, um stattdessen in einem sichtbaren Fenster zu prüfen';
+
+  @override
+  String get backgroundVerificationFix =>
+      'Falls die Verifizierung immer wieder fehlschlägt, deaktiviere \"Verifizierung im Hintergrund\" in den Einstellungen - manche Geräte können Prüfungen nicht unsichtbar lösen.';
+
+  @override
   String get showManualDownloadHint =>
       'Schaltfläche zum manuellen Starten von Downloads anzeigen';
 
@@ -323,10 +334,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get rankingComplete => 'Sortierung abgeschlossen';
 
   @override
-  String get providerSourceOriginal => 'Die ursprüngliche Quelle der App';
+  String get providerSourceOriginal =>
+      'Wird zuletzt durchsucht - durch DDoS-Guard geschützt';
 
   @override
-  String get providerLibgenCatalog => 'Öffentlicher Katalog von libgen.is';
+  String get providerLibgenCatalog =>
+      'Schnelle, direkte Downloads - wird zuerst durchsucht';
 
   @override
   String get providerZlibMirrors =>

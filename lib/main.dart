@@ -17,12 +17,15 @@ import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/services/platform_utils.dart';
+import 'package:openlib/services/challenge_html_cache.dart';
+import 'package:openlib/services/webview_challenge_solver.dart';
 import 'package:openlib/services/update_checker.dart';
 import 'package:openlib/ui/mylibrary_page.dart';
 import 'package:openlib/ui/search_page.dart';
 import 'package:openlib/ui/settings_page.dart';
 import 'package:openlib/ui/themes.dart';
 import 'package:openlib/ui/onboarding/onboarding_page.dart';
+import 'package:openlib/ui/challenge_solver_page.dart';
 
 import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
@@ -39,6 +42,7 @@ import 'package:openlib/state/state.dart'
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
+        backgroundVerificationProvider,
         autoRankInstancesProvider,
         userAgentProvider,
         cookieProvider,
@@ -103,6 +107,15 @@ void main(List<String> args) async {
       ? false
       : true;
 
+  // Stored as 0 = off; anything else (or missing) = headless on.
+  bool backgroundVerification = await dataBase
+              .getPreference('backgroundVerification')
+              .catchError((e) => null) ==
+          0
+      ? false
+      : true;
+  WebviewChallengeSolver.headlessEnabled = backgroundVerification;
+
   String browserUserAgent = await dataBase.getBrowserOptions('userAgent');
   String browserCookie = await dataBase.getBrowserOptions('cookie');
 
@@ -157,6 +170,18 @@ void main(List<String> args) async {
     await moveFilesToAndroidInternalStorage();
   }
 
+  // When the invisible (headless) DDoS solve fails on mobile, show the
+  // solver as a visible page instead - the user watches the check clear
+  // and the app closes the page as soon as the HTML is captured.
+  WebviewChallengeSolver.visibleSolverFallback = (url) async {
+    final context = _navigatorKey.currentContext;
+    if (context == null) return null;
+    final solved = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChallengeSolverPage(url: url)),
+    );
+    return solved == true ? ChallengeHtmlCache.get(url) : null;
+  };
+
   runApp(
     ProviderScope(
       overrides: [
@@ -170,6 +195,8 @@ void main(List<String> args) async {
             .overrideWith((ref) => openEpubwithExternalapp),
         showManualDownloadButtonProvider
             .overrideWith((ref) => showManualDownloadButton),
+        backgroundVerificationProvider
+            .overrideWith((ref) => backgroundVerification),
         donationKeyProvider.overrideWith((ref) => savedDonationKey),
         userAgentProvider.overrideWith((ref) => browserUserAgent),
         cookieProvider.overrideWith((ref) => browserCookie),
@@ -200,6 +227,10 @@ class _SmoothScrollBehavior extends MaterialScrollBehavior {
   }
 }
 
+/// Global navigator so the challenge-solver fallback (a service, not a
+/// widget) can push the visible solver page from anywhere.
+final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends ConsumerWidget {
   final bool onboardingCompleted;
   const MyApp({super.key, this.onboardingCompleted = false});
@@ -207,6 +238,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       scrollBehavior: const _SmoothScrollBehavior(),
       localizationsDelegates: const [
         AppLocalizations.delegate,

@@ -273,6 +273,12 @@ final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
 // Download Settings
 final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
 
+// DDoS challenge solving: headless (invisible) vs visible window.
+// Default on - most devices clear DDoS-Guard headlessly. Devices where
+// the invisible webview never finishes fall back better to a visible
+// window, which the user turns on here.
+final backgroundVerificationProvider = StateProvider<bool>((ref) => true);
+
 // Instance Auto-Ranking Setting (default: enabled)
 final autoRankInstancesProvider = StateProvider<bool>((ref) => true);
 

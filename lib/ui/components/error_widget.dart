@@ -230,6 +230,19 @@ class CustomErrorWidget extends StatelessWidget {
               color: isDark ? Colors.grey[300] : Colors.grey[800],
             ),
           ),
+          // Challenge solving failed invisibly on this device: point at
+          // the background-verification toggle in settings.
+          if (networkError.type == NetworkErrorType.cloudflareBlock) ...[
+            const SizedBox(height: 12),
+            Text(
+              AppLocalizations.of(context).backgroundVerificationFix,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: isDark ? Colors.orange[200] : Colors.orange[800],
+              ),
+            ),
+          ],
           // Show VPN recommendation prominently for blocked content
           if (networkError.type == NetworkErrorType.cloudflareBlock ||
               networkError.type == NetworkErrorType.dnsError ||

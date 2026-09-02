@@ -24,6 +24,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/search_manager.dart';
+import 'package:openlib/services/webview_challenge_solver.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
@@ -36,6 +37,7 @@ import 'package:openlib/state/state.dart'
         openPdfWithExternalAppProvider,
         openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
+        backgroundVerificationProvider,
         autoRankInstancesProvider,
         instanceManagerProvider,
         currentInstanceProvider,
@@ -281,6 +283,7 @@ class SettingsPage extends ConsumerWidget {
     final openPdfExternal = ref.watch(openPdfWithExternalAppProvider);
     final openEpubExternal = ref.watch(openEpubWithExternalAppProvider);
     final showManualDownload = ref.watch(showManualDownloadButtonProvider);
+    final backgroundVerification = ref.watch(backgroundVerificationProvider);
     final fontSizeScale = ref.watch(fontSizeScaleProvider);
     final l10n = AppLocalizations.of(context);
 
@@ -441,6 +444,17 @@ class SettingsPage extends ConsumerWidget {
               onChanged: (val) {
                 ref.read(showManualDownloadButtonProvider.notifier).state = val;
                 dataBase.savePreference('showManualDownloadButton', val);
+              },
+            ),
+            _SettingsSwitchTile(
+              title: l10n.backgroundVerification,
+              subtitle: l10n.backgroundVerificationHint,
+              value: backgroundVerification,
+              onChanged: (val) {
+                ref.read(backgroundVerificationProvider.notifier).state = val;
+                WebviewChallengeSolver.headlessEnabled = val;
+                dataBase.savePreference(
+                    'backgroundVerification', val ? 1 : 0);
               },
             ),
             _SettingsTile(

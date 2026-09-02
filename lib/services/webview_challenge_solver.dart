@@ -21,6 +21,7 @@ import 'dart:convert';
 // Package imports:
 import 'package:desktop_webview_window/desktop_webview_window.dart'
     as desktop_webview;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 // Project imports:
@@ -37,10 +38,30 @@ class WebviewChallengeSolver {
   static bool get isSupported =>
       PlatformUtils.isMobile || PlatformUtils.isDesktop;
 
-  /// Escape hatch for tests and headless environments: when false,
-  /// fetchHtmlAfterChallenge returns null immediately instead of opening
-  /// a desktop window. Tests set this to false.
+  /// Escape hatch for tests and headless environments: when false, no real
+  /// webview is opened (headless or desktop window) and the solve returns
+  /// null — but a registered [visibleSolverFallback] is still consulted,
+  /// so tests can exercise the fallback without any webview.
   static bool guiEnabled = true;
+
+  /// When false (user turned "verify in background" off in settings), the
+  /// headless attempt is skipped on mobile and the visible window runs
+  /// straight away - some devices never finish an invisible webview.
+  static bool headlessEnabled = true;
+
+  /// UI hook: when a headless mobile solve fails, this is called so the app
+  /// shell to push the visible solver page over the current screen. It
+  /// returns the captured HTML (which we then cache) or null when the user
+  /// backs out without solving. A callback keeps this service free of UI
+  /// imports. Registered by the app shell at startup.
+  static Future<String?> Function(String url)? visibleSolverFallback;
+
+  /// Test seam for the mobile/desktop branch: when set, overrides the real
+  /// platform check. Production never sets it.
+  @visibleForTesting
+  static bool? overrideIsMobile;
+
+  static bool get _isMobile => overrideIsMobile ?? PlatformUtils.isMobile;
 
   /// Returns true when the given page looks like an unfinished DDoS protection
   /// challenge (DDoS-Guard or Cloudflare) instead of real content.
@@ -73,20 +94,32 @@ class WebviewChallengeSolver {
   /// Desktop opens a visible window (default 3 min — the user may need to
   /// click a checkbox); mobile runs a headless webview (default 60 s,
   /// fully automatic). The result is also stored in ChallengeHtmlCache.
+  ///
+  /// On mobile, a headless failure falls back to [visibleSolverFallback]
+  /// when it is registered (headless misses human CAPTCHAs and races like
+  /// the loadStop/readyState one); the desktop window is already visible,
+  /// so no fallback is needed there.
   static Future<String?> fetchHtmlAfterChallenge(
     String url, {
     Duration? timeout,
   }) async {
-    if (!isSupported || !guiEnabled) return null;
+    if (!isSupported) return null;
 
     final effectiveTimeout = timeout ??
-        (PlatformUtils.isMobile
-            ? const Duration(seconds: 60)
-            : const Duration(minutes: 3));
+        (_isMobile ? const Duration(seconds: 60) : const Duration(minutes: 3));
 
-    final html = PlatformUtils.isMobile
-        ? await _solveHeadless(url, effectiveTimeout)
-        : await _solveDesktopWindow(url, effectiveTimeout);
+    final tryHeadless = guiEnabled && (headlessEnabled || !_isMobile);
+    var html = tryHeadless
+        ? (_isMobile
+            ? await _solveHeadless(url, effectiveTimeout)
+            : await _solveDesktopWindow(url, effectiveTimeout))
+        : null;
+
+    if (html == null && _isMobile && visibleSolverFallback != null) {
+      _logger.info('Headless solve failed, using visible fallback',
+          tag: 'ChallengeSolver', metadata: {'url': url});
+      html = await visibleSolverFallback!(url);
+    }
 
     if (html != null) {
       ChallengeHtmlCache.store(url, html);
@@ -97,6 +130,17 @@ class WebviewChallengeSolver {
   // ------------------------------------------------------------------
   // MOBILE: HeadlessInAppWebView (invisible, automatic)
   // ------------------------------------------------------------------
+
+  /// Decides whether an onLoadStop may complete the solve. Only a real page
+  /// with captured HTML counts — a loadStop on a page that is still loading
+  /// (null/empty HTML) must NOT complete, or the poll loop below would be
+  /// dead and the solve would return null even though the challenge had
+  /// already been cleared. See the Android log regression this guards.
+  @visibleForTesting
+  static bool shouldCompleteFromLoadStop(String title, String? capturedHtml) =>
+      capturedHtml != null &&
+      capturedHtml.isNotEmpty &&
+      !isChallengePage(title: title, bodySnippet: '');
 
   static Future<String?> _solveHeadless(String url, Duration timeout) async {
     HeadlessInAppWebView? headless;
@@ -115,8 +159,8 @@ class WebviewChallengeSolver {
         onLoadStop: (controller, loadedUrl) async {
           try {
             final title = (await controller.getTitle()) ?? '';
-            final bodySnippet = (await _js(
-                    controller, "document.body ? document.body.innerHTML.slice(0, 3000) : ''")) ??
+            final bodySnippet = (await _js(controller,
+                    "document.body ? document.body.innerHTML.slice(0, 3000) : ''")) ??
                 '';
             _logger.debug('Headless load stopped',
                 tag: 'ChallengeSolver',
@@ -124,15 +168,23 @@ class WebviewChallengeSolver {
             if (isChallengePage(title: title, bodySnippet: bodySnippet)) {
               return; // challenge page; wait for next load
             }
+            // Not ready yet (readyState != complete)? Just wait — the poll
+            // loop picks the page up. Never complete with null here: that
+            // used to kill the solve right after the challenge was cleared.
             final html = await _captureHtml(controller);
-            if (!completer.isCompleted) completer.complete(html);
+            if (shouldCompleteFromLoadStop(title, html) &&
+                !completer.isCompleted) {
+              completer.complete(html);
+            }
           } catch (e) {
             _logger.debug('Headless onLoadStop check failed',
                 tag: 'ChallengeSolver', metadata: {'error': e.toString()});
           }
         },
         onWebViewCreated: (controller) {
-          if (!controllerHolder.isCompleted) controllerHolder.complete(controller);
+          if (!controllerHolder.isCompleted) {
+            controllerHolder.complete(controller);
+          }
         },
       );
 
@@ -150,9 +202,7 @@ class WebviewChallengeSolver {
             if (title.isNotEmpty &&
                 !isChallengePage(title: title, bodySnippet: '')) {
               final html = await _captureHtml(controller);
-              if (html != null &&
-                  html.isNotEmpty &&
-                  !completer.isCompleted) {
+              if (html != null && html.isNotEmpty && !completer.isCompleted) {
                 completer.complete(html);
               }
             }
@@ -161,6 +211,7 @@ class WebviewChallengeSolver {
         await Future.delayed(const Duration(milliseconds: 1000));
       }
 
+      // The only place the completer may complete with null: the deadline.
       if (!completer.isCompleted) completer.complete(null);
       return await completer.future;
     } catch (e, st) {
@@ -272,7 +323,8 @@ class WebviewChallengeSolver {
     if (ready != 'complete') return null;
     // Settle delay so late XHR content lands in the DOM.
     await Future.delayed(const Duration(milliseconds: 2000));
-    final html = await _js(controllerOrWebview, "document.documentElement.outerHTML");
+    final html =
+        await _js(controllerOrWebview, "document.documentElement.outerHTML");
     return html;
   }
 
