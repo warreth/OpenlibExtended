@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
+import 'package:openlib/services/search_manager.dart';
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/download_file.dart';
 import 'package:openlib/services/download_manager.dart';
@@ -167,10 +168,31 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
 
                     // Libgen serves its files directly (get.php -> CDN);
                     // no mirror scraping or donation key applies.
-                    final isDirectLink = downloadUrl != null &&
+                    var isDirectLink = downloadUrl != null &&
                         downloadUrl.contains('/get.php?');
                     if (isDirectLink) {
                       isFastDownload = true;
+                    }
+
+                    // Z-Library /dl/ links sit behind a DiamWall
+                    // proof-of-work and a 302 to a signed CDN URL, and
+                    // some ids answer 204 forever; re-fetch the page for
+                    // the live ids and resolve the first working one.
+                    if (downloadUrl != null &&
+                        downloadUrl.contains('/dl/') &&
+                        !isDirectLink) {
+                      try {
+                        final resolved = await ZlibraryProvider()
+                            .resolveBookDownload(widget.data.link);
+                        if (resolved != null) {
+                          downloadUrl = resolved;
+                          isDirectLink = true;
+                          isFastDownload = true;
+                        }
+                      } catch (e) {
+                        // Fall through to the slow AA-style flow, which
+                        // cannot work for zlib; the snackbar below fires.
+                      }
                     }
 
                     // Try to fetch fast download link if key is present and not already fast

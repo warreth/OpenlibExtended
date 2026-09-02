@@ -463,14 +463,36 @@ final searchProviderToggles = FutureProvider<Set<SearchProviderId>>(
 
 // Provider for Book Info Details
 //
-// Routes by URL: libgen detail pages (ads.php?md5=) are parsed by the
-// libgen service, everything else falls through to Anna's Archive.
+// Routes by URL: libgen detail pages (ads.php?md5=) go to the libgen
+// service, Z-Library book pages (/book/<id>/) to the zlibrary
+// provider, everything else falls through to Anna's Archive. Routing
+// matters: handing a z-lib URL to Anna's used to swap its host for an
+// AA mirror that does not carry the book (404 city).
 final bookInfoProvider =
     FutureProvider.family<BookInfoData, String>((ref, url) async {
   if (url.contains('ads.php?md5=')) {
     final data = await LibgenService().bookInfo(url);
     if (data == null) {
       throw Exception('Could not read this libgen book page');
+    }
+    return data;
+  }
+
+  final Uri parsed = Uri.tryParse(url) ?? Uri.parse('');
+  final zlibHosts = [
+    'z-lib.gd',
+    'z-lib.gl',
+    'z-lib.fm',
+    'z-library.sk',
+    '1lib.sk',
+    'articles.sk',
+  ];
+  final isZlib = zlibHosts.contains(parsed.host) &&
+      RegExp(r'^/book/').hasMatch(parsed.path);
+  if (isZlib) {
+    final data = await ZlibraryProvider().bookInfo(url);
+    if (data == null) {
+      throw Exception('Could not read this Z-Library book page');
     }
     return data;
   }
@@ -529,8 +551,8 @@ Future<int?> _fileSizeOf(MyBook book) async {
 }
 
 /// User's chosen sort order, persisted as its stable key.
-final librarySortModeProvider = StateProvider<LibrarySortMode>(
-    (ref) => LibrarySortMode.dateAddedDesc);
+final librarySortModeProvider =
+    StateProvider<LibrarySortMode>((ref) => LibrarySortMode.dateAddedDesc);
 
 /// Active tag filters; empty set means no tag filter.
 final libraryTagFilterProvider = StateProvider<Set<String>>((ref) => {});
@@ -557,9 +579,7 @@ final organizedLibraryProvider = Provider<List<LibraryBook>>((ref) {
   final searchQuery = ref.watch(librarySearchQueryProvider);
   return sortLibrary(
     filterLibrary(books,
-        tagFilter: tagFilter,
-        statusFilter: statusFilter,
-        query: searchQuery),
+        tagFilter: tagFilter, statusFilter: statusFilter, query: searchQuery),
     mode,
   );
 });

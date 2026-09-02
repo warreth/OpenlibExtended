@@ -114,6 +114,31 @@ void main() {
         skip: 'live network - run with --run-skipped');
   });
 
+  group('zlibrary book info', () {
+    test('book page parses and download resolves to a CDN link', () async {
+      // Find a real book via search first (id changes over time).
+      final books = await ZlibraryProvider()
+          .search(const SearchQuery(text: 'flutter', filtersEnabled: false));
+      expect(books, isNotEmpty);
+      final book = books.first;
+
+      final data = await ZlibraryProvider().bookInfo(book.link);
+      expect(data, isNotNull, reason: 'book page must parse');
+      expect(data!.title, isNotEmpty);
+      expect(data.format, isNotEmpty);
+      expect(data.mirror, isNotNull);
+
+      final resolved =
+          await ZlibraryProvider().resolveBookDownload(book.link);
+      expect(resolved, isNotNull,
+          reason: 'DiamWall solve + 302 must yield a CDN url');
+      expect(resolved, isNot(contains('/dl/')),
+          reason: 'must be the signed CDN link, not the dl hop');
+    },
+        timeout: const Timeout(Duration(minutes: 3)),
+        skip: 'live network - run with --run-skipped');
+  });
+
   group('combined manager search', () {
     test('all providers fan out with per-provider failures contained',
         () async {

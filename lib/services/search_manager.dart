@@ -462,6 +462,259 @@ class ZlibraryProvider implements SearchProvider {
   /// segment (`/book/<id>/slug.html`) is the stable unique id instead.
   String? _bookIdFromHref(String href) =>
       RegExp(r'/book/([0-9a-zA-Z]+)').firstMatch(href)?.group(1);
+
+  /// Fetches a book detail page (`/book/<id>/slug.html`) and returns it
+  /// as [BookInfoData], with [BookInfoData.mirror] pointing at the
+  /// resolved CDN download URL and `isFastDownload` true - the resolved
+  /// link serves the file directly, exactly like libgen's get.php.
+  /// Null when every mirror fails or the page cannot be parsed.
+  Future<BookInfoData?> bookInfo(String url) async {
+    final mirrors = _mirrors ?? await _resolveMirrors();
+    final path = Uri.parse(url).path;
+    final acceptAnyStatus = Options(validateStatus: (_) => true);
+
+    for (final mirror in mirrors) {
+      try {
+        var response = await _dio.get('$mirror$path', options: acceptAnyStatus);
+        response = await _passDiamWall(mirror, response, '$mirror$path');
+        if (response.statusCode != 200) continue;
+
+        final pageUrl = '$mirror$path';
+        final data = parseBookPage(response.data.toString(), mirror, pageUrl);
+        if (data != null) return data;
+      } catch (_) {
+        // Next mirror; Z-Library mirrors are unstable by nature.
+      }
+    }
+    return null;
+  }
+
+  /// GETs [url], solving a DiamWall 503 (once) and a second 503 on the
+  /// download hop if present. Returns the first response that is not a
+  /// challenge. A non-challenge response is returned as-is.
+  Future<Response> _passDiamWall(
+      String mirror, Response first, String url) async {
+    var response = first;
+    final acceptAnyStatus = Options(validateStatus: (_) => true);
+
+    if (!_solver.looksLikeChallenge(
+        response.statusCode ?? 0, response.data.toString())) {
+      return response;
+    }
+    final cookies = await _solver.solve(response.data.toString());
+    if (cookies == null) return response;
+    final cookieHeader =
+        cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+
+    response = await _dio.get(url,
+        options: acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}));
+    // A second challenge can appear right at the download hop; solve
+    // it too before giving up on this mirror.
+    if (_solver.looksLikeChallenge(
+        response.statusCode ?? 0, response.data.toString())) {
+      final again = await _solver.solve(response.data.toString());
+      if (again != null) {
+        final header =
+            again.entries.map((e) => '${e.key}=${e.value}').join('; ');
+        response = await _dio.get(url,
+            options: acceptAnyStatus.copyWith(headers: {'Cookie': header}));
+      }
+    }
+    return response;
+  }
+
+  /// Convenience for the download button: re-fetches the book page
+  /// (fresh /dl/ ids), then resolves the first id that answers with
+  /// a real CDN redirect. One DiamWall solve for the page plus one
+  /// per dead id - usually a single solve in total.
+  Future<String?> resolveBookDownload(String bookPageUrl) async {
+    final links = await _allDownloadLinks(bookPageUrl);
+    if (links.isEmpty) return null;
+    final acceptAnyStatus = Options(
+      validateStatus: (_) => true,
+      followRedirects: false,
+      maxRedirects: 0,
+    );
+    for (final link in links) {
+      final resolved = await _resolveOneDownloadUrl(link, acceptAnyStatus);
+      if (resolved != null) return resolved;
+    }
+    return null;
+  }
+
+  /// Fetches a book page and returns every `/dl/<id>` link on it,
+  /// visible (actions section) ones first. Empty when the page cannot
+  /// be fetched or parsed on any mirror.
+  Future<List<String>> _allDownloadLinks(String bookPageUrl) async {
+    final mirrors = _mirrors ?? await _resolveMirrors();
+    final path = Uri.parse(bookPageUrl).path;
+    final acceptAnyStatus = Options(validateStatus: (_) => true);
+
+    for (final mirror in mirrors) {
+      try {
+        var response = await _dio.get('$mirror$path', options: acceptAnyStatus);
+        response = await _passDiamWall(mirror, response, '$mirror$path');
+        if (response.statusCode != 200) continue;
+
+        final links = _extractDownloadLinks(response.data.toString());
+        if (links.isNotEmpty) {
+          return links
+              .map((href) => href.startsWith('http') ? href : '$mirror$href')
+              .toList();
+        }
+      } catch (_) {
+        // Next mirror; Z-Library mirrors are unstable by nature.
+      }
+    }
+    return const [];
+  }
+
+  /// Pulls every distinct /dl/ href out of a book page, visible ones
+  /// first (hidden <template> links go last - they are often dead).
+  List<String> _extractDownloadLinks(String html) {
+    final document = html_parser.parse(html);
+    final links = <String>[];
+    for (final a in document.querySelectorAll('a[href^="/dl/"]')) {
+      final href = a.attributes['href'];
+      if (href == null || links.contains(href)) continue;
+      final inTemplate = aAncestorHasClass(a, 'template');
+      if (inTemplate) {
+        links.add(href);
+      } else {
+        links.insert(0, href);
+      }
+    }
+    return links;
+  }
+
+  /// True when [element] sits inside a <template> (z-lib hides its
+  /// first download link there for bots).
+  bool aAncestorHasClass(dom.Element element, String needle) {
+    dom.Element? node = element;
+    while (node != null) {
+      if (node.localName == needle) return true;
+      node = node.parent;
+    }
+    return false;
+  }
+
+  /// Resolves the `/dl/<id>` link on a book page to its final CDN URL
+  /// (DiamWall once, then a 302 to a signed CDN link). The resolved
+  /// URL expires, so it is only worth fetching right before a download.
+  /// Some `/dl/` ids answer 204 forever; [alternates] (the other ids
+  /// from the book page) are tried in order when the primary fails.
+  Future<String?> resolveDownloadUrl(String dlUrl,
+      {List<String> alternates = const []}) async {
+    final acceptAnyStatus = Options(
+      validateStatus: (_) => true,
+      // Follow nothing: the 302 Location is the answer we want.
+      followRedirects: false,
+      maxRedirects: 0,
+    );
+
+    for (final candidate in [dlUrl, ...alternates]) {
+      final resolved = await _resolveOneDownloadUrl(candidate, acceptAnyStatus);
+      if (resolved != null) return resolved;
+    }
+    return null;
+  }
+
+  /// One `/dl/<id>` candidate: solve DiamWall if challenged, then read
+  /// the 302 Location. 200 (js/meta redirect page) counts as resolved -
+  /// the downloader follows redirects anyway. 204 and 404 mean this id
+  /// is dead; the caller tries the next one.
+  Future<String?> _resolveOneDownloadUrl(
+      String candidate, Options acceptAnyStatus) async {
+    var response = await _dio.get(candidate, options: acceptAnyStatus);
+    if (_solver.looksLikeChallenge(
+        response.statusCode ?? 0, response.data.toString())) {
+      final cookies = await _solver.solve(response.data.toString());
+      if (cookies == null) return null;
+      final cookieHeader =
+          cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+      response = await _dio.get(candidate,
+          options: acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}));
+    }
+
+    if (response.statusCode == 302 || response.statusCode == 301) {
+      final location = response.headers.value('location');
+      if (location != null && location.startsWith('http')) {
+        return location;
+      }
+    }
+    if (response.statusCode == 200) return candidate;
+    return null;
+  }
+
+  /// Parses a Z-Library book detail page. Public so tests can feed a
+  /// captured page without network. Live markup: `h1[itemprop=name]`
+  /// title, `.authors a` author, `bookProperty property_*` rows for
+  /// year/publisher/language/file, and `/dl/<id>` anchors for the
+  /// download. The file row reads like "EPUB, 430.04 MB".
+  BookInfoData? parseBookPage(String html, String baseUrl, String pageUrl) {
+    final document = html_parser.parse(html);
+
+    final title =
+        document.querySelector('h1[itemprop="name"]')?.text.trim() ?? '';
+    if (title.isEmpty) return null;
+
+    final author =
+        document.querySelector('.authors a')?.text.trim() ?? 'Unknown';
+
+    final cover =
+        document.querySelector('img[src*="covers"]')?.attributes['src'] ??
+            document.querySelector('img')?.attributes['src'];
+
+    String? format;
+    String? size;
+    String? year;
+    String? publisher;
+    String? language;
+    for (final row in document.querySelectorAll('.bookProperty')) {
+      final label =
+          row.querySelector('.property_label')?.text.trim().toLowerCase() ?? '';
+      final value = row.querySelector('.property_value')?.text.trim() ?? '';
+      if (label.startsWith('file:')) {
+        final parts = value.split(',');
+        format = parts.isNotEmpty ? parts[0].trim() : null;
+        size = parts.length > 1 ? parts[1].trim() : null;
+      } else if (label.startsWith('year:')) {
+        year = value;
+      } else if (label.startsWith('publisher:')) {
+        publisher = value;
+      } else if (label.startsWith('language:')) {
+        language = value;
+      }
+    }
+
+    // A book page carries several /dl/ ids and some answer 204
+    // forever; the visible ones are the live ones, so prefer those.
+    final dlHrefs = _extractDownloadLinks(html);
+    final dlHref = dlHrefs.isEmpty ? null : dlHrefs.first;
+
+    final info = [
+      language,
+      format,
+      size,
+      year,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
+
+    return BookInfoData(
+      title: title,
+      author: author,
+      thumbnail: cover,
+      publisher: publisher,
+      info: info.isEmpty ? null : info,
+      // The book page URL is stable across mirrors; keep the one we
+      // actually loaded so re-opens do not loop through dead mirrors.
+      link: pageUrl,
+      md5: _bookIdFromHref(pageUrl) ?? title,
+      format: format ?? '',
+      description: null,
+      mirror: dlHref == null ? null : '$baseUrl$dlHref',
+      isFastDownload: false,
+    );
+  }
 }
 
 /// Combined outcome of a fan-out search.

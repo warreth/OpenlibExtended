@@ -176,6 +176,38 @@ void main() {
     });
   });
 
+  // A page captured live from z-lib.gd (DiamWall cleared) drives the
+  // detail parser: no network, no challenge.
+  group('ZlibraryProvider.parseBookPage', () {
+    test('parses title, author, file info and download link', () {
+      final html =
+          File('test/fixtures/zlib_book_page.html').readAsStringSync();
+      final provider = ZlibraryProvider();
+
+      final data = provider.parseBookPage(
+          html, 'https://z-lib.gd',
+          'https://z-lib.gd/book/RAZbKkmYAy/americas-test-kitchen.html');
+
+      expect(data, isNotNull);
+      expect(data!.title,
+          startsWith('America’s Test Kitchen'));
+      expect(data.author, "America's Test Kitchen");
+      expect(data.format, 'EPUB');
+      expect(data.info, contains('English'));
+      expect(data.info, contains('2016'));
+      expect(data.mirror, isNotNull);
+      expect(data.mirror, startsWith('https://z-lib.gd/dl/'));
+      // The stable book id doubles as the md5 key in the library db.
+      expect(data.md5, 'RAZbKkmYAy');
+    });
+
+    test('returns null without a title', () {
+      final data = ZlibraryProvider().parseBookPage(
+          '<html><body><h1></h1></body></html>', 'https://z-lib.gd', 'x');
+      expect(data, isNull);
+    });
+  });
+
   group('SearchManager fan-out', () {
     test('stops at the first provider with results, reports failures',
         () async {
