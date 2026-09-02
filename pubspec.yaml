@@ -79,6 +79,16 @@ dependencies:
   apk_sideload: ^0.0.2
   flutter_tts: ^4.2.5
 
+# permission_handler 13.x resolves permission_handler_android 14.0.0,
+# whose Kotlin-DSL build file needs the Android 37 platform and a
+# Kotlin 2.2+ toolchain that the release CI's Flutter doesn't ship.
+# 13.0.1 is the same facade over the last Groovy-based Android
+# implementation (compileSdk 35); pin it until the CI toolchain
+# catches up. The app only requests storage/notification/install
+# permissions, all long since covered.
+dependency_overrides:
+  permission_handler_android: 13.0.1
+
 dev_dependencies:
   archive: ^3.6.1
   import_sorter: ^4.6.0
