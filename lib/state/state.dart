@@ -621,6 +621,13 @@ Future<void> savePdfState(String fileName, WidgetRef ref) async {
   await dataBase.saveBookState(fileName, position);
 }
 
+/// Position save for the pdfrx viewer, which knows its page directly
+/// and no longer goes through the pdfCurrentPage provider.
+Future<void> savePdfPosition(String fileName, int page) async {
+  if (page < 1) return;
+  await dataBase.saveBookState(fileName, page.toString());
+}
+
 Future<void> saveEpubState(
     String fileName, String? position, WidgetRef ref) async {
   String pos = position ?? '';

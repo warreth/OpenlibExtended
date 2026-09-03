@@ -196,5 +196,13 @@
   "reloadHealthData": "Recargar datos de salud",
   "addServiceMirror": "Añadir un espejo de {title}",
   "deleteMirrorTooltip": "Eliminar espejo",
-  "ttsEngineMissing": "No se encontró ningún motor de síntesis de voz. Instala uno (p. ej. Servicios de voz) en los ajustes del sistema."
+  "ttsEngineMissing": "No se encontró ningún motor de síntesis de voz. Instala uno (p. ej. Servicios de voz) en los ajustes del sistema.",
+  "previousPage": "Página anterior",
+  "@previousPage": {
+    "description": "PDF reader previous page button tooltip"
+  },
+  "nextPage": "Página siguiente",
+  "@nextPage": {
+    "description": "PDF reader next page button tooltip"
+  }
 }

@@ -38,7 +38,12 @@ dependencies:
 
   google_nav_bar: ^5.0.6
 
-  flutter_pdfview: ^1.2.7
+  # pdfrx: in-app PDF rendering on every platform (mobile + desktop),
+  # replacing the mobile-only flutter_pdfview + desktop shell-out to the
+  # system viewer. Pinned: 2.5.0 requires the next Flutter generation;
+  # 2.4.8 is the latest that runs on the current stable.
+  pdfrx: 2.4.8
+
   epubx: ^4.0.0
   # syncfusion_flutter_pdfviewer: ^22.2.5
   # pdfx: ^2.4.0
@@ -88,9 +93,19 @@ dependencies:
 # permissions, all long since covered.
 dependency_overrides:
   permission_handler_android: 13.0.1
+  # epubx (epub_view's parser) caps image/archive at 3.x, but the only
+  # APIs it calls (decodeImage, ZipDecoder.decodeBytes, ArchiveFile.content)
+  # are unchanged in v4; pdfrx's engine needs image 4 (ChannelOrder) and
+  # archive 4. Forcing v4 on both satisfies everyone.
+  archive: 4.0.9
+  image: 4.5.4
+  # Local epubx with the one-line image-4 fix (decodeImage now wants
+  # Uint8List); epub_view still pulls hosted epubx, the override wins.
+  epubx:
+    path: third_party/epubx
 
 dev_dependencies:
-  archive: ^3.6.1
+  archive: ^4.0.9
   import_sorter: ^4.6.0
   flutter_test:
     sdk: flutter

@@ -647,4 +647,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ttsEngineMissing =>
       'No speech engine found. Install one (e.g. Speech Services) in system settings.';
+
+  @override
+  String get previousPage => 'Previous page';
+
+  @override
+  String get nextPage => 'Next page';
 }

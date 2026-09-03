@@ -1283,6 +1283,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No speech engine found. Install one (e.g. Speech Services) in system settings.'**
   String get ttsEngineMissing;
+
+  /// PDF reader previous page button tooltip
+  ///
+  /// In en, this message translates to:
+  /// **'Previous page'**
+  String get previousPage;
+
+  /// PDF reader next page button tooltip
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get nextPage;
 }
 
 class _AppLocalizationsDelegate

@@ -1,26 +1,29 @@
+// Built-in PDF reader for every platform, powered by pdfrx (PDFium).
+// Replaces the old split of mobile-only flutter_pdfview plus a desktop
+// shell-out to the system viewer - one interactive viewer everywhere,
+// with text selection built in.
+
 // Flutter imports:
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_file/open_file.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
-import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
 
 import 'package:openlib/state/state.dart'
     show
         filePathProvider,
-        pdfCurrentPage,
-        totalPdfPage,
-        savePdfState,
         openPdfWithExternalAppProvider,
-        getBookPosition;
+        getBookPosition,
+        savePdfPosition;
 
 Future<void> launchPdfViewer(
     {required String fileName,
@@ -28,13 +31,13 @@ Future<void> launchPdfViewer(
     required WidgetRef ref}) async {
   bool openWithExternalApp = ref.watch(openPdfWithExternalAppProvider);
 
-  // On desktop, always open with external app since flutter_pdfview is mobile-only
-  if (PlatformUtils.isDesktop || openWithExternalApp) {
+  // The user can always prefer the external app; pdfrx covers every
+  // platform in-app otherwise.
+  if (openWithExternalApp) {
     try {
       String path = await getFilePath(fileName);
       await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");
     } catch (e) {
-      // File doesn't exist or can't be accessed
       if (context.mounted) {
         showSnackBar(
             context: context,
@@ -43,257 +46,179 @@ Future<void> launchPdfViewer(
     }
   } else {
     Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-      return PdfView(
-        fileName: fileName,
-      );
+      return PdfViewPage(fileName: fileName);
     }));
   }
 }
 
-class PdfView extends ConsumerStatefulWidget {
-  const PdfView({super.key, required this.fileName});
+class PdfViewPage extends ConsumerStatefulWidget {
+  const PdfViewPage({super.key, required this.fileName});
 
   final String fileName;
 
   @override
-  ConsumerState<ConsumerStatefulWidget> createState() => _PdfViewState();
+  ConsumerState<ConsumerStatefulWidget> createState() => _PdfViewPageState();
 }
 
-class _PdfViewState extends ConsumerState<PdfView> {
-  @override
-  Widget build(BuildContext context) {
-    final filePath = ref.watch(filePathProvider(widget.fileName));
-    return filePath.when(data: (data) {
-      return PdfViewer(filePath: data, fileName: widget.fileName);
-    }, error: (error, stack) {
-      return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          title: Text(AppLocalizations.of(context).appTitle),
-          titleTextStyle: Theme.of(context).textTheme.displayLarge,
-        ),
-        body: Center(child: Text(error.toString())),
-      );
-    }, loading: () {
-      return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          title: Text(AppLocalizations.of(context).appTitle),
-          titleTextStyle: Theme.of(context).textTheme.displayLarge,
-        ),
-        body: Center(
-            child: SizedBox(
-          width: 25,
-          height: 25,
-          child: CircularProgressIndicator(
-            color: Theme.of(context).colorScheme.secondary,
-          ),
-        )),
-      );
-    });
-  }
+/// Saved positions are stored as decimal strings; anything unparsable
+/// or out of range means "start from the top".
+@visibleForTesting
+int initialPageFor(String? saved) {
+  final page = int.tryParse(saved ?? '');
+  if (page == null || page < 1) return 1;
+  return page;
 }
 
-class PdfViewer extends ConsumerStatefulWidget {
-  const PdfViewer({super.key, required this.filePath, required this.fileName});
+class _PdfViewPageState extends ConsumerState<PdfViewPage> {
+  final PdfViewerController _controller = PdfViewerController();
+  Timer? _positionSaveTimer;
+  DateTime _lastSaved = DateTime.fromMillisecondsSinceEpoch(0);
+  int _page = 0;
+  int _pageCount = 0;
 
-  final String filePath;
-  final String fileName;
-
-  @override
-  ConsumerState<ConsumerStatefulWidget> createState() => _PdfViewerState();
-}
-
-class _PdfViewerState extends ConsumerState<PdfViewer> {
-  late PDFViewController controller;
-  final Set<int> _activePointers = {};
+  static const _saveInterval = Duration(seconds: 30);
+  static const _saveDebounce = Duration(seconds: 5);
 
   @override
   void initState() {
     super.initState();
-  }
-
-  @override
-  void deactivate() {
-    // Save PDF state on all platforms (mobile and desktop)
-    savePdfState(widget.fileName, ref);
-    super.deactivate();
+    // A dead process must not eat the reading position: save on a timer
+    // while reading, on background, and on leave (deactivate).
+    _positionSaveTimer = Timer.periodic(_saveInterval, (_) => _savePosition());
   }
 
   @override
   void dispose() {
+    _positionSaveTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _openPdfWithDefaultViewer(String fileName) async {
-    debugPrint("Opening : $fileName");
-    final fileUrl = Uri.parse(fileName);
-    if (await canLaunchUrl(fileUrl)) {
-      await launchUrl(fileUrl);
-    } else {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-          'Could not open the PDF',
-          textAlign: TextAlign.center,
-        )),
-      );
-    }
-  }
-
-  void _goToNextPage() {
-    final currentPage = ref.read(pdfCurrentPage);
-    final totalPages = ref.read(totalPdfPage);
-    if (currentPage + 1 < totalPages) {
-      ref.read(pdfCurrentPage.notifier).state = currentPage + 1;
-      controller.setPage(currentPage + 1);
-    } else {
-      ref.read(pdfCurrentPage.notifier).state = 0;
-      controller.setPage(0);
-    }
-  }
-
-  void _goToPreviousPage() {
-    final currentPage = ref.read(pdfCurrentPage);
-    final totalPages = ref.read(totalPdfPage);
-    if (currentPage != 0) {
-      ref.read(pdfCurrentPage.notifier).state = currentPage - 1;
-      controller.setPage(currentPage - 1);
-    } else {
-      ref.read(pdfCurrentPage.notifier).state = totalPages - 1;
-      controller.setPage(totalPages - 1);
+  Future<void> _savePosition() async {
+    // Debounce: the timer plus page-change saves must not write more
+    // often than the debounce window.
+    if (_page < 1) return;
+    final now = DateTime.now();
+    if (now.difference(_lastSaved) < _saveDebounce) return;
+    _lastSaved = now;
+    try {
+      await savePdfPosition(widget.fileName, _page);
+    } catch (_) {
+      // A failed position write never takes the reader down.
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // On desktop, use external PDF viewer with a button
-    bool useExternalViewer = PlatformUtils.isDesktop;
-    final currentPage = ref.watch(pdfCurrentPage);
-    final totalPages = ref.watch(totalPdfPage);
+    final filePath = ref.watch(filePathProvider(widget.fileName));
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        // Use surface color in dark mode so it's not white
+        backgroundColor: isDarkMode
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.primary,
         title: Text(AppLocalizations.of(context).appTitle),
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
-        actions: !useExternalViewer
-            ? [
-                IconButton(
-                    onPressed: _goToPreviousPage,
-                    icon: const Icon(
-                      Icons.arrow_left,
-                      size: 25,
-                    )),
-                Text(
-                    '${(currentPage + 1).toString()} / ${totalPages.toString()}'),
-                IconButton(
-                    onPressed: _goToNextPage,
-                    icon: const Icon(
-                      Icons.arrow_right,
-                      size: 25,
-                    )),
-              ]
-            : [],
-      ),
-      body: !useExternalViewer
-          ? ref.watch(getBookPosition(widget.fileName)).when(
-              data: (data) {
-                return _buildTapNavigationWrapper(
-                  PDFView(
-                    swipeHorizontal: true,
-                    fitEachPage: true,
-                    fitPolicy: FitPolicy.BOTH,
-                    filePath: widget.filePath,
-                    onViewCreated: (controller) {
-                      this.controller = controller;
-                    },
-                    defaultPage: int.parse(data ?? '0'),
-                    onPageChanged: (page, total) {
-                      ref.read(pdfCurrentPage.notifier).state = page ?? 0;
-                      ref.read(totalPdfPage.notifier).state = total ?? 0;
-                    },
-                  ),
-                );
-              },
-              error: (error, stackTrace) {
-                return _buildTapNavigationWrapper(
-                  PDFView(
-                    swipeHorizontal: true,
-                    fitEachPage: true,
-                    fitPolicy: FitPolicy.BOTH,
-                    filePath: widget.filePath,
-                    onViewCreated: (controller) {
-                      this.controller = controller;
-                    },
-                    onPageChanged: (page, total) {
-                      ref.read(pdfCurrentPage.notifier).state = page ?? 0;
-                      ref.read(totalPdfPage.notifier).state = total ?? 0;
-                    },
-                  ),
-                );
-              },
-              loading: () {
-                return Center(
-                    child: SizedBox(
-                  width: 25,
-                  height: 25,
-                  child: CircularProgressIndicator(
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                ));
-              },
-            )
-          : Center(
-              child: TextButton(
-                style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.secondary,
-                    textStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    )),
-                onPressed: () async {
-                  await _openPdfWithDefaultViewer("file://${widget.filePath}");
-                  // ignore: use_build_context_synchronously
-                  Navigator.pop(context);
-                },
-                child: const Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(
-                    "Open with System's PDF Viewer",
-                  ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.tertiary),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            tooltip: AppLocalizations.of(context).previousPage,
+            onPressed: () => _controller.goToPage(
+                pageNumber: (_controller.pageNumber ?? 1) - 1),
+            icon: Icon(Icons.arrow_left,
+                size: 25, color: Theme.of(context).colorScheme.tertiary),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Center(
+              child: Text(
+                '$_page / $_pageCount',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Theme.of(context).colorScheme.tertiary,
                 ),
               ),
             ),
-    );
-  }
-
-  Widget _buildTapNavigationWrapper(Widget child) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) => _activePointers.add(event.pointer),
-      onPointerUp: (event) {
-        _activePointers.remove(event.pointer);
-
-        // Only handle navigation on single-finger taps
-        if (_activePointers.isEmpty) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final tapPosition = event.position.dx;
-
-          // Divide screen into three zones: left (30%), center (40%), right (30%)
-          if (tapPosition < screenWidth * 0.3) {
-            // Left zone - previous page
-            _goToPreviousPage();
-          } else if (tapPosition > screenWidth * 0.7) {
-            // Right zone - next page
-            _goToNextPage();
-          }
-          // Center zone (30-70%) - no action, allows zooming and other interactions
-        }
-      },
-      onPointerCancel: (event) => _activePointers.remove(event.pointer),
-      child: child, // Direct child, no overlay
+          ),
+          IconButton(
+            tooltip: AppLocalizations.of(context).nextPage,
+            onPressed: () => _controller.goToPage(
+                pageNumber: (_controller.pageNumber ?? 0) + 1),
+            icon: Icon(Icons.arrow_right,
+                size: 25, color: Theme.of(context).colorScheme.tertiary),
+          ),
+        ],
+      ),
+      body: filePath.when(
+        data: (path) => ref.watch(getBookPosition(widget.fileName)).when(
+              data: (saved) {
+                return PdfViewer.file(
+                  path,
+                  controller: _controller,
+                  initialPageNumber: initialPageFor(saved),
+                  params: PdfViewerParams(
+                    behaviorControlParams: const PdfViewerBehaviorControlParams(
+                        // Default keeps trailing pages waiting 100ms;
+                        // loading them immediately feels snappier.
+                        trailingPageLoadingDelay: Duration.zero),
+                    onPageChanged: (page) {
+                      // Real-time page indicator; _savePosition
+                      // debounces the actual disk writes.
+                      if (page == null || page < 1) return;
+                      setState(() {
+                        _page = page;
+                        _pageCount = _controller.isReady
+                            ? _controller.pageCount
+                            : _pageCount;
+                      });
+                      _savePosition();
+                    },
+                  ),
+                );
+              },
+              error: (err, stack) =>
+                  Center(child: Text("Error loading book: $err")),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+            ),
+        error: (error, stack) {
+          return Scaffold(
+            appBar: AppBar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              title: Text(AppLocalizations.of(context).appTitle),
+              titleTextStyle: Theme.of(context).textTheme.displayLarge,
+            ),
+            body: Center(child: Text(error.toString())),
+          );
+        },
+        loading: () {
+          return Scaffold(
+            appBar: AppBar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              title: Text(AppLocalizations.of(context).appTitle),
+              titleTextStyle: Theme.of(context).textTheme.displayLarge,
+            ),
+            body: Center(
+              child: SizedBox(
+                width: 25,
+                height: 25,
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

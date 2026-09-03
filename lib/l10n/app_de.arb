@@ -196,5 +196,13 @@
   "reloadHealthData": "Gesundheitsdaten neu laden",
   "addServiceMirror": "{title}-Spiegel hinzufügen",
   "deleteMirrorTooltip": "Spiegel löschen",
-  "ttsEngineMissing": "Keine Sprachausgabe-Engine gefunden. Installiere eine (z.B. Sprachdienste) in den Systemeinstellungen."
+  "ttsEngineMissing": "Keine Sprachausgabe-Engine gefunden. Installiere eine (z.B. Sprachdienste) in den Systemeinstellungen.",
+  "previousPage": "Vorherige Seite",
+  "@previousPage": {
+    "description": "PDF reader previous page button tooltip"
+  },
+  "nextPage": "Nächste Seite",
+  "@nextPage": {
+    "description": "PDF reader next page button tooltip"
+  }
 }

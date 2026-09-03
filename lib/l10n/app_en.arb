@@ -860,5 +860,13 @@
   "ttsEngineMissing": "No speech engine found. Install one (e.g. Speech Services) in system settings.",
   "@ttsEngineMissing": {
     "description": "Snackbar when the device has no TTS engine installed"
+  },
+  "previousPage": "Previous page",
+  "@previousPage": {
+    "description": "PDF reader previous page button tooltip"
+  },
+  "nextPage": "Next page",
+  "@nextPage": {
+    "description": "PDF reader next page button tooltip"
   }
 }

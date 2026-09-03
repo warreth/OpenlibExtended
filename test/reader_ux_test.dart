@@ -121,7 +121,7 @@ void main() {
 void _writeMinimalEpub(File file) {
   final archive = Archive();
   archive.addFile(ArchiveFile('mimetype', 20, 'application/epub+zip'.codeUnits)
-    ..compress = false);
+    ..compression = CompressionType.none);
   archive.addFile(ArchiveFile.string('META-INF/container.xml', '''
 <?xml version="1.0"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -151,6 +151,6 @@ void _writeMinimalEpub(File file) {
   <body><h1>Sample Chapter</h1><p>Hello reader.</p></body>
 </html>'''));
 
-  final data = ZipEncoder().encode(archive)!;
+  final data = ZipEncoder().encode(archive);
   file.writeAsBytesSync(data);
 }

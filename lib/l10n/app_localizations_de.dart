@@ -657,4 +657,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get ttsEngineMissing =>
       'Keine Sprachausgabe-Engine gefunden. Installiere eine (z.B. Sprachdienste) in den Systemeinstellungen.';
+
+  @override
+  String get previousPage => 'Vorherige Seite';
+
+  @override
+  String get nextPage => 'Nächste Seite';
 }

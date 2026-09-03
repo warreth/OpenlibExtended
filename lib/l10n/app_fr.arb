@@ -196,5 +196,13 @@
   "reloadHealthData": "Recharger les données de santé",
   "addServiceMirror": "Ajouter un miroir {title}",
   "deleteMirrorTooltip": "Supprimer le miroir",
-  "ttsEngineMissing": "Aucun moteur de synthèse vocale trouvé. Installez-en un (ex. Services vocaux) dans les paramètres système."
+  "ttsEngineMissing": "Aucun moteur de synthèse vocale trouvé. Installez-en un (ex. Services vocaux) dans les paramètres système.",
+  "previousPage": "Page précédente",
+  "@previousPage": {
+    "description": "PDF reader previous page button tooltip"
+  },
+  "nextPage": "Page suivante",
+  "@nextPage": {
+    "description": "PDF reader next page button tooltip"
+  }
 }

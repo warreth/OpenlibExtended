@@ -655,4 +655,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get ttsEngineMissing =>
       'No se encontró ningún motor de síntesis de voz. Instala uno (p. ej. Servicios de voz) en los ajustes del sistema.';
+
+  @override
+  String get previousPage => 'Página anterior';
+
+  @override
+  String get nextPage => 'Página siguiente';
 }
