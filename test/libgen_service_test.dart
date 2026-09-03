@@ -111,6 +111,44 @@ void main() {
     });
   });
 
+  group('parseAdsCover (lazy result-list covers)', () {
+    test('extracts the cover URL from a captured ads page', () {
+      final html =
+          File('test/fixtures/libgen_ads_page.html').readAsStringSync();
+
+      final cover =
+          LibgenService.parseAdsCover(html, 'https://libgen.vg');
+
+      // The fixture's cover img is a relative /fictioncovers/ URL.
+      expect(cover, isNotNull);
+      expect(cover,
+          'https://libgen.vg/fictioncovers/2204000/7373b39d1addaf236328975f9bbef7c4.jpg');
+    });
+
+    test('keeps absolute cover URLs untouched', () {
+      const html =
+          '<table id="main"><tr><td><img src="https://libgen.li/covers/1/abc.jpg">'
+          '</td><td>Title: X</td></tr></table>';
+
+      expect(LibgenService.parseAdsCover(html, 'https://libgen.li'),
+          'https://libgen.li/covers/1/abc.jpg');
+    });
+
+    test('returns null when the img src is empty (libgen.vg quirk)', () {
+      const html =
+          '<table id="main"><tr><td><img src=""></td><td>Title: X</td></tr></table>';
+
+      expect(LibgenService.parseAdsCover(html, 'https://libgen.vg'), isNull);
+    });
+
+    test('returns null on a search results page (no ads table)', () {
+      final html =
+          File('test/fixtures/libgen_vg_results.html').readAsStringSync();
+
+      expect(LibgenService.parseAdsCover(html, 'https://libgen.vg'), isNull);
+    });
+  });
+
   group('parseAdsPage rejects non-matching markup', () {
     test('returns null on garbage html', () {
       expect(

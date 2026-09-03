@@ -115,6 +115,14 @@ class BookInfoCard extends ConsumerWidget {
                   height: 120,
                   width: 90,
                   imageUrl: coverUrl ?? "",
+                  // libgen.li serves /covers/ only with an ads.php
+                  // Referer; without it the response is 200 but empty.
+                  httpHeaders: coverUrl != null && coverUrl.contains('libgen')
+                      ? const {
+                          'Referer':
+                              'https://libgen.li/ads.php?md5=cover-lookup'
+                        }
+                      : null,
                   imageBuilder: (context, imageProvider) => Container(
                     decoration: BoxDecoration(
                       borderRadius: const BorderRadius.all(Radius.circular(5)),

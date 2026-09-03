@@ -48,6 +48,11 @@ class BookInfoWidget extends StatelessWidget {
                   height: 230,
                   width: 170,
                   imageUrl: data.thumbnail,
+                  // libgen.li serves /covers/ only with an ads.php
+                  // Referer; the book page itself is a valid one.
+                  httpHeaders: data.thumbnail.contains('libgen')
+                      ? {'Referer': data.link}
+                      : null,
                   imageBuilder: (context, imageProvider) => Container(
                     decoration: BoxDecoration(
                       borderRadius: const BorderRadius.all(Radius.circular(10)),

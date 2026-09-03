@@ -64,16 +64,20 @@ class _RangeServer {
     }
   }
 
-  void handle(HttpRequest request) async {
-    if (request.method == 'HEAD') {
-      // _getAliveMirror probes with HEAD; respond without a body.
-      request.response.statusCode = HttpStatus.ok;
-      request.response.headers.set(
-          HttpHeaders.acceptRangesHeader, supportsRange ? 'bytes' : 'none');
-      request.response.close();
-      return;
-    }
+  /// [force] cuts active connections mid-transfer, the way the OS does
+  /// when an app is suspended. A graceful close would let in-flight
+  /// responses finish.
+  Future<void> close({bool force = false}) => _server.close(force: force);
 
+  void handle(HttpRequest request) async {
+    try {
+      await _handle(request);
+    } catch (_) {
+      // The socket was force-closed mid-response; nothing to report.
+    }
+  }
+
+  Future<void> _handle(HttpRequest request) async {
     if (failNextGets > 0) {
       failNextGets--;
       failedGets++;
@@ -114,8 +118,6 @@ class _RangeServer {
     await _send(request.response, bytes);
     request.response.close();
   }
-
-  Future<void> close() => _server.close();
 }
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -509,8 +511,11 @@ void main() {
       // instead of leaving them dead.
       final bytes =
           Uint8List.fromList(List.generate(1024 * 200, (i) => (i * 13) % 251));
+      // 60ms per 16KB chunk: the transfer needs ~800ms, so the 400ms
+      // kill below reliably lands mid-transfer even with downloads
+      // starting immediately (no probe delay anymore).
       server = await _RangeServer.start(
-          bytes: bytes, chunkDelay: const Duration(milliseconds: 25));
+          bytes: bytes, chunkDelay: const Duration(milliseconds: 60));
       server._server.listen(server.handle);
 
       final task = DownloadTask(
@@ -541,7 +546,7 @@ void main() {
       // download fails with the socket gone, leaving a partial file.
       await Future<void>.delayed(const Duration(milliseconds: 400));
       final serverPort = server.port; // read before the socket closes
-      await server.close();
+      await server.close(force: true);
       final partial = File('$saveDir/$fileName');
       if (partial.existsSync()) {
         partialBytesAtFailure = partial.lengthSync();
@@ -682,5 +687,78 @@ void main() {
           'All mirrors failed!');
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('falls through to the next mirror without a probe round-trip',
+        () async {
+      // First mirror 403s for every request; the download must move on
+      // to the second mirror and finish - without the old HEAD probe
+      // (which added a 2s delay plus one probe request per mirror).
+      final bytes =
+          Uint8List.fromList(List.generate(1024 * 100, (i) => i % 13));
+
+      final dead = await _RangeServer.start(bytes: bytes);
+      dead._server.listen((request) async {
+        request.response.statusCode = 403;
+        request.response.close();
+      });
+      final alive = await _RangeServer.start(bytes: bytes);
+      alive._server.listen(alive.handle);
+      // tearDown closes only `server` - close dead there too.
+      server = dead;
+
+      final task = DownloadTask(
+        id: 'md5hash_fall',
+        md5: 'md5hash_fall',
+        title: 'Fallthrough Book',
+        mirrors: [dead.url.toString(), alive.url.toString()],
+        format: 'epub',
+        link: alive.url.toString(),
+      );
+
+      final completer = Completer<void>();
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[task.id];
+        if (t != null && t.status == DownloadStatus.completed) {
+          completer.complete();
+        }
+      });
+
+      final sw = Stopwatch()..start();
+      await manager.addDownload(task);
+      await completer.future.timeout(const Duration(seconds: 30));
+      sw.stop();
+
+      // With the probe gone, the whole dead-first flow (3 attempts on
+      // the 403 mirror, 1s gap, then the real download) stays well
+      // under the old fixed 2s delay alone would have allowed.
+      expect(sw.elapsed, lessThan(const Duration(seconds: 20)),
+          reason: 'no artificial pre-download delay');
+
+      final saved = File(
+          '$saveDir/${generateBookFileName(title: 'Fallthrough Book', format: 'epub', md5: 'md5hash_fall')}');
+      expect(saved.existsSync(), isTrue);
+      expect(saved.readAsBytesSync(), bytes);
+
+      await alive.close();
+      manager.removeDownload(task.id);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+  });
+
+  group('mirrorSourceLabel', () {
+    test('names the big catalogs by host', () {
+      expect(mirrorSourceLabel('https://libgen.li/get.php?md5=x'), 'LibGen');
+      expect(mirrorSourceLabel('https://libgen.vg/ads.php?md5=x'), 'LibGen');
+      expect(
+          mirrorSourceLabel('https://z-lib.gd/dl/abc/def'), 'Z-Library');
+      expect(mirrorSourceLabel('https://ipfs.io/ipfs/QmX'), 'IPFS');
+      expect(
+          mirrorSourceLabel('https://annas-archive.org/md5/x'),
+          "Anna's Archive");
+    });
+
+    test('falls back to the bare host for unknown mirrors', () {
+      expect(mirrorSourceLabel('https://cdn.example.com/file.epub'),
+          'cdn.example.com');
+    });
   });
 }

@@ -236,6 +236,59 @@ void main() {
       expect(never.calls, 0); // chain stopped at the first hit
     });
 
+    test('tags results with the provider that produced them', () async {
+      final provider = _FakeProvider('libgen', [
+        BookData(title: 'Tagged', link: 'https://l/1', md5: 'tag-1'),
+      ]);
+      final manager = SearchManager(
+        database: MyLibraryDb.instance,
+        providers: [provider],
+      );
+      await manager.setProviderEnabled(SearchProviderId.libgen, true);
+
+      final result = await manager.search(const SearchQuery(text: 'tag'));
+
+      // The tag must round-trip the provider's own displayName.
+      expect(result.books.first.source, isNotNull);
+      expect(result.books.first.source, provider.displayName);
+      expect(result.resultSource, provider.displayName);
+    });
+
+    test('copyWith stamps source without touching other fields', () {
+      final book = BookData(
+          title: 'T', author: 'A', link: 'https://l/1', md5: 'm', info: 'i');
+      final tagged = book.copyWith(source: 'LibGen');
+
+      expect(tagged.source, 'LibGen');
+      expect(tagged.title, 'T');
+      expect(tagged.author, 'A');
+      expect(tagged.info, 'i');
+      expect(book.source, isNull); // original untouched
+    });
+
+    test('redirect chain moves on when a working source is empty', () async {
+      // libgen answers fine but has nothing; zlibrary must then run.
+      final empty = _FakeProvider('libgen', []);
+      final next = _FakeProvider('zlibrary', [
+        BookData(title: 'Z Book', link: 'https://z/1', md5: 'z-md5'),
+      ]);
+      final manager = SearchManager(
+        database: MyLibraryDb.instance,
+        providers: [empty, next],
+      );
+      await manager.setProviderEnabled(SearchProviderId.libgen, true);
+      await manager.setProviderEnabled(SearchProviderId.zlibrary, true);
+
+      final result = await manager.search(const SearchQuery(text: 'x'));
+
+      expect(empty.calls, 1);
+      expect(next.calls, 1);
+      expect(result.books.first.title, 'Z Book');
+      expect(result.books.first.source, next.displayName);
+      expect(result.resultSource, next.displayName);
+      expect(result.failedProviders, isEmpty); // empty is not an error
+    });
+
     test('drops duplicate md5s within one provider result page', () async {
       // The chain stops at the first provider with hits, so dedupe now
       // matters inside a single provider's page (libgen mirrors can

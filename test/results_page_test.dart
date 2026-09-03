@@ -18,7 +18,7 @@ import 'package:openlib/ui/components/book_card_widget.dart';
 import 'package:openlib/ui/results_page.dart';
 
 /// Builds a page of books with recognizable titles.
-List<BookData> fakePage(int page) {
+List<BookData> fakePage(int page, {String? source}) {
   return List.generate(
       20,
       (i) => BookData(
@@ -26,6 +26,7 @@ List<BookData> fakePage(int page) {
             author: 'Author $page$i',
             link: 'https://example.com/md5/p$page-$i',
             md5: 'md5-p$page-$i',
+            source: source,
           ));
 }
 
@@ -107,5 +108,58 @@ void main() {
         find.byWidgetPredicate((w) =>
             w is BookInfoCard && w.title.startsWith('Book 3-')),
         findsNothing);
+  });
+
+  testWidgets('shows the source chip on tagged results and the header line',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        searchProvider.overrideWith((ref, key) async {
+          if (key.page >= 2) return [];
+          return fakePage(1, source: 'LibGen');
+        }),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const ResultPage(searchQuery: 'docker'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Every visible card carries the catalog chip...
+    expect(find.text('LibGen'), findsWidgets);
+
+    // ...and the list header states where the results came from.
+    final l10n = AppLocalizations.of(
+        tester.element(find.byType(ResultPage).first));
+    expect(find.text(l10n.searchingOn('LibGen')), findsOneWidget);
+  });
+
+  testWidgets('untagged results render without a source chip',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        searchProvider.overrideWith((ref, key) async {
+          if (key.page >= 2) return [];
+          return fakePage(1); // no source
+        }),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const ResultPage(searchQuery: 'docker'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // No 'LibGen'/'Z-Library' chip anywhere, and no header line for a
+    // source that does not exist.
+    expect(find.text('LibGen'), findsNothing);
+    final l10n = AppLocalizations.of(
+        tester.element(find.byType(ResultPage).first));
+    expect(find.text(l10n.searchingOn('LibGen')), findsNothing);
   });
 }

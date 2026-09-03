@@ -117,6 +117,37 @@ class LibgenService {
         '${original.path}$query';
   }
 
+  /// Extracts just the cover URL from an `ads.php` page, or null when
+  /// the page has no cover (empty src) or does not parse. Public static
+  /// so both [bookInfo] and the lazy list-cover lookup share one
+  /// implementation.
+  static String? parseAdsCover(String html, String baseUrl) {
+    final document = html_parser.parse(html);
+    final img = document.querySelector('table#main img');
+    final src = img?.attributes['src'];
+    if (src == null || src.isEmpty) return null;
+    return src.startsWith('http') ? src : '$baseUrl$src';
+  }
+
+  /// Fetches only the cover URL for a libgen book (by md5), trying the
+  /// enabled mirrors. Null when no mirror answers or none carries a
+  /// cover. Used to lazily fill result-list thumbnails.
+  Future<String?> fetchCover(String url) async {
+    final mirrors = await _instanceManager.getEnabledUrls(MirrorService.libgen);
+    for (final candidate in _candidateUrls(url, mirrors)) {
+      try {
+        final response = await _dio.get(candidate);
+        if (response.statusCode != 200) continue;
+        final cover =
+            parseAdsCover(response.data.toString(), Uri.parse(candidate).origin);
+        if (cover != null) return cover;
+      } catch (_) {
+        // Next mirror.
+      }
+    }
+    return null;
+  }
+
   /// Parses a libgen `ads.php` page into [BookInfoData]. Public so tests
   /// can feed captured pages without network.
   ///
@@ -160,12 +191,11 @@ class LibgenService {
           title;
 
       // Cover: the img inside the main table near the metadata row.
-      String? thumbnail;
-      final img = mainTable.querySelector('img');
-      final src = img?.attributes['src'];
-      if (src != null && src.isNotEmpty) {
-        thumbnail = _absolute(src, baseUrl);
-      }
+      // Shares the selector with [parseAdsCover] so both see the
+      // same element.
+      final src = mainTable.querySelector('img')?.attributes['src'];
+      final thumbnail =
+          (src != null && src.isNotEmpty) ? _absolute(src, baseUrl) : null;
 
       final series = fields['Series'];
       final year = fields['Year'];
