@@ -44,7 +44,8 @@ class SlumHealth {
 class SlumHealthService {
   SlumHealthService({Dio? dio})
       : _dio = dio ??
-            Dio(BaseOptions(
+            createDioWithLogging(
+                options: BaseOptions(
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
               headers: const {

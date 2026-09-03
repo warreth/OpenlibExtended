@@ -30,7 +30,8 @@ class LibgenService {
 
   LibgenService({Dio? dio})
       : _dio = dio ??
-            Dio(BaseOptions(
+            createDioWithLogging(
+                options: BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 30),
               headers: _browserHeaders,

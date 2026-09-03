@@ -110,7 +110,8 @@ class AnnasArchiveProvider implements SearchProvider {
 class LibgenProvider implements SearchProvider {
   LibgenProvider({Dio? dio, List<String>? mirrors})
       : _dio = dio ??
-            Dio(BaseOptions(
+            createDioWithLogging(
+                options: BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 30),
               headers: _browserHeaders,
@@ -119,6 +120,7 @@ class LibgenProvider implements SearchProvider {
 
   final Dio _dio;
   final List<String>? _mirrors;
+  final AppLogger _logger = AppLogger();
 
   @override
   SearchProviderId get id => SearchProviderId.libgen;
@@ -290,16 +292,34 @@ class LibgenProvider implements SearchProvider {
     final mirrors = _mirrors ??
         await InstanceManager().getEnabledUrls(MirrorService.libgen);
 
+    _logger.info('Searching Library Genesis', tag: 'LibgenProvider', metadata: {
+      'req': req,
+      'page': query.page,
+      'mirrors': mirrors.length,
+    });
+
     Object? lastError;
     for (final mirror in mirrors) {
       try {
         final response = await _dio.get('$mirror/index.php?$params&res=100');
-        if (response.statusCode != 200) continue;
-        return parseResults(response.data.toString(), mirror);
+        if (response.statusCode != 200) {
+          _logger.warning('Libgen mirror answered with a non-200',
+              tag: 'LibgenProvider',
+              metadata: {'mirror': mirror, 'status': response.statusCode});
+          continue;
+        }
+        final books = parseResults(response.data.toString(), mirror);
+        _logger.info('Libgen search returned ${books.length} books',
+            tag: 'LibgenProvider', metadata: {'mirror': mirror});
+        return books;
       } catch (e) {
         lastError = e;
+        _logger.warning('Libgen mirror failed, trying next',
+            tag: 'LibgenProvider', error: e, metadata: {'mirror': mirror});
       }
     }
+    _logger.error('All libgen mirrors failed',
+        tag: 'LibgenProvider', error: lastError);
     throw Exception('Library Genesis unreachable: $lastError');
   }
 }
@@ -311,13 +331,16 @@ class LibgenProvider implements SearchProvider {
 class ZlibraryProvider implements SearchProvider {
   ZlibraryProvider({Dio? dio, List<String>? mirrors})
       : _dio = dio ??
-            Dio(BaseOptions(
+            createDioWithLogging(
+                options: BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 30),
               headers: _browserHeaders,
             )),
         _mirrors = mirrors,
         _solver = DiamWallSolver();
+
+  final AppLogger _logger = AppLogger();
 
   /// Default mirror order when no explicit list is given and the
   /// instance manager has nothing enabled: z-lib.gd first (the only
@@ -376,6 +399,12 @@ class ZlibraryProvider implements SearchProvider {
   Future<List<BookData>> search(SearchQuery query) async {
     final mirrors = _mirrors ?? await _resolveMirrors();
 
+    _logger.info('Searching Z-Library', tag: 'ZlibraryProvider', metadata: {
+      'query': query.text,
+      'page': query.page,
+      'mirrors': mirrors.length,
+    });
+
     // Dio throws on non-2xx by default; the DiamWall gate is a 503
     // whose body we must read, so accept any status and inspect.
     final acceptAnyStatus = Options(validateStatus: (_) => true);
@@ -393,6 +422,8 @@ class ZlibraryProvider implements SearchProvider {
           // attach the resulting cookies and retry once.
           final cookies = await _solver.solve(response.data.toString());
           if (cookies != null) {
+            _logger.debug('DiamWall solved, retrying with cookies',
+                tag: 'ZlibraryProvider', metadata: {'mirror': mirror});
             final cookieHeader =
                 cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
             try {
@@ -402,20 +433,39 @@ class ZlibraryProvider implements SearchProvider {
                 options:
                     acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}),
               );
-            } catch (_) {
+            } catch (e) {
+              _logger.warning('Request failed after solving the challenge',
+                  tag: 'ZlibraryProvider',
+                  error: e,
+                  metadata: {'mirror': mirror});
               continue; // Next mirror.
             }
           } else {
+            _logger.warning('Unsolvable DiamWall challenge, skipping mirror',
+                tag: 'ZlibraryProvider', metadata: {'mirror': mirror});
             continue; // Unsolvable challenge; next mirror.
           }
         }
-        if (response.statusCode != 200) continue;
+        if (response.statusCode != 200) {
+          _logger.warning('Z-Library mirror answered with a non-200',
+              tag: 'ZlibraryProvider',
+              metadata: {'mirror': mirror, 'status': response.statusCode});
+          continue;
+        }
         final books = parseResults(response.data.toString(), mirror);
-        if (books.isNotEmpty) return books;
-      } catch (_) {
+        if (books.isNotEmpty) {
+          _logger.info('Z-Library search returned ${books.length} books',
+              tag: 'ZlibraryProvider', metadata: {'mirror': mirror});
+          return books;
+        }
+      } catch (e) {
         // Next mirror; Z-Library mirrors are unstable by nature.
+        _logger.warning('Z-Library mirror failed, trying next',
+            tag: 'ZlibraryProvider', error: e, metadata: {'mirror': mirror});
       }
     }
+    _logger.warning('All Z-Library mirrors failed for this search',
+        tag: 'ZlibraryProvider');
     return const [];
   }
 
@@ -554,7 +604,12 @@ class ZlibraryProvider implements SearchProvider {
       try {
         var response = await _dio.get('$mirror$path', options: acceptAnyStatus);
         response = await _passDiamWall(mirror, response, '$mirror$path');
-        if (response.statusCode != 200) continue;
+        if (response.statusCode != 200) {
+          _logger.warning('Book page fetch got a non-200',
+              tag: 'ZlibraryProvider',
+              metadata: {'mirror': mirror, 'status': response.statusCode});
+          continue;
+        }
 
         final links = _extractDownloadLinks(response.data.toString());
         if (links.isNotEmpty) {
@@ -562,8 +617,10 @@ class ZlibraryProvider implements SearchProvider {
               .map((href) => href.startsWith('http') ? href : '$mirror$href')
               .toList();
         }
-      } catch (_) {
+      } catch (e) {
         // Next mirror; Z-Library mirrors are unstable by nature.
+        _logger.warning('Book page fetch failed, trying next mirror',
+            tag: 'ZlibraryProvider', error: e, metadata: {'mirror': mirror});
       }
     }
     return const [];
@@ -804,9 +861,14 @@ class SearchManager {
     }
 
     final logger = AppLogger();
+    logger.info('Searching sources', tag: 'SearchManager', metadata: {
+      'query': query.text,
+      'providers': [for (final p in active) p.displayName],
+    });
     final books = <BookData>[];
     final failed = <String>[];
     for (final provider in active) {
+      logger.debug('Trying ${provider.displayName}', tag: 'SearchManager');
       final outcome = await _searchOne(provider, query, logger);
       if (outcome.error != null) {
         failed.add(provider.displayName);
@@ -816,6 +878,10 @@ class SearchManager {
       if (books.isNotEmpty) break;
     }
 
+    logger.info('Search finished', tag: 'SearchManager', metadata: {
+      'results': books.length,
+      'failed': failed,
+    });
     return SearchManagerResult(books: _dedupe(books), failedProviders: failed);
   }
 
@@ -823,6 +889,8 @@ class SearchManager {
       SearchProvider provider, SearchQuery query, AppLogger logger) async {
     try {
       final books = await provider.search(query);
+      logger.info('${provider.displayName} returned ${books.length} books',
+          tag: 'SearchManager');
       return _Outcome(provider, books, null);
     } catch (e) {
       logger.warning('${provider.displayName} search failed',

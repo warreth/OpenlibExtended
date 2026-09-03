@@ -16,6 +16,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/search_manager.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -64,8 +65,9 @@ class _FakeProvider implements SearchProvider {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
+  // No TestWidgetsFlutterBinding here on purpose: it rewrites every
+  // HttpClient with a 400-returning fake, which would defeat the real
+  // local HTTP server the logging tests need.
   setUpAll(() {
     if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
       sqfliteFfiInit();
@@ -180,17 +182,14 @@ void main() {
   // detail parser: no network, no challenge.
   group('ZlibraryProvider.parseBookPage', () {
     test('parses title, author, file info and download link', () {
-      final html =
-          File('test/fixtures/zlib_book_page.html').readAsStringSync();
+      final html = File('test/fixtures/zlib_book_page.html').readAsStringSync();
       final provider = ZlibraryProvider();
 
-      final data = provider.parseBookPage(
-          html, 'https://z-lib.gd',
+      final data = provider.parseBookPage(html, 'https://z-lib.gd',
           'https://z-lib.gd/book/RAZbKkmYAy/americas-test-kitchen.html');
 
       expect(data, isNotNull);
-      expect(data!.title,
-          startsWith('America’s Test Kitchen'));
+      expect(data!.title, startsWith('America’s Test Kitchen'));
       expect(data.author, "America's Test Kitchen");
       expect(data.format, 'EPUB');
       expect(data.info, contains('English'));
@@ -326,5 +325,59 @@ void main() {
           .enabledProviders();
       expect(afterOff, isNot(contains(SearchProviderId.zlibrary)));
     });
+  });
+
+  // Regression test for #98: searches, provider attempts and pings used
+  // to leave no trace in the exported logs. The libgen provider now logs
+  // its lifecycle and its Dio records every request/response, so a
+  // scraping session can be debugged from the export alone.
+  group('search logging (issue #98)', () {
+    test('a libgen search leaves network and lifecycle entries in the log',
+        () async {
+      final html =
+          File('test/fixtures/libgen_vg_results.html').readAsStringSync();
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close());
+      server.listen((request) async {
+        request.response.headers.contentType = ContentType.html;
+        request.response.write(html);
+        await request.response.close();
+      });
+      final mirror = 'http://127.0.0.1:${server.port}';
+
+      AppLogger().clearLogs();
+      final provider = LibgenProvider(mirrors: [mirror]);
+      final books = await provider.search(const SearchQuery(text: 'flutter'));
+      expect(books, isNotEmpty, reason: 'fixture must parse');
+
+      final logs = AppLogger().getAllLogs();
+      expect(logs, contains('Searching Library Genesis'),
+          reason: 'search start must be logged');
+      // The full query string is part of the logged URL; match the base.
+      expect(logs, contains('Request: GET $mirror/index.php?req=flutter'),
+          reason: 'the HTTP request must be logged');
+      expect(logs,
+          contains('Response: GET $mirror/index.php?req=flutter&res=100 [200]'),
+          reason: 'the HTTP response must be logged');
+      expect(logs, contains('Libgen search returned ${books.length} books'),
+          reason: 'result count must be logged');
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    test('a dead libgen mirror logs the failure before moving on', () async {
+      // Port with nothing listening: connection refused, not a timeout.
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final deadPort = server.port;
+      await server.close();
+
+      AppLogger().clearLogs();
+      final provider = LibgenProvider(mirrors: ['http://127.0.0.1:$deadPort']);
+      await expectLater(
+          provider.search(const SearchQuery(text: 'x')), throwsA(anything));
+
+      final logs = AppLogger().getAllLogs();
+      expect(logs, contains('Searching Library Genesis'));
+      expect(logs, contains('Libgen mirror failed, trying next'));
+      expect(logs, contains('All libgen mirrors failed'));
+    }, timeout: const Timeout(Duration(seconds: 30)));
   });
 }

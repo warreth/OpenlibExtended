@@ -532,9 +532,13 @@ class InstanceManager {
   /// Ping a single instance and return response time in milliseconds
   /// Returns null if the instance is unreachable
   Future<int?> _pingInstance(ArchiveInstance instance) async {
-    final dio = Dio();
+    final dio = createDioWithLogging();
     dio.options.connectTimeout = const Duration(seconds: 5);
     dio.options.receiveTimeout = const Duration(seconds: 5);
+
+    _logger.debug('Pinging instance',
+        tag: 'InstanceManager',
+        metadata: {'name': instance.name, 'url': instance.baseUrl});
 
     final stopwatch = Stopwatch()..start();
     try {
@@ -553,12 +557,24 @@ class InstanceManager {
       if (response.statusCode == 200 ||
           response.statusCode == 301 ||
           response.statusCode == 302) {
+        _logger.debug('Instance responded', tag: 'InstanceManager', metadata: {
+          'name': instance.name,
+          'time': '${stopwatch.elapsedMilliseconds}ms',
+          'status': response.statusCode,
+        });
         return stopwatch.elapsedMilliseconds;
       }
+      _logger.warning('Instance answered with an unexpected status',
+          tag: 'InstanceManager',
+          metadata: {'name': instance.name, 'status': response.statusCode});
       return null;
     } catch (e) {
       stopwatch.stop();
       dio.close();
+      _logger.warning('Instance unreachable',
+          tag: 'InstanceManager',
+          error: e,
+          metadata: {'name': instance.name, 'url': instance.baseUrl});
       return null;
     }
   }
