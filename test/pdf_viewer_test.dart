@@ -66,6 +66,13 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         filePathProvider.overrideWith((ref, fileName) => file.path),
+        // Reading the position goes through the real database, whose
+        // first open deadlocks inside the widget test's fake-async
+        // zone - the viewer then sits on its loading spinner forever.
+        // Override it: this test asserts the chrome mounts, not the
+        // persistence (the wiring test below covers that against the
+        // real DB).
+        getBookPosition.overrideWith((ref, fileName) async => null),
       ],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
