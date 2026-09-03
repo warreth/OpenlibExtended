@@ -211,5 +211,16 @@
   "sourceAnnas": "Anna's Archive",
   "downloadFrom": "Téléchargement depuis {source}",
   "tryingNextSource": "Aucun résultat ici, essai de la source suivante…",
-  "slowMirrorsSkipped": "Utilisation de miroirs plus rapides"
+  "slowMirrorsSkipped": "Utilisation de miroirs plus rapides",
+  "whatsNewTitle": "Nouveautés de {version}",
+  "whatsNewIntro": "OpenlibExtended a été mis à jour. Voici ce qui a changé.",
+  "whatsNewTabFeatures": "Nouvelles fonctionnalités",
+  "whatsNewTabSources": "Sources et miroirs",
+  "whatsNewProvidersHint": "Cette version ajoute de nouveaux fournisseurs de recherche et de nouveaux miroirs. Mettez à jour votre liste pour supprimer les miroirs morts et ajouter les nouveaux ; les trois fournisseurs seront activés.",
+  "whatsNewUpdateInstances": "Mettre à jour la liste des miroirs",
+  "whatsNewInstancesUpdated": "Liste des miroirs mise à jour",
+  "whatsNewContinue": "Continuer",
+  "whatsNewFeatureSpeed": "Les téléchargements démarrent plus vite : plus de sondage des miroirs, serveurs rapides d'abord, passerelles IPFS lentes en dernier.",
+  "whatsNewFeatureSourceLabels": "Chaque résultat de recherche et chaque téléchargement indique maintenant son catalogue d'origine.",
+  "whatsNewFeatureCovers": "Les couvertures LibGen manquantes sont récupérées depuis la page détaillée du livre."
 }

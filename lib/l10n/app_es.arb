@@ -211,5 +211,16 @@
   "sourceAnnas": "Anna's Archive",
   "downloadFrom": "Descargando desde {source}",
   "tryingNextSource": "Sin resultados aquí, probando la siguiente fuente…",
-  "slowMirrorsSkipped": "Usando espejos más rápidos"
+  "slowMirrorsSkipped": "Usando espejos más rápidos",
+  "whatsNewTitle": "Novedades de {version}",
+  "whatsNewIntro": "OpenlibExtended se ha actualizado. Esto es lo que cambió.",
+  "whatsNewTabFeatures": "Nuevas funciones",
+  "whatsNewTabSources": "Fuentes y mirrors",
+  "whatsNewProvidersHint": "Esta versión añade nuevos proveedores de búsqueda y mirrors. Actualiza tu lista para eliminar los mirrors muertos y añadir los nuevos; los tres proveedores quedarán activados.",
+  "whatsNewUpdateInstances": "Actualizar lista de mirrors",
+  "whatsNewInstancesUpdated": "Lista de mirrors actualizada",
+  "whatsNewContinue": "Continuar",
+  "whatsNewFeatureSpeed": "Las descargas empiezan más rápido: sin sondear mirrors, servidores rápidos primero y las puertas IPFS lentas al final.",
+  "whatsNewFeatureSourceLabels": "Cada resultado de búsqueda y cada descarga muestra ahora de qué catálogo proviene.",
+  "whatsNewFeatureCovers": "Las portadas de LibGen que faltan se obtienen de la página de detalle del libro."
 }

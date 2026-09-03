@@ -211,5 +211,16 @@
   "sourceAnnas": "Anna's Archive",
   "downloadFrom": "Download von {source}",
   "tryingNextSource": "Keine Ergebnisse, nächste Quelle wird versucht…",
-  "slowMirrorsSkipped": "Schnellere Spiegel werden verwendet"
+  "slowMirrorsSkipped": "Schnellere Spiegel werden verwendet",
+  "whatsNewTitle": "Neu in {version}",
+  "whatsNewIntro": "OpenlibExtended wurde aktualisiert. Das hat sich geändert.",
+  "whatsNewTabFeatures": "Neue Funktionen",
+  "whatsNewTabSources": "Quellen & Mirror",
+  "whatsNewProvidersHint": "Dieses Release fügt neue Suchanbieter und Mirror hinzu. Aktualisiere deine Liste, um tote Mirror zu entfernen und die neuen hinzuzufügen; alle drei Suchanbieter werden aktiviert.",
+  "whatsNewUpdateInstances": "Mirror-Liste aktualisieren",
+  "whatsNewInstancesUpdated": "Mirror-Liste aktualisiert",
+  "whatsNewContinue": "Weiter",
+  "whatsNewFeatureSpeed": "Downloads starten schneller: keine Mirror-Prüfung mehr, schnelle Hosts zuerst, langsame IPFS-Gateways zuletzt.",
+  "whatsNewFeatureSourceLabels": "Jedes Suchergebnis und jeder Download zeigt jetzt, aus welchem Katalog er stammt.",
+  "whatsNewFeatureCovers": "Fehlende LibGen-Cover werden von der Detailseite des Buchs geladen."
 }

@@ -20,12 +20,14 @@ import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/challenge_html_cache.dart';
 import 'package:openlib/services/webview_challenge_solver.dart';
 import 'package:openlib/services/update_checker.dart';
+import 'package:openlib/services/upgrade_detector.dart';
 import 'package:openlib/ui/mylibrary_page.dart';
 import 'package:openlib/ui/search_page.dart';
 import 'package:openlib/ui/settings_page.dart';
 import 'package:openlib/ui/themes.dart';
 import 'package:openlib/ui/onboarding/onboarding_page.dart';
 import 'package:openlib/ui/challenge_solver_page.dart';
+import 'package:openlib/ui/whats_new_page.dart';
 
 import 'package:openlib/services/files.dart'
     show moveFilesToAndroidInternalStorage;
@@ -164,6 +166,16 @@ void main(List<String> args) async {
           .catchError((e) => 0) ==
       1;
 
+  // Upgrade check: shows the what's-new screen once after a real
+  // version bump (never on first install - onboarding covers that).
+  // A failed check must not block startup.
+  UpgradeCheck? upgrade;
+  try {
+    upgrade = await UpgradeDetector().checkAndRecord();
+  } catch (_) {
+    upgrade = null;
+  }
+
   if (Platform.isAndroid) {
     // Android-specific setup for system UI overlay colors
     ThemeModeNotifier.updateSystemUi(startThemeMode);
@@ -206,7 +218,10 @@ void main(List<String> args) async {
         selectedLanguageState.overrideWith((ref) => savedLanguage),
         selectedYearState.overrideWith((ref) => savedYear),
       ],
-      child: MyApp(onboardingCompleted: onboardingCompleted),
+      child: MyApp(
+        onboardingCompleted: onboardingCompleted,
+        upgrade: upgrade,
+      ),
     ),
   );
 }
@@ -233,7 +248,11 @@ final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends ConsumerWidget {
   final bool onboardingCompleted;
-  const MyApp({super.key, this.onboardingCompleted = false});
+
+  /// Non-null with [UpgradeCheck.isUpgrade] when this launch follows a
+  /// version bump; drives the what's-new screen.
+  final UpgradeCheck? upgrade;
+  const MyApp({super.key, this.onboardingCompleted = false, this.upgrade});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -261,7 +280,14 @@ class MyApp extends ConsumerWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ref.watch(themeModeProvider),
-      home: onboardingCompleted ? const MainScreen() : const OnboardingPage(),
+      home: !onboardingCompleted
+          ? const OnboardingPage()
+          : (upgrade?.isUpgrade ?? false)
+              ? WhatsNewPage(
+                  fromVersion: upgrade!.fromVersion,
+                  toVersion: upgrade!.toVersion,
+                )
+              : const MainScreen(),
     );
   }
 }

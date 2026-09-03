@@ -689,4 +689,44 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get slowMirrorsSkipped => 'Schnellere Spiegel werden verwendet';
+
+  @override
+  String whatsNewTitle(String version) {
+    return 'Neu in $version';
+  }
+
+  @override
+  String get whatsNewIntro =>
+      'OpenlibExtended wurde aktualisiert. Das hat sich geändert.';
+
+  @override
+  String get whatsNewTabFeatures => 'Neue Funktionen';
+
+  @override
+  String get whatsNewTabSources => 'Quellen & Mirror';
+
+  @override
+  String get whatsNewProvidersHint =>
+      'Dieses Release fügt neue Suchanbieter und Mirror hinzu. Aktualisiere deine Liste, um tote Mirror zu entfernen und die neuen hinzuzufügen; alle drei Suchanbieter werden aktiviert.';
+
+  @override
+  String get whatsNewUpdateInstances => 'Mirror-Liste aktualisieren';
+
+  @override
+  String get whatsNewInstancesUpdated => 'Mirror-Liste aktualisiert';
+
+  @override
+  String get whatsNewContinue => 'Weiter';
+
+  @override
+  String get whatsNewFeatureSpeed =>
+      'Downloads starten schneller: keine Mirror-Prüfung mehr, schnelle Hosts zuerst, langsame IPFS-Gateways zuletzt.';
+
+  @override
+  String get whatsNewFeatureSourceLabels =>
+      'Jedes Suchergebnis und jeder Download zeigt jetzt, aus welchem Katalog er stammt.';
+
+  @override
+  String get whatsNewFeatureCovers =>
+      'Fehlende LibGen-Cover werden von der Detailseite des Buchs geladen.';
 }

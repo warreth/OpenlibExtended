@@ -687,4 +687,44 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get slowMirrorsSkipped => 'Usando espejos más rápidos';
+
+  @override
+  String whatsNewTitle(String version) {
+    return 'Novedades de $version';
+  }
+
+  @override
+  String get whatsNewIntro =>
+      'OpenlibExtended se ha actualizado. Esto es lo que cambió.';
+
+  @override
+  String get whatsNewTabFeatures => 'Nuevas funciones';
+
+  @override
+  String get whatsNewTabSources => 'Fuentes y mirrors';
+
+  @override
+  String get whatsNewProvidersHint =>
+      'Esta versión añade nuevos proveedores de búsqueda y mirrors. Actualiza tu lista para eliminar los mirrors muertos y añadir los nuevos; los tres proveedores quedarán activados.';
+
+  @override
+  String get whatsNewUpdateInstances => 'Actualizar lista de mirrors';
+
+  @override
+  String get whatsNewInstancesUpdated => 'Lista de mirrors actualizada';
+
+  @override
+  String get whatsNewContinue => 'Continuar';
+
+  @override
+  String get whatsNewFeatureSpeed =>
+      'Las descargas empiezan más rápido: sin sondear mirrors, servidores rápidos primero y las puertas IPFS lentas al final.';
+
+  @override
+  String get whatsNewFeatureSourceLabels =>
+      'Cada resultado de búsqueda y cada descarga muestra ahora de qué catálogo proviene.';
+
+  @override
+  String get whatsNewFeatureCovers =>
+      'Las portadas de LibGen que faltan se obtienen de la página de detalle del libro.';
 }

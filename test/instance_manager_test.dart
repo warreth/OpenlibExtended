@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -152,6 +153,63 @@ void main() {
       expect(current.enabled, isTrue);
 
       await manager.toggleInstance(instances.first.id, true);
+    });
+
+    test('syncWithDefaults migrates an old install, keeping customs', () async {
+      final manager = InstanceManager();
+
+      // Seed the stored list the way an old install left it: one shipped
+      // default, one mirror that no longer ships, one custom mirror,
+      // and the default toggled off.
+      final old = [
+        ArchiveInstance(
+            id: 'annas_archive_gl',
+            name: "Anna's Archive (.gl)",
+            baseUrl: 'https://annas-archive.gl',
+            service: MirrorService.annasArchive,
+            priority: 1,
+            enabled: false),
+        ArchiveInstance(
+            id: 'welib_org',
+            name: 'WeLib',
+            baseUrl: 'https://welib.org',
+            service: MirrorService.annasArchive,
+            priority: 2,
+            enabled: true),
+        ArchiveInstance(
+            id: 'custom_1',
+            name: 'My Mirror',
+            baseUrl: 'https://my.example',
+            service: MirrorService.annasArchive,
+            priority: 3,
+            enabled: true,
+            isCustom: true),
+      ];
+      final db = MyLibraryDb.instance;
+      await db.savePreference('archive_instances',
+          jsonEncode(old.map((i) => i.toJson()).toList()));
+
+      final changes = await manager.syncWithDefaults();
+
+      // Report names the dropped and added mirrors.
+      expect(changes, contains('- WeLib'));
+      expect(changes, contains('+ LibGen (.li)'));
+
+      final after = await manager.getInstances();
+      final ids = after.map((i) => i.id).toSet();
+
+      // Dead mirror gone, every shipped default present, custom kept.
+      expect(ids, isNot(contains('welib_org')));
+      expect(ids, containsAll([
+        'annas_archive_gl',
+        'libgen_li',
+        'zlib_gd',
+        'custom_1',
+      ]));
+
+      // The kept default's enabled state survives the sync.
+      final kept = after.firstWhere((i) => i.id == 'annas_archive_gl');
+      expect(kept.enabled, isFalse);
     });
   });
 

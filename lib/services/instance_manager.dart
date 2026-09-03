@@ -495,6 +495,50 @@ class InstanceManager {
     await _saveInstances(_defaultInstances);
   }
 
+  /// Re-syncs the stored list with the current defaults for users who
+  /// upgraded from an older install: drops non-custom mirrors that no
+  /// longer ship (dead hosts), adds defaults the old install never
+  /// had, and keeps custom mirrors and each mirror's enabled state.
+  /// Returns the names of the mirrors that were added or removed, so
+  /// the upgrade screen can show what changed.
+  Future<List<String>> syncWithDefaults() async {
+    final List<ArchiveInstance> instances;
+    try {
+      final stored = await _database.getPreference(_storageKey);
+      final List<dynamic> jsonList = jsonDecode(stored);
+      instances =
+          jsonList.map((json) => ArchiveInstance.fromJson(json)).toList();
+    } catch (_) {
+      // Nothing stored yet: fresh defaults, nothing to report.
+      await _saveInstances(_defaultInstances);
+      return [];
+    }
+
+    final changes = <String>[];
+    final defaultIds = _defaultInstances.map((d) => d.id).toSet();
+
+    // Drop shipped-away non-custom mirrors.
+    final removed = instances
+        .where((i) => !i.isCustom && !defaultIds.contains(i.id))
+        .toList();
+    changes.addAll(removed.map((i) => '- ${i.name}'));
+    instances.removeWhere(
+        (i) => !i.isCustom && !defaultIds.contains(i.id));
+
+    // Add defaults the stored list lacks, inheriting nothing (new
+    // mirrors start enabled).
+    for (final d in _defaultInstances) {
+      if (!instances.any((i) => i.id == d.id)) {
+        instances.add(d);
+        changes.add('+ ${d.name}');
+      }
+    }
+
+    instances.sort((a, b) => a.priority.compareTo(b.priority));
+    await _saveInstances(instances);
+    return changes;
+  }
+
   // ====================================================================
   // INSTANCE RANKING / SPEED TESTING
   // ====================================================================

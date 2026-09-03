@@ -854,6 +854,14 @@ class SearchManager {
         _providerPrefsKey, current.map((p) => p.name).join(','));
   }
 
+  /// Turns every search provider back on. Used by the upgrade flow so
+  /// a new release's providers are not silently disabled by an old
+  /// install's saved toggles.
+  Future<void> enableAllProviders() async {
+    await _database.savePreference(_providerPrefsKey,
+        SearchProviderId.values.map((p) => p.name).join(','));
+  }
+
   /// Searches the enabled providers in order and stops at the first one
   /// that returns results. The order is the provider list order:
   /// LibGen (fast, challenge-free downloads) first, then Z-Library, then

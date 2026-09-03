@@ -1337,6 +1337,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Using faster mirrors'**
   String get slowMirrorsSkipped;
+
+  /// Upgrade screen title naming the new version
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s new in {version}'**
+  String whatsNewTitle(String version);
+
+  /// One-line intro on the upgrade screen
+  ///
+  /// In en, this message translates to:
+  /// **'OpenlibExtended was updated. Here is what changed.'**
+  String get whatsNewIntro;
+
+  /// Tab label listing this release's features
+  ///
+  /// In en, this message translates to:
+  /// **'New features'**
+  String get whatsNewTabFeatures;
+
+  /// Tab label offering the instance-list update
+  ///
+  /// In en, this message translates to:
+  /// **'Sources & mirrors'**
+  String get whatsNewTabSources;
+
+  /// Explains what the instance-list update on upgrade does
+  ///
+  /// In en, this message translates to:
+  /// **'This release adds new search providers and mirrors. Update your list to drop dead mirrors and add the new ones; all three search providers get enabled.'**
+  String get whatsNewProvidersHint;
+
+  /// Button that re-syncs the stored mirror list with the shipped defaults
+  ///
+  /// In en, this message translates to:
+  /// **'Update mirror list'**
+  String get whatsNewUpdateInstances;
+
+  /// Confirmation after the mirror list was re-synced
+  ///
+  /// In en, this message translates to:
+  /// **'Mirror list updated'**
+  String get whatsNewInstancesUpdated;
+
+  /// Button closing the upgrade screen and entering the app
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get whatsNewContinue;
+
+  /// Release note about the download speed fix
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads start faster: no mirror probing, fast hosts first, slow IPFS gateways last.'**
+  String get whatsNewFeatureSpeed;
+
+  /// Release note about the source badges
+  ///
+  /// In en, this message translates to:
+  /// **'Every search result and download now shows which catalog it came from.'**
+  String get whatsNewFeatureSourceLabels;
+
+  /// Release note about the lazy cover fix
+  ///
+  /// In en, this message translates to:
+  /// **'Missing LibGen covers are fetched from the book\'s detail page.'**
+  String get whatsNewFeatureCovers;
 }
 
 class _AppLocalizationsDelegate

@@ -906,5 +906,54 @@
   "slowMirrorsSkipped": "Using faster mirrors",
   "@slowMirrorsSkipped": {
     "description": "Tiny hint that slow IPFS mirrors were deprioritized"
+  },
+  "whatsNewTitle": "What's new in {version}",
+  "@whatsNewTitle": {
+    "description": "Upgrade screen title naming the new version",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsNewIntro": "OpenlibExtended was updated. Here is what changed.",
+  "@whatsNewIntro": {
+    "description": "One-line intro on the upgrade screen"
+  },
+  "whatsNewTabFeatures": "New features",
+  "@whatsNewTabFeatures": {
+    "description": "Tab label listing this release's features"
+  },
+  "whatsNewTabSources": "Sources & mirrors",
+  "@whatsNewTabSources": {
+    "description": "Tab label offering the instance-list update"
+  },
+  "whatsNewProvidersHint": "This release adds new search providers and mirrors. Update your list to drop dead mirrors and add the new ones; all three search providers get enabled.",
+  "@whatsNewProvidersHint": {
+    "description": "Explains what the instance-list update on upgrade does"
+  },
+  "whatsNewUpdateInstances": "Update mirror list",
+  "@whatsNewUpdateInstances": {
+    "description": "Button that re-syncs the stored mirror list with the shipped defaults"
+  },
+  "whatsNewInstancesUpdated": "Mirror list updated",
+  "@whatsNewInstancesUpdated": {
+    "description": "Confirmation after the mirror list was re-synced"
+  },
+  "whatsNewContinue": "Continue",
+  "@whatsNewContinue": {
+    "description": "Button closing the upgrade screen and entering the app"
+  },
+  "whatsNewFeatureSpeed": "Downloads start faster: no mirror probing, fast hosts first, slow IPFS gateways last.",
+  "@whatsNewFeatureSpeed": {
+    "description": "Release note about the download speed fix"
+  },
+  "whatsNewFeatureSourceLabels": "Every search result and download now shows which catalog it came from.",
+  "@whatsNewFeatureSourceLabels": {
+    "description": "Release note about the source badges"
+  },
+  "whatsNewFeatureCovers": "Missing LibGen covers are fetched from the book's detail page.",
+  "@whatsNewFeatureCovers": {
+    "description": "Release note about the lazy cover fix"
   }
 }
