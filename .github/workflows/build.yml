@@ -41,7 +41,11 @@ on:
         type: boolean
 
 env:
-  FLUTTER_VERSION: "3.38.6"
+  FLUTTER_VERSION: "3.47.2"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # Shared setup job to prepare version info
@@ -78,11 +82,36 @@ jobs:
           echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "Version: $TAG_VERSION+$BUILD_NUMBER"
+
+  # Test job - hermetic analyzer + unit test gate for all builds
+  test:
+    name: Test
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: dart analyze lib/ test/
+
+      - name: Run tests
+        run: flutter test
   # Android Build Job
   build-android:
     name: Build Android
-    needs: prepare
-    if: ${{ github.event_name == 'release' || inputs.build_android }}
+    needs: [prepare, test]
+    if: ${{ !failure() && (github.event_name == 'release' || inputs.build_android) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -154,8 +183,8 @@ jobs:
   # iOS Build Job
   build-ios:
     name: Build iOS
-    needs: prepare
-    if: ${{ github.event_name == 'release' || inputs.build_ios }}
+    needs: [prepare, test]
+    if: ${{ !failure() && (github.event_name == 'release' || inputs.build_ios) }}
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -201,8 +230,8 @@ jobs:
   # Windows Build Job
   build-windows:
     name: Build Windows
-    needs: prepare
-    if: ${{ github.event_name == 'release' || inputs.build_windows }}
+    needs: [prepare, test]
+    if: ${{ !failure() && (github.event_name == 'release' || inputs.build_windows) }}
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -266,8 +295,8 @@ jobs:
   # Linux Build Job
   build-linux:
     name: Build Linux
-    needs: prepare
-    if: ${{ github.event_name == 'release' || inputs.build_linux }}
+    needs: [prepare, test]
+    if: ${{ !failure() && (github.event_name == 'release' || inputs.build_linux) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -338,8 +367,8 @@ jobs:
   # Flatpak Build Job (optional, complex)
   build-flatpak:
     name: Build Flatpak
-    needs: [prepare, build-linux]
-    if: ${{ inputs.build_flatpak == true && inputs.build_linux == true }}
+    needs: [prepare, test, build-linux]
+    if: ${{ !failure() && inputs.build_flatpak == true && inputs.build_linux == true }}
     runs-on: ubuntu-latest
     container:
       image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
