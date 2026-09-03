@@ -868,5 +868,43 @@
   "nextPage": "Next page",
   "@nextPage": {
     "description": "PDF reader next page button tooltip"
+  },
+  "searchingOn": "Results from {source}",
+  "@searchingOn": {
+    "description": "Header on the search results page naming the catalog that produced the results",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceLibgen": "LibGen",
+  "@sourceLibgen": {
+    "description": "Short source label for Library Genesis results"
+  },
+  "sourceZlib": "Z-Library",
+  "@sourceZlib": {
+    "description": "Short source label for Z-Library results"
+  },
+  "sourceAnnas": "Anna's Archive",
+  "@sourceAnnas": {
+    "description": "Short source label for Anna's Archive results"
+  },
+  "downloadFrom": "Downloading from {source}",
+  "@downloadFrom": {
+    "description": "Notification/UI text naming the mirror serving the download",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "tryingNextSource": "No results here, trying next source…",
+  "@tryingNextSource": {
+    "description": "Shown while a search redirects to the next catalog after an empty page"
+  },
+  "slowMirrorsSkipped": "Using faster mirrors",
+  "@slowMirrorsSkipped": {
+    "description": "Tiny hint that slow IPFS mirrors were deprioritized"
   }
 }

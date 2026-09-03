@@ -188,6 +188,15 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
   bool _autoVerificationTriggered = false;
   bool _isVerifying = false;
 
+  /// Short source name for the mirror currently serving this download.
+  String? get _activeMirrorLabel {
+    final url = widget.task.mirrors.isNotEmpty
+        ? widget.task.mirrors.first
+        : widget.task.mirrorUrl;
+    if (url == null || url.isEmpty) return null;
+    return mirrorSourceLabel(url);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -308,6 +317,33 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                             color: _getStatusColor(task.status, context),
                           ),
                         ),
+                        if (_activeMirrorLabel != null) ...[
+                          Text(
+                            ' • ',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .tertiary
+                                  .withAlpha(120),
+                            ),
+                          ),
+                          Flexible(
+                            child: Text(
+                              _activeMirrorLabel!,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .tertiary
+                                    .withAlpha(170),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                         if (task.author != null && task.author!.isNotEmpty) ...[
                           Text(
                             ' • ',

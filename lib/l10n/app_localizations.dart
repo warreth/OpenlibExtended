@@ -1295,6 +1295,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next page'**
   String get nextPage;
+
+  /// Header on the search results page naming the catalog that produced the results
+  ///
+  /// In en, this message translates to:
+  /// **'Results from {source}'**
+  String searchingOn(String source);
+
+  /// Short source label for Library Genesis results
+  ///
+  /// In en, this message translates to:
+  /// **'LibGen'**
+  String get sourceLibgen;
+
+  /// Short source label for Z-Library results
+  ///
+  /// In en, this message translates to:
+  /// **'Z-Library'**
+  String get sourceZlib;
+
+  /// Short source label for Anna's Archive results
+  ///
+  /// In en, this message translates to:
+  /// **'Anna\'s Archive'**
+  String get sourceAnnas;
+
+  /// Notification/UI text naming the mirror serving the download
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading from {source}'**
+  String downloadFrom(String source);
+
+  /// Shown while a search redirects to the next catalog after an empty page
+  ///
+  /// In en, this message translates to:
+  /// **'No results here, trying next source…'**
+  String get tryingNextSource;
+
+  /// Tiny hint that slow IPFS mirrors were deprioritized
+  ///
+  /// In en, this message translates to:
+  /// **'Using faster mirrors'**
+  String get slowMirrorsSkipped;
 }
 
 class _AppLocalizationsDelegate

@@ -204,5 +204,12 @@
   "nextPage": "Nächste Seite",
   "@nextPage": {
     "description": "PDF reader next page button tooltip"
-  }
+  },
+  "searchingOn": "Ergebnisse von {source}",
+  "sourceLibgen": "LibGen",
+  "sourceZlib": "Z-Library",
+  "sourceAnnas": "Anna's Archive",
+  "downloadFrom": "Download von {source}",
+  "tryingNextSource": "Keine Ergebnisse, nächste Quelle wird versucht…",
+  "slowMirrorsSkipped": "Schnellere Spiegel werden verwendet"
 }

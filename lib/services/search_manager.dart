@@ -792,8 +792,15 @@ class SearchManagerResult {
   /// still showing the surviving results.
   final List<String> failedProviders;
 
+  /// The catalog the returned books came from ('' when several sources
+  /// contributed or none found anything). Single value because the chain
+  /// stops at the first provider with results.
+  final String resultSource;
+
   const SearchManagerResult(
-      {required this.books, required this.failedProviders});
+      {required this.books,
+      required this.failedProviders,
+      this.resultSource = ''});
 }
 
 /// Fan-out search across the enabled providers, merging and de-duplicating
@@ -867,6 +874,7 @@ class SearchManager {
     });
     final books = <BookData>[];
     final failed = <String>[];
+    String resultSource = '';
     for (final provider in active) {
       logger.debug('Trying ${provider.displayName}', tag: 'SearchManager');
       final outcome = await _searchOne(provider, query, logger);
@@ -874,6 +882,7 @@ class SearchManager {
         failed.add(provider.displayName);
       } else {
         books.addAll(outcome.books);
+        if (books.isNotEmpty) resultSource = provider.displayName;
       }
       if (books.isNotEmpty) break;
     }
@@ -881,8 +890,10 @@ class SearchManager {
     logger.info('Search finished', tag: 'SearchManager', metadata: {
       'results': books.length,
       'failed': failed,
+      'source': resultSource,
     });
-    return SearchManagerResult(books: _dedupe(books), failedProviders: failed);
+    return SearchManagerResult(
+        books: _dedupe(books), failedProviders: failed, resultSource: resultSource);
   }
 
   Future<_Outcome> _searchOne(
@@ -891,7 +902,11 @@ class SearchManager {
       final books = await provider.search(query);
       logger.info('${provider.displayName} returned ${books.length} books',
           tag: 'SearchManager');
-      return _Outcome(provider, books, null);
+      // Stamp every result with its catalog so the UI can show where
+      // each book came from.
+      final tagged =
+          books.map((b) => b.copyWith(source: provider.displayName)).toList();
+      return _Outcome(provider, tagged, null);
     } catch (e) {
       logger.warning('${provider.displayName} search failed',
           tag: 'SearchManager', error: e);

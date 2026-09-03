@@ -24,6 +24,10 @@ class BookData {
   final String? publisher;
   final String? info;
 
+  /// Which catalog produced this result, for UI labelling. Null on
+  /// records that predate tagging (trending rows, older caches).
+  final String? source;
+
   BookData(
       {required this.title,
       this.author,
@@ -31,7 +35,19 @@ class BookData {
       required this.link,
       required this.md5,
       this.publisher,
-      this.info});
+      this.info,
+      this.source});
+
+  BookData copyWith({String? source, String? thumbnail}) => BookData(
+        title: title,
+        author: author,
+        thumbnail: thumbnail ?? this.thumbnail,
+        link: link,
+        md5: md5,
+        publisher: publisher,
+        info: info,
+        source: source ?? this.source,
+      );
 }
 
 class BookInfoData extends BookData {

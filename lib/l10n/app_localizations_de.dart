@@ -663,4 +663,30 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get nextPage => 'Nächste Seite';
+
+  @override
+  String searchingOn(String source) {
+    return 'Ergebnisse von $source';
+  }
+
+  @override
+  String get sourceLibgen => 'LibGen';
+
+  @override
+  String get sourceZlib => 'Z-Library';
+
+  @override
+  String get sourceAnnas => 'Anna\'s Archive';
+
+  @override
+  String downloadFrom(String source) {
+    return 'Download von $source';
+  }
+
+  @override
+  String get tryingNextSource =>
+      'Keine Ergebnisse, nächste Quelle wird versucht…';
+
+  @override
+  String get slowMirrorsSkipped => 'Schnellere Spiegel werden verwendet';
 }

@@ -138,7 +138,27 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: TitleText(AppLocalizations.of(context).results),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TitleText(AppLocalizations.of(context).results),
+                          if (_books.first.source != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                AppLocalizations.of(context).searchingOn(
+                                    _books.first.source!),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   SliverList.builder(
@@ -155,6 +175,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                           info: i.info ?? '',
                           link: i.link,
                           md5: i.md5,
+                          source: i.source,
                           onClick: () {
                             Navigator.push(
                               context,
@@ -244,7 +265,24 @@ class _ResultPageState extends ConsumerState<ResultPage> {
               Padding(
                 padding: const EdgeInsets.only(
                     left: 10, right: 10, top: 10, bottom: 10),
-                child: TitleText(AppLocalizations.of(context).results),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TitleText(AppLocalizations.of(context).results),
+                    const SizedBox(height: 4),
+                    // The chain tries LibGen, then Z-Library, then
+                    // Anna's Archive - an empty page is not the end.
+                    Text(
+                      AppLocalizations.of(context).tryingNextSource,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color:
+                            Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Expanded(
                 child: Center(

@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import 'package:openlib/state/state.dart'
-    show checkIdExists, languageCodeToDisplay;
+    show checkIdExists, languageCodeToDisplay, resultCoverProvider;
 import 'package:openlib/ui/extensions.dart';
 
 // Extract file type from book info string
@@ -60,6 +60,7 @@ class BookInfoCard extends ConsumerWidget {
     required this.onClick,
     this.onLongPress,
     this.md5,
+    this.source,
   });
 
   final String title;
@@ -72,6 +73,9 @@ class BookInfoCard extends ConsumerWidget {
   final VoidCallback? onLongPress;
   final String? md5;
 
+  /// Catalog name this result came from; shown as a small chip.
+  final String? source;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     String? fileType = getFileType(info);
@@ -81,6 +85,14 @@ class BookInfoCard extends ConsumerWidget {
     final isDownloaded = md5 != null
         ? ref.watch(checkIdExists(md5!))
         : const AsyncValue<bool>.data(false);
+
+    // LibGen search rows ship without covers; resolve one lazily from
+    // the book's ads.php page (it carries the cover URL).
+    final hasThumbnail = thumbnail != null && thumbnail!.isNotEmpty;
+    final lazyCover = hasThumbnail
+        ? null
+        : ref.watch(resultCoverProvider(link)).valueOrNull;
+    final coverUrl = hasThumbnail ? thumbnail : lazyCover;
 
     return InkWell(
       onTap: onClick,
@@ -102,7 +114,7 @@ class BookInfoCard extends ConsumerWidget {
                 CachedNetworkImage(
                   height: 120,
                   width: 90,
-                  imageUrl: thumbnail ?? "",
+                  imageUrl: coverUrl ?? "",
                   imageBuilder: (context, imageProvider) => Container(
                     decoration: BoxDecoration(
                       borderRadius: const BorderRadius.all(Radius.circular(5)),
@@ -187,6 +199,34 @@ class BookInfoCard extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
+                        if (source != null && source!.isNotEmpty)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondary
+                                  .withAlpha(200),
+                              borderRadius: BorderRadius.circular(2.5),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
+                              child: Text(
+                                source!,
+                                style: const TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        if (source != null && source!.isNotEmpty)
+                          const SizedBox(
+                            width: 3,
+                          ),
                         if (fileType != null)
                           Container(
                             decoration: BoxDecoration(
