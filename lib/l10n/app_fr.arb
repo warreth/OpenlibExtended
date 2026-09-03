@@ -195,5 +195,6 @@
   "sortLibrary": "Trier la bibliothèque",
   "reloadHealthData": "Recharger les données de santé",
   "addServiceMirror": "Ajouter un miroir {title}",
-  "deleteMirrorTooltip": "Supprimer le miroir"
+  "deleteMirrorTooltip": "Supprimer le miroir",
+  "ttsEngineMissing": "Aucun moteur de synthèse vocale trouvé. Installez-en un (ex. Services vocaux) dans les paramètres système."
 }

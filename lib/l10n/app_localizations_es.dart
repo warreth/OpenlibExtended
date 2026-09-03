@@ -651,4 +651,8 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteMirrorTooltip => 'Eliminar espejo';
+
+  @override
+  String get ttsEngineMissing =>
+      'No se encontró ningún motor de síntesis de voz. Instala uno (p. ej. Servicios de voz) en los ajustes del sistema.';
 }

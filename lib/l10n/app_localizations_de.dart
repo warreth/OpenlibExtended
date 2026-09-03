@@ -653,4 +653,8 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deleteMirrorTooltip => 'Spiegel löschen';
+
+  @override
+  String get ttsEngineMissing =>
+      'Keine Sprachausgabe-Engine gefunden. Installiere eine (z.B. Sprachdienste) in den Systemeinstellungen.';
 }

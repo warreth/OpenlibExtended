@@ -4,6 +4,8 @@
 // (state transitions, resume emulation, chunk advance) is the real code.
 
 // Flutter imports:
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,6 +20,12 @@ void main() {
 
   final calls = <String>[];
   bool pauseSupported = true;
+  bool langAvailable = true;
+
+  // Utterances in flight: the fake engine does not finish speaking on
+  // its own, tests complete the future when they want the utterance to
+  // end - that is what a real engine with awaitSpeakCompletion does.
+  final speakFutures = <Completer<bool>>[];
 
   void fakeChannel() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -25,14 +33,22 @@ void main() {
             (call) async {
       calls.add(call.method);
       switch (call.method) {
-        case 'speak':
+        case 'awaitSpeakCompletion':
           return true;
+        case 'speak':
+          final completer = Completer<bool>();
+          speakFutures.add(completer);
+          return completer.future;
         case 'pause':
           return pauseSupported;
         case 'stop':
           return true;
         case 'isLanguageAvailable':
+          return langAvailable;
+        case 'setLanguage':
           return true;
+        case 'getLanguages':
+          return <Object>['en-US', 'de-DE'];
         default:
           return null;
       }
@@ -41,9 +57,20 @@ void main() {
 
   TtsService makeService() => TtsService.forTest(FlutterTts());
 
+  /// Ends every utterance still held open by the fake engine, so no
+  /// test leaves a speak() future dangling across teardown.
+  Future<void> endUtterances() async {
+    for (final c in speakFutures) {
+      if (!c.isCompleted) c.complete(true);
+    }
+    await Future<void>.delayed(Duration.zero);
+  }
+
   setUp(() {
     calls.clear();
+    speakFutures.clear();
     pauseSupported = true;
+    langAvailable = true;
     fakeChannel();
   });
 
@@ -107,16 +134,26 @@ void main() {
   });
 
   group('TtsService state machine', () {
-    test('speak goes to playing and sends text to the engine', () async {
+    test('speak resolves as done when the engine ignores completion await',
+        () async {
+      // The fake channel answers speak() immediately: with
+      // awaitSpeakCompletion the utterance is over once it resolves,
+      // exactly like an engine that ignores the completion await.
       final service = makeService();
-      final states = <TtsState>[];
-      service.onStateChanged.listen(states.add);
+      var chunkDone = false;
+      service.onChunkDone.listen((_) => chunkDone = true);
 
-      final ok = await service.speak('Hello world');
-      expect(ok, isTrue);
+      final speaking = service.speak('Hello world');
+      await Future<void>.delayed(Duration.zero);
       expect(service.state, TtsState.playing);
+      // The engine future resolving IS the utterance ending.
+      await endUtterances();
+      final ok = await speaking;
+      expect(ok, isTrue);
       expect(calls, contains('speak'));
-      expect(states.first, TtsState.playing);
+      expect(service.state, TtsState.idle);
+      // The utterance really ended: the reader may advance.
+      expect(chunkDone, isTrue);
       service.dispose();
     });
 
@@ -125,35 +162,60 @@ void main() {
       var chunkDone = false;
       service.onChunkDone.listen((_) => chunkDone = true);
 
-      await service.speak('Hello');
+      final speaking = service.speak('Hello');
+      await Future<void>.delayed(Duration.zero);
+      // The engine reports the utterance done through its handler.
       service.engine!.completionHandler!();
       await Future<void>.delayed(Duration.zero);
 
       expect(service.state, TtsState.idle);
       expect(chunkDone, isTrue);
+      await endUtterances();
+      await speaking;
       service.dispose();
     });
 
     test('pause on an engine without pause support emulates it', () async {
       pauseSupported = false;
       final service = makeService();
+      var chunkDone = 0;
+      service.onChunkDone.listen((_) => chunkDone++);
 
-      await service.speak('Hello');
+      // Utterance in flight, like on a real device.
+      final speaking = service.speak('Hello');
+      await Future<void>.delayed(Duration.zero);
+      expect(service.state, TtsState.playing);
+
       await service.pause();
+      await Future<void>.delayed(Duration.zero);
 
       expect(service.state, TtsState.paused);
       expect(calls, contains('stop'));
+      // The emulated pause's stop must not advance the reader.
+      expect(chunkDone, 0);
 
-      await service.resume();
-      expect(service.state, TtsState.playing);
-      // Resume re-speaks the same text through the engine.
+      // The in-flight utterance is over while we stay paused.
+      speakFutures.first.complete(true);
+      await speaking;
+      await Future<void>.delayed(Duration.zero);
+      expect(chunkDone, 0);
+      expect(service.state, TtsState.paused);
+
+      // resume() re-speaks and, like a real engine with the completion
+      // await on, only resolves once that utterance ends.
+      final resuming = service.resume();
+      await Future<void>.delayed(Duration.zero);
       expect(calls.where((c) => c == 'speak').length, 2);
+      await endUtterances();
+      await resuming;
+      expect(service.state, TtsState.idle);
       service.dispose();
     });
 
     test('pause on an engine with real pause does not stop', () async {
       final service = makeService();
-      await service.speak('Hello');
+      final speaking = service.speak('Hello');
+      await Future<void>.delayed(Duration.zero);
       await service.pause();
 
       expect(service.state, TtsState.paused);
@@ -161,16 +223,21 @@ void main() {
 
       await service.resume();
       expect(service.state, TtsState.playing);
+      await endUtterances();
+      await speaking;
       service.dispose();
     });
 
     test('stop clears the utterance and returns to idle', () async {
       final service = makeService();
-      await service.speak('Hello');
+      final speaking = service.speak('Hello');
+      await Future<void>.delayed(Duration.zero);
       await service.stop();
 
       expect(service.state, TtsState.idle);
       expect(calls, contains('stop'));
+      await endUtterances();
+      await speaking;
       service.dispose();
     });
 
@@ -210,8 +277,11 @@ void main() {
 
     test('blank text is refused', () async {
       final service = makeService();
+      // The constructor's completion-await setup is expected traffic;
+      // a blank utterance must add nothing on top of it.
+      final baseline = calls.length;
       expect(await service.speak('   '), isFalse);
-      expect(calls, isEmpty);
+      expect(calls.length, baseline);
       service.dispose();
     });
   });

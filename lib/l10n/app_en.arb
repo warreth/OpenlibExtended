@@ -856,5 +856,9 @@
   "deleteMirrorTooltip": "Delete mirror",
   "@deleteMirrorTooltip": {
     "description": "Mirror delete button tooltip"
+  },
+  "ttsEngineMissing": "No speech engine found. Install one (e.g. Speech Services) in system settings.",
+  "@ttsEngineMissing": {
+    "description": "Snackbar when the device has no TTS engine installed"
   }
 }

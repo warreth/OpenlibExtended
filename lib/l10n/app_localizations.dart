@@ -1277,6 +1277,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete mirror'**
   String get deleteMirrorTooltip;
+
+  /// Snackbar when the device has no TTS engine installed
+  ///
+  /// In en, this message translates to:
+  /// **'No speech engine found. Install one (e.g. Speech Services) in system settings.'**
+  String get ttsEngineMissing;
 }
 
 class _AppLocalizationsDelegate

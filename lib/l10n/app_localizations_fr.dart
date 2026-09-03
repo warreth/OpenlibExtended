@@ -655,4 +655,8 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get deleteMirrorTooltip => 'Supprimer le miroir';
+
+  @override
+  String get ttsEngineMissing =>
+      'Aucun moteur de synthèse vocale trouvé. Installez-en un (ex. Services vocaux) dans les paramètres système.';
 }

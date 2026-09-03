@@ -195,5 +195,6 @@
   "sortLibrary": "Bibliothek sortieren",
   "reloadHealthData": "Gesundheitsdaten neu laden",
   "addServiceMirror": "{title}-Spiegel hinzufügen",
-  "deleteMirrorTooltip": "Spiegel löschen"
+  "deleteMirrorTooltip": "Spiegel löschen",
+  "ttsEngineMissing": "Keine Sprachausgabe-Engine gefunden. Installiere eine (z.B. Sprachdienste) in den Systemeinstellungen."
 }

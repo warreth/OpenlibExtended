@@ -25,6 +25,10 @@ class TtsService {
     final engine = _tts;
     if (engine == null) return;
 
+    // Make speak() resolve only when the utterance finishes, so chunk
+    // advancement works even on engines that never call the completion
+    // handler (flutter_tts #523).
+    engine.awaitSpeakCompletion(true);
     engine.setStartHandler(() => _setState(TtsState.playing));
     engine.setCompletionHandler(_onSpeechDone);
     engine.setCancelHandler(_onSpeechDone);
@@ -81,13 +85,32 @@ class TtsService {
   bool _speechSupported = true;
   bool get isSpeechSupported => _speechSupported;
 
+  // A token per utterance: speak() and the completion handler can both
+  // report the same utterance done (awaitSpeakCompletion + handler);
+  // only the first report may fire chunkDone.
+  int _utteranceEpoch = 0;
+  int _doneEpoch = -1;
+
+  // True while pause() emulates itself with stop(): that stop's speech
+  // end must NOT advance the reader, we stay paused instead.
+  bool _pauseEmulated = false;
+
   Future<void> _setState(TtsState next) async {
     if (_state == next) return;
     _state = next;
     _stateController.add(next);
   }
 
-  void _onSpeechDone() {
+  void _onSpeechDone({bool fromHandler = false}) {
+    final epoch = _utteranceEpoch;
+    if (_pauseEmulated) {
+      // The engine was stopped only to emulate pause: keep the text and
+      // the paused state, and never advance to the next chunk.
+      _pauseEmulated = false;
+      return;
+    }
+    if (_doneEpoch == epoch) return; // already reported for this utterance
+    _doneEpoch = epoch;
     _currentText = '';
     _pausedMidChunk = false;
     _state = TtsState.idle;
@@ -101,6 +124,12 @@ class TtsService {
     if (!_enabled || engine == null || text.trim().isEmpty) return false;
     _currentText = text;
     _pausedMidChunk = false;
+    _pauseEmulated = false;
+    final epoch = ++_utteranceEpoch;
+    // Reflect the action at once: with awaitSpeakCompletion the engine
+    // future only resolves when speech ends, and the toolbar must not
+    // sit in idle for the whole utterance.
+    await _setState(TtsState.playing);
     final ok = await engine.speak(text);
     if (ok is bool && !ok) {
       _speechSupported = false;
@@ -108,9 +137,12 @@ class TtsService {
       return false;
     }
     _speechSupported = true;
-    // Some engines only report "start" after the first audio frame; the
-    // toolbar should not wait for that to reflect the action.
-    await _setState(TtsState.playing);
+    // The future resolves when speech ends (awaitSpeakCompletion) or at
+    // once on engines that ignore it; the epoch guard dedupes with the
+    // completion handler, so either path advancing is enough.
+    if (_utteranceEpoch == epoch && !_pauseEmulated) {
+      _onSpeechDone();
+    }
     return true;
   }
 
@@ -120,8 +152,11 @@ class TtsService {
     if (!_enabled || engine == null) return;
     final ok = await engine.pause();
     if (ok is bool && !ok) {
-      // Engine cannot pause: emulate by stopping and remembering the spot.
+      // Engine cannot pause: emulate by stopping and remembering the
+      // spot. Mark it so the stop's speech-end report is swallowed
+      // instead of advancing the reader.
       _pausedMidChunk = true;
+      _pauseEmulated = true;
       await engine.stop();
       await _setState(TtsState.paused);
       return;
@@ -167,6 +202,18 @@ class TtsService {
     if (available is bool && !available) return false;
     await engine.setLanguage(language);
     return true;
+  }
+
+  /// Checks the language with a fallback to its 2-letter code ('en' for
+  /// 'en-US'), since engines often only register the short form. Returns
+  /// false only when the device has no usable engine at all.
+  Future<bool> ensureEngineReady(String language) async {
+    final engine = _tts;
+    if (!_enabled || engine == null) return false;
+    if (await setLanguage(language)) return true;
+    final short = language.length > 2 ? language.substring(0, 2) : language;
+    if (short != language && await setLanguage(short)) return true;
+    return false;
   }
 
   /// The reader moves a page/chapter forward when a chunk finishes.

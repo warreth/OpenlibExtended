@@ -643,4 +643,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteMirrorTooltip => 'Delete mirror';
+
+  @override
+  String get ttsEngineMissing =>
+      'No speech engine found. Install one (e.g. Speech Services) in system settings.';
 }

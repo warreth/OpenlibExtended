@@ -204,8 +204,8 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
     if (text.isEmpty) {
       if (mounted) {
         showSnackBar(
-      context: context,
-      message: AppLocalizations.of(context).nothingToRead);
+            context: context,
+            message: AppLocalizations.of(context).nothingToRead);
       }
       return;
     }
@@ -214,12 +214,14 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
     _speechChunkIndex = 0;
     if (_speechChunks.isEmpty) return;
 
-    final languageOk = await tts.setLanguage('en-US');
-    if (!languageOk) {
+    // Some engines only register the short language code; the service
+    // falls back to it and reports whether any engine answered at all.
+    final engineReady = await tts.ensureEngineReady('en-US');
+    if (!engineReady) {
       if (mounted) {
         showSnackBar(
             context: context,
-    message: AppLocalizations.of(context).noVoiceAvailable);
+            message: AppLocalizations.of(context).ttsEngineMissing);
       }
       return;
     }
@@ -379,8 +381,7 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
             ),
             if (_ttsState != TtsState.idle)
               IconButton(
-                tooltip:
-                    AppLocalizations.of(context).stopReadingAloud,
+                tooltip: AppLocalizations.of(context).stopReadingAloud,
                 icon: Icon(Icons.stop_circle,
                     color: Theme.of(context).colorScheme.tertiary),
                 onPressed: _stopTts,
@@ -446,6 +447,11 @@ class _EpubViewerState extends ConsumerState<EpubViewer> {
                       }
                     },
                     onChapterChanged: (value) {
+                      // Land the position on every chapter change: a
+                      // process kill mid-book then loses at most one
+                      // chapter, not the whole session.
+                      final cfi = _epubReaderController.generateEpubCfi();
+                      saveEpubState(widget.fileName, cfi, ref);
                       // Reading aloud continues into the chapter the
                       // reader just landed on - whether the user swiped
                       // there or TTS advanced itself.
