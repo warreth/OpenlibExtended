@@ -3,18 +3,22 @@ import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 // Project imports:
 import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/main.dart' show MainScreen;
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/search_manager.dart';
+import 'package:openlib/services/update_checker.dart';
 
 /// Shown once after an app upgrade (not on first install): what's
 /// new, plus a tab that offers re-syncing the stored mirror list
 /// with the shipped defaults and re-enabling all search providers.
-/// The feature list is per-release; bump it alongside pubspec when
-/// a new version ships.
+///
+/// The features tab prefers the GitHub release description of the
+/// running version (rendered as markdown, matching what the release
+/// page shows) and falls back to short built-in notes offline.
 class WhatsNewPage extends ConsumerStatefulWidget {
   const WhatsNewPage({super.key, required this.fromVersion, required this.toVersion});
 
@@ -35,6 +39,24 @@ class _WhatsNewPageState extends ConsumerState<WhatsNewPage>
   bool _instancesUpdated = false;
   List<String> _changes = const [];
   bool _updating = false;
+
+  /// GitHub release description of the running version; null until
+  /// fetched, '' when unavailable (offline, rate-limited) - the UI
+  /// then shows the built-in notes instead.
+  String? _releaseNotes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReleaseNotes();
+  }
+
+  Future<void> _loadReleaseNotes() async {
+    final notes = await UpdateCheckerService().fetchReleaseNotes();
+    if (mounted) {
+      setState(() => _releaseNotes = notes ?? '');
+    }
+  }
 
   Future<void> _updateInstances() async {
     setState(() => _updating = true);
@@ -110,7 +132,7 @@ class _WhatsNewPageState extends ConsumerState<WhatsNewPage>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _FeaturesTab(),
+                  _FeaturesTab(releaseNotes: _releaseNotes ?? ''),
                   _SourcesTab(
                     updated: _instancesUpdated,
                     updating: _updating,
@@ -138,10 +160,38 @@ class _WhatsNewPageState extends ConsumerState<WhatsNewPage>
 }
 
 class _FeaturesTab extends ConsumerWidget {
+  const _FeaturesTab({required this.releaseNotes});
+
+  /// GitHub release description of the running version, '' when it
+  /// could not be fetched (offline, rate-limited) - then the built-in
+  /// notes render instead.
+  final String releaseNotes;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+
+    // The release description is the single source of truth for what
+    // shipped; the built-in list below only covers the gap when it
+    // cannot be loaded.
+    if (releaseNotes.isNotEmpty) {
+      return Markdown(
+        data: releaseNotes,
+        padding: const EdgeInsets.all(20),
+        styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+          h2: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.bold),
+          h3: theme.textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.bold),
+          p: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          listBullet: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          a: TextStyle(color: theme.colorScheme.secondary),
+        ),
+      );
+    }
 
     final notes = [
       (Icons.speed_rounded, l10n.whatsNewFeatureSpeed),

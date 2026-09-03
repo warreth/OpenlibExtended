@@ -83,6 +83,7 @@ dependencies:
   android_package_installer: ^0.0.3
   apk_sideload: ^0.0.2
   flutter_tts: ^4.2.5
+  flutter_markdown: ^0.7.7+1
 
 # permission_handler 13.x resolves permission_handler_android 14.0.0,
 # whose Kotlin-DSL build file needs the Android 37 platform and a

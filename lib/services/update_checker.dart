@@ -226,6 +226,35 @@ class UpdateCheckerService {
     return data.map((json) => ReleaseInfo.fromJson(json)).toList();
   }
 
+  /// Fetches the release notes (GitHub release description) for the
+  /// running version. Returns null when offline, rate-limited, or the
+  /// release has no description - callers fall back to the built-in
+  /// notes. The tag must match the running version so a mismatched
+  /// (e.g. beta) build never shows another release's notes.
+  Future<String?> fetchReleaseNotes() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final running = packageInfo.version;
+
+      final releases = await _fetchReleases();
+      ReleaseInfo? matching;
+      for (final r in releases) {
+        if (r.version == running || r.tagName == 'v$running') {
+          matching = r;
+          break;
+        }
+      }
+
+      final body = matching?.body ?? '';
+      if (body.trim().isEmpty) return null;
+      return body;
+    } catch (e) {
+      _logger.warning("Could not load release notes",
+          tag: "UpdateChecker", error: e);
+      return null;
+    }
+  }
+
   // Compare two semantic versions
   // Compare two semantic versions, including pre-release tags
   bool _isNewerVersion(String current, String latest) {
