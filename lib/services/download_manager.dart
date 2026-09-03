@@ -25,6 +25,24 @@ enum DownloadStatus {
   cancelled
 }
 
+/// Human label for a download mirror's host, shown in notifications
+/// and the active-downloads list so users always see where a file is
+/// coming from.
+String mirrorSourceLabel(String url) {
+  final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+  if (host.isEmpty) return url;
+  if (host.contains('libgen') || host.contains('lgli') || host.contains('libgen')) {
+    return 'LibGen';
+  }
+  if (host.contains('z-lib') || host.contains('zlibrary') ||
+      host.contains('1lib') || host.contains('artificial')) {
+    return 'Z-Library';
+  }
+  if (host.contains('ipfs')) return 'IPFS';
+  if (host.contains('annas')) return "Anna's Archive";
+  return host;
+}
+
 class DownloadTask {
   final String id;
   final String md5;
@@ -165,42 +183,24 @@ class DownloadManager {
     return bookStorageDirectory;
   }
 
+  /// Orders mirrors for throughput: partner/CDN https mirrors first,
+  /// IPFS gateways last. Public IPFS gateways throttle hard (often
+  /// <300 KB/s vs 1 MB/s+ from the CDNs), so they are the fallback,
+  /// not the first choice. Dead domains are dropped entirely.
   List<String> _reorderMirrors(List<String> mirrors) {
-    List<String> ipfsMirrors = [];
-    List<String> httpsMirrors = [];
+    final httpsMirrors = <String>[];
+    final ipfsMirrors = <String>[];
 
-    for (var element in mirrors) {
+    const deadHosts = ['annas-archive.org', '1lib.sk'];
+    for (final element in mirrors) {
+      if (deadHosts.any(element.contains)) continue;
       if (element.contains('ipfs')) {
         ipfsMirrors.add(element);
       } else {
-        if (!element.startsWith('https://annas-archive.org') &&
-            !element.startsWith('https://1lib.sk')) {
-          httpsMirrors.add(element);
-        }
+        httpsMirrors.add(element);
       }
     }
-    return [...ipfsMirrors, ...httpsMirrors];
-  }
-
-  Future<String?> _getAliveMirror(List<String> mirrors) async {
-    Dio dio = Dio();
-    const timeOut = 15;
-    if (mirrors.length == 1) {
-      // Single mirror available, add small delay to avoid rate limiting
-      await Future.delayed(const Duration(seconds: 2));
-      return mirrors[0];
-    }
-    for (var url in mirrors) {
-      try {
-        final response = await dio.head(url,
-            options: Options(receiveTimeout: const Duration(seconds: timeOut)));
-        if (response.statusCode == 200) {
-          dio.close();
-          return url;
-        }
-      } catch (_) {}
-    }
-    return null;
+    return [...httpsMirrors, ...ipfsMirrors];
   }
 
   Future<bool> _verifyFileCheckSum(
@@ -639,22 +639,15 @@ class DownloadManager {
       progress: (task.progress * 100).toInt(),
     );
 
-    String? workingMirror = await _getAliveMirror(mirrors);
-
-    if (workingMirror == null && mirrors.isNotEmpty) {
-      // If probing failed, fallback to just trying them sequentially
-      workingMirror = mirrors.first;
-    }
-
-    if (workingMirror == null) {
+    if (mirrors.isEmpty) {
       _handleDownloadFailure(taskId, 'No working mirrors available!');
       return;
     }
 
-    // Sort mirrors putting the working one first
-    List<String> sortedMirrors = List.from(mirrors);
-    sortedMirrors.remove(workingMirror);
-    sortedMirrors.insert(0, workingMirror);
+    // The download loop tries mirrors in order and falls through on
+    // failure, so no upfront probe is needed - probing every mirror
+    // with HEAD requests only added seconds before the first byte.
+    final sortedMirrors = List<String>.from(mirrors);
 
     bool downloadSuccessful = false;
     int mirrorIndex = 0;
@@ -693,7 +686,7 @@ class DownloadManager {
         await _notificationService.showDownloadNotification(
           id: task.id.hashCode,
           title: task.title,
-          body: 'Downloading...',
+          body: 'Downloading from ${mirrorSourceLabel(currentMirror)}...',
           progress: (task.progress * 100).toInt(),
         );
 

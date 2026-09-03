@@ -1,5 +1,4 @@
 // Dart imports:
-import 'dart:math';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -8,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // Package imports:
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -151,10 +149,6 @@ List<String> yearValues = [
 // ENUMS AND DATA CLASSES
 // ====================================================================
 
-enum ProcessState { waiting, running, complete }
-
-enum CheckSumProcessState { waiting, running, failed, success }
-
 class FileName {
   final String md5;
   final String format;
@@ -251,18 +245,6 @@ final donationKeyProvider = StateProvider<String>((ref) => "");
 final cookieProvider = StateProvider<String>((ref) => "");
 final userAgentProvider = StateProvider<String>((ref) => "");
 final webViewLoadingState = StateProvider.autoDispose<bool>((ref) => true);
-final downloadProgressProvider =
-    StateProvider.autoDispose<double>((ref) => 0.0);
-final mirrorStatusProvider = StateProvider.autoDispose<bool>((ref) => false);
-final totalFileSizeInBytes = StateProvider.autoDispose<int>((ref) => 0);
-final downloadedFileSizeInBytes = StateProvider.autoDispose<int>((ref) => 0);
-final downloadState =
-    StateProvider.autoDispose<ProcessState>((ref) => ProcessState.waiting);
-final checkSumState = StateProvider.autoDispose<CheckSumProcessState>(
-    (ref) => CheckSumProcessState.waiting);
-final cancelCurrentDownload = StateProvider<CancelToken>((ref) {
-  return CancelToken();
-});
 
 // PDF/Epub Reader States
 final pdfCurrentPage = StateProvider.autoDispose<int>((ref) => 0);
@@ -341,23 +323,6 @@ final getYearValue = Provider.autoDispose<String>((ref) {
   return ref.watch(selectedYearState) == "All"
       ? ''
       : ref.watch(selectedYearState);
-});
-
-// Helper function to convert bytes to readable file size
-String bytesToFileSize(int bytes) {
-  const int decimals = 1;
-  const suffixes = ["b", " Kb", "Mb", "Gb", "Tb"];
-  if (bytes == 0) return '0${suffixes[0]}';
-  var i = (log(bytes) / log(1024)).floor();
-  return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) + suffixes[i];
-}
-
-final getTotalFileSize = StateProvider.autoDispose<String>((ref) {
-  return bytesToFileSize(ref.watch(totalFileSizeInBytes));
-});
-
-final getDownloadedFileSize = StateProvider.autoDispose<String>((ref) {
-  return bytesToFileSize(ref.watch(downloadedFileSizeInBytes));
 });
 
 // ====================================================================
@@ -587,6 +552,16 @@ final organizedLibraryProvider = Provider<List<LibraryBook>>((ref) {
 final checkIdExists =
     FutureProvider.family.autoDispose<bool, String>((ref, id) async {
   return await dataBase.checkIdExists(id);
+});
+
+/// Lazily resolves a cover URL for a result that has none (LibGen
+/// search rows ship without covers). Keyed by the book page URL so the
+/// same book across pages shares one lookup; autoDispose keeps the
+/// cache tied to what is on screen.
+final resultCoverProvider =
+    FutureProvider.family.autoDispose<String?, String>((ref, url) async {
+  if (!url.contains('ads.php?md5=')) return null;
+  return LibgenService().fetchCover(url);
 });
 
 final getBookByIdProvider =
