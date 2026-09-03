@@ -39,6 +39,11 @@ on:
         required: false
         default: false
         type: boolean
+      release_tag:
+        description: "Existing release tag to attach artifacts to (e.g. v1.6.0). Leave empty to only upload artifacts to the run."
+        required: false
+        default: ""
+        type: string
 
 env:
   FLUTTER_VERSION: "3.47.2"
@@ -65,6 +70,10 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
             TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          elif [[ -n "${{ inputs.release_tag }}" ]]; then
+            # Re-running a release build by hand: keep the released
+            # version, only the code moves (a fix landed on main).
+            TAG_VERSION=$(echo "${{ inputs.release_tag }}" | sed 's/^v//')
           elif [[ -n "${{ inputs.version }}" ]]; then
             TAG_VERSION="${{ inputs.version }}"
           else
@@ -431,7 +440,10 @@ jobs:
   release:
     name: Upload to Release
     needs: [prepare, build-android, build-ios, build-windows, build-linux]
-    if: ${{ always() && github.event_name == 'release' }}
+    # Release events upload their own assets. A manual dispatch can
+    # re-run a failed release build without retagging: give it an
+    # existing release tag and the artifacts land on that release.
+    if: ${{ always() && (github.event_name == 'release' || inputs.release_tag != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -448,6 +460,7 @@ jobs:
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'release' && github.ref_name || inputs.release_tag }}
           files: |
             artifacts/*
         env:
@@ -458,7 +471,7 @@ jobs:
   update-scoop-manifest:
     name: Update Scoop manifest
     needs: [prepare, build-windows, release]
-    if: ${{ always() && github.event_name == 'release' }}
+    if: ${{ always() && (github.event_name == 'release' || inputs.release_tag != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -469,9 +482,14 @@ jobs:
           ref: main
 
       - name: Update manifest from release assets
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.ref_name || inputs.release_tag }}
         run: |
-          python3 tool/update_scoop_manifest.py "${{ github.ref_name }}"
+          python3 tool/update_scoop_manifest.py "$RELEASE_TAG"
       - name: Commit and push manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.ref_name || inputs.release_tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -480,7 +498,5 @@ jobs:
             echo "Manifest already up to date"
             exit 0
           fi
-          git commit -m "chore: update scoop manifest for ${{ github.ref_name }}"
+          git commit -m "chore: update scoop manifest for $RELEASE_TAG"
           git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
