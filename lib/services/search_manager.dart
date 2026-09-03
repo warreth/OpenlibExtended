@@ -642,7 +642,16 @@ class ZlibraryProvider implements SearchProvider {
         return location;
       }
     }
-    if (response.statusCode == 200) return candidate;
+    if (response.statusCode == 200) {
+      final body = response.data.toString();
+      // A bare 200 from /dl/ is usually the js-redirect landing page,
+      // not the book: only accept it when it is not the challenge and
+      // not an HTML page at all (the CDN serves the book bytes).
+      if (!_solver.looksLikeChallenge(200, body) &&
+          !body.toLowerCase().contains('<html')) {
+        return candidate;
+      }
+    }
     return null;
   }
 

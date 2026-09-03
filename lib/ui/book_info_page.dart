@@ -68,8 +68,7 @@ class BookInfoPage extends ConsumerWidget {
                 if (context.mounted && outcome == ShareOutcome.pathCopied) {
                   showSnackBar(
                       context: context,
-                      message: AppLocalizations.of(context)
-                          .copiedBookLink);
+                      message: AppLocalizations.of(context).copiedBookLink);
                 }
               },
             );
@@ -178,9 +177,9 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                     // proof-of-work and a 302 to a signed CDN URL, and
                     // some ids answer 204 forever; re-fetch the page for
                     // the live ids and resolve the first working one.
-                    if (downloadUrl != null &&
-                        downloadUrl.contains('/dl/') &&
-                        !isDirectLink) {
+                    final isZlib =
+                        downloadUrl != null && downloadUrl.contains('/dl/');
+                    if (isZlib && !isDirectLink) {
                       try {
                         final resolved = await ZlibraryProvider()
                             .resolveBookDownload(widget.data.link);
@@ -277,6 +276,12 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           mirrors: [], // Will be fetched in background
                           mirrorUrl: downloadUrl, // Store mirror URL for retry
                           isDirectLink: isFastDownload,
+                          // z-lib's signed CDN link expires after a few
+                          // hours; the manager then re-resolves a fresh
+                          // one from the book page instead of failing.
+                          linkRefresher: isZlib
+                              ? ZlibraryProvider().resolveBookDownload
+                              : null,
                         );
 
                         await downloadManager.addDownloadWithMirrorUrl(
@@ -299,8 +304,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                       if (context.mounted) {
                         showSnackBar(
                             context: context,
-                            message:
-                                AppLocalizations.of(context).noMirrors);
+                            message: AppLocalizations.of(context).noMirrors);
                       }
                     }
                   },
@@ -367,8 +371,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                       } else {
                         showSnackBar(
                             context: context,
-                            message:
-                                AppLocalizations.of(context).noMirrors);
+                            message: AppLocalizations.of(context).noMirrors);
                       }
                     },
                     child: Text(
@@ -750,8 +753,7 @@ class _ShowDialog extends ConsumerWidget {
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(3.0),
-                            child: Text(
-                                AppLocalizations.of(context).cancel),
+                            child: Text(AppLocalizations.of(context).cancel),
                           ),
                         )
                       ],

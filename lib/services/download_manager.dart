@@ -40,6 +40,12 @@ class DownloadTask {
   final String? mirrorUrl; // URL to fetch mirrors from (for retry)
   final bool isDirectLink;
 
+  /// For direct links that expire (z-lib's signed CDN URLs): called
+  /// with the book page URL when every mirror has failed, expected to
+  /// return a fresh direct URL or null. Kept as a plain function so
+  /// the manager stays decoupled from any search provider.
+  final Future<String?> Function(String bookPageUrl)? linkRefresher;
+
   DownloadStatus status;
   double progress;
   int downloadedBytes;
@@ -61,6 +67,7 @@ class DownloadTask {
     required this.link,
     this.mirrorUrl,
     this.isDirectLink = false,
+    this.linkRefresher,
     this.status = DownloadStatus.queued,
     this.progress = 0.0,
     this.downloadedBytes = 0,
@@ -79,6 +86,7 @@ class DownloadTask {
     List<String>? mirrors,
     String? mirrorUrl,
     bool? isDirectLink,
+    Future<String?> Function(String bookPageUrl)? linkRefresher,
   }) {
     return DownloadTask(
       id: id,
@@ -94,6 +102,7 @@ class DownloadTask {
       link: link,
       mirrorUrl: mirrorUrl ?? this.mirrorUrl,
       isDirectLink: isDirectLink ?? this.isDirectLink,
+      linkRefresher: linkRefresher ?? this.linkRefresher,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       downloadedBytes: downloadedBytes ?? this.downloadedBytes,
@@ -609,8 +618,9 @@ class DownloadManager {
     }
   }
 
-  Future<void> _executeDownloadLoop(String taskId, List<String> mirrors,
-      String filePath, String fileName) async {
+  Future<void> _executeDownloadLoop(
+      String taskId, List<String> mirrors, String filePath, String fileName,
+      {int refreshRound = 0}) async {
     DownloadTask? task = _activeDownloads[taskId];
     if (task == null) return;
 
@@ -651,6 +661,10 @@ class DownloadManager {
     // Mirrors regularly return 500/502/504 under load; a short backoff retry
     // on the same mirror usually succeeds and resumes the partial file.
     const maxAttemptsPerMirror = 3;
+    // Signed direct links (z-lib CDN) expire after a couple of hours;
+    // instead of dying with "all mirrors failed", re-resolve a fresh
+    // link from the book page and try again.
+    const maxLinkRefreshes = 2;
     int attempt = 0;
     bool lastErrorRetryable = false;
 
@@ -726,15 +740,48 @@ class DownloadManager {
 
     if (downloadSuccessful) {
       await _finalizeDownload(taskId, filePath, fileName);
-    } else {
-      // If we are here, all mirrors failed
-      task = _activeDownloads[taskId];
-      // Only mark failed if we are not paused/cancelled
-      if (task != null &&
-          task.status != DownloadStatus.paused &&
-          task.status != DownloadStatus.cancelled) {
-        _handleDownloadFailure(taskId, 'All mirrors failed!');
+      return;
+    }
+
+    // Every mirror failed. For expiring direct links, ask the book page
+    // for a fresh signed URL and run the loop again before giving up.
+    task = _activeDownloads[taskId];
+    if (task != null &&
+        task.status != DownloadStatus.paused &&
+        task.status != DownloadStatus.cancelled &&
+        task.linkRefresher != null &&
+        refreshRound < maxLinkRefreshes) {
+      _logger.info(
+          'All mirrors failed, refreshing link (round ${refreshRound + 1})',
+          tag: 'DownloadManager',
+          metadata: {'book': task.title});
+      String? freshUrl;
+      try {
+        freshUrl = await task.linkRefresher!(task.link);
+      } catch (e) {
+        _logger.warning('Link refresh threw', tag: 'DownloadManager', error: e);
       }
+      if (_activeDownloads[taskId]?.status == DownloadStatus.paused ||
+          _activeDownloads[taskId]?.status == DownloadStatus.cancelled) {
+        return;
+      }
+      if (freshUrl != null && freshUrl.isNotEmpty) {
+        _activeDownloads[taskId] =
+            _activeDownloads[taskId]!.copyWith(mirrorUrl: freshUrl);
+        _notifyListeners();
+        await _executeDownloadLoop(taskId, [freshUrl], filePath, fileName,
+            refreshRound: refreshRound + 1);
+        return;
+      }
+    }
+
+    // If we are here, all mirrors failed
+    task = _activeDownloads[taskId];
+    // Only mark failed if we are not paused/cancelled
+    if (task != null &&
+        task.status != DownloadStatus.paused &&
+        task.status != DownloadStatus.cancelled) {
+      _handleDownloadFailure(taskId, 'All mirrors failed!');
     }
   }
 

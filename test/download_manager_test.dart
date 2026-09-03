@@ -46,8 +46,7 @@ class _RangeServer {
       bool supportsRange = true,
       Duration? chunkDelay,
       int port = 0}) async {
-    final server =
-        await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
     return _RangeServer(server, bytes,
         supportsRange: supportsRange, chunkDelay: chunkDelay);
   }
@@ -210,8 +209,8 @@ void main() {
         () async {
       // The libgen flow passes the get.php URL as a direct mirror link
       // (isDirectLink), which must download without any scraping.
-      final bytes = Uint8List.fromList(
-          List.generate(1024 * 150, (i) => (i * 7) % 251));
+      final bytes =
+          Uint8List.fromList(List.generate(1024 * 150, (i) => (i * 7) % 251));
       server = await _RangeServer.start(bytes: bytes);
       server._server.listen(server.handle);
 
@@ -580,5 +579,108 @@ void main() {
 
       manager.removeDownload(task.id);
     }, timeout: const Timeout(Duration(seconds: 90)));
+
+    test('expired direct link is re-resolved instead of failing', () async {
+      // z-lib flow: the signed CDN URL dies with 403 after a while.
+      // The task carries a linkRefresher; the manager must ask it for a
+      // fresh URL and finish the download instead of reporting
+      // "all mirrors failed".
+      final bytes =
+          Uint8List.fromList(List.generate(1024 * 120, (i) => (i * 13) % 251));
+
+      // Two servers: the "expired" one rejects everything, the fresh
+      // one serves the book.
+      final expired = await _RangeServer.start(bytes: bytes);
+      expired._server.listen((request) async {
+        request.response.statusCode = 403;
+        request.response.close();
+      });
+      final fresh = await _RangeServer.start(bytes: bytes);
+      fresh._server.listen(fresh.handle);
+      server = fresh; // closed in tearDown; expired closed below.
+
+      var refreshCalls = 0;
+      final task = DownloadTask(
+        id: 'md5hash_zlib',
+        md5: 'md5hash_zlib',
+        title: 'Expired Link Book',
+        mirrors: [expired.url.toString()],
+        mirrorUrl: expired.url.toString(),
+        isDirectLink: true,
+        format: 'epub',
+        link: 'https://zlib.example/book/1',
+        linkRefresher: (bookPageUrl) async {
+          refreshCalls++;
+          return fresh.url.toString();
+        },
+      );
+
+      final completer = Completer<void>();
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[task.id];
+        if (t != null && t.status == DownloadStatus.completed) {
+          if (!completer.isCompleted) completer.complete();
+        }
+      });
+
+      await manager.addDownload(task);
+      await completer.future.timeout(const Duration(seconds: 30));
+
+      expect(refreshCalls, 1,
+          reason: 'the refresher must be consulted exactly once');
+      final saved = File(
+          '$saveDir/${generateBookFileName(title: 'Expired Link Book', format: 'epub', md5: 'md5hash_zlib')}');
+      expect(saved.existsSync(), isTrue);
+      expect(saved.readAsBytesSync(), bytes);
+
+      manager.removeDownload(task.id);
+      await expired.close();
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('gives up after two failed link refreshes', () async {
+      // A refresher that keeps handing back dead URLs must not loop
+      // forever: two rounds, then the task fails for real.
+      final bytes = Uint8List.fromList(List.generate(1024, (i) => i % 7));
+
+      final dead = await _RangeServer.start(bytes: bytes);
+      dead._server.listen((request) async {
+        request.response.statusCode = 403;
+        request.response.close();
+      });
+      server = dead;
+
+      var refreshCalls = 0;
+      final task = DownloadTask(
+        id: 'md5hash_dead',
+        md5: 'md5hash_dead',
+        title: 'Permanently Dead Link',
+        mirrors: [dead.url.toString()],
+        mirrorUrl: dead.url.toString(),
+        isDirectLink: true,
+        format: 'epub',
+        link: 'https://zlib.example/book/2',
+        linkRefresher: (bookPageUrl) async {
+          refreshCalls++;
+          return dead.url.toString(); // still dead
+        },
+      );
+
+      final failed = Completer<void>();
+      manager.downloadsStream.listen((downloads) {
+        final t = downloads[task.id];
+        if (t != null && t.status == DownloadStatus.failed) {
+          if (!failed.isCompleted) failed.complete();
+        }
+      });
+
+      await manager.addDownload(task);
+      await failed.future.timeout(const Duration(seconds: 30));
+
+      expect(refreshCalls, 2,
+          reason: 'exactly two refresh rounds, then failure');
+      expect(manager.activeDownloads[task.id]?.errorMessage,
+          'All mirrors failed!');
+      manager.removeDownload(task.id);
+    }, timeout: const Timeout(Duration(seconds: 60)));
   });
 }
