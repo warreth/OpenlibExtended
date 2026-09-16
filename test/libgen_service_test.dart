@@ -248,6 +248,58 @@ void main() {
     });
   });
 
+  group('same-origin Referer header', () {
+    test('bookInfo sends same-origin Referer based on candidate mirror', () async {
+      String? receivedReferer;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final html = File('test/fixtures/libgen_ads_page.html').readAsStringSync();
+      server.listen((HttpRequest request) {
+        receivedReferer = request.headers.value(HttpHeaders.refererHeader);
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.html
+          ..write(html)
+          ..close();
+      });
+
+      try {
+        final origin = 'http://${server.address.host}:${server.port}';
+        final service = LibgenService();
+        final book = await service.bookInfo('$origin/ads.php?md5=$_md5Temple');
+
+        expect(book, isNotNull);
+        expect(receivedReferer, equals('$origin/index.php'));
+      } finally {
+        await server.close();
+      }
+    });
+
+    test('fetchCover sends same-origin Referer based on candidate mirror', () async {
+      String? receivedReferer;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final html = File('test/fixtures/libgen_ads_page.html').readAsStringSync();
+      server.listen((HttpRequest request) {
+        receivedReferer = request.headers.value(HttpHeaders.refererHeader);
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.html
+          ..write(html)
+          ..close();
+      });
+
+      try {
+        final origin = 'http://${server.address.host}:${server.port}';
+        final service = LibgenService();
+        final cover = await service.fetchCover('$origin/ads.php?md5=$_md5Temple');
+
+        expect(cover, isNotNull);
+        expect(receivedReferer, equals('$origin/index.php'));
+      } finally {
+        await server.close();
+      }
+    });
+  });
+
   group('bookInfo (live network - run manually)', () {
     test('fetches a real book from libgen.vg', () async {
       final book = await LibgenService()

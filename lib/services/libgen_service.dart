@@ -58,10 +58,13 @@ class LibgenService {
       try {
         _logger.debug('Fetching libgen ads page',
             tag: 'LibgenService', metadata: {'url': candidate});
-        final response = await _dio.get(candidate);
+        final baseUrl = Uri.parse(candidate).origin;
+        final response = await _dio.get(
+          candidate,
+          options: Options(headers: {'Referer': '$baseUrl/index.php'}),
+        );
         if (response.statusCode != 200) continue;
 
-        final baseUrl = Uri.parse(candidate).origin;
         final data = parseAdsPage(response.data.toString(), baseUrl, candidate);
         if (data != null) return data;
 
@@ -136,10 +139,14 @@ class LibgenService {
     final mirrors = await _instanceManager.getEnabledUrls(MirrorService.libgen);
     for (final candidate in _candidateUrls(url, mirrors)) {
       try {
-        final response = await _dio.get(candidate);
+        final origin = Uri.parse(candidate).origin;
+        final response = await _dio.get(
+          candidate,
+          options: Options(headers: {'Referer': '$origin/index.php'}),
+        );
         if (response.statusCode != 200) continue;
         final cover =
-            parseAdsCover(response.data.toString(), Uri.parse(candidate).origin);
+            parseAdsCover(response.data.toString(), origin);
         if (cover != null) return cover;
       } catch (_) {
         // Next mirror.
