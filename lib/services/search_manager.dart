@@ -412,7 +412,7 @@ class ZlibraryProvider implements SearchProvider {
     for (final mirror in mirrors) {
       try {
         var response = await _dio.get(
-          '$mirror/s/${Uri.encodeQueryComponent(query.text)}',
+          '$mirror/s/${Uri.encodeComponent(query.text)}',
           queryParameters: {if (query.page > 1) 'page': query.page},
           options: acceptAnyStatus,
         );
@@ -428,7 +428,7 @@ class ZlibraryProvider implements SearchProvider {
                 cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
             try {
               response = await _dio.get(
-                '$mirror/s/${Uri.encodeQueryComponent(query.text)}',
+                '$mirror/s/${Uri.encodeComponent(query.text)}',
                 queryParameters: {if (query.page > 1) 'page': query.page},
                 options:
                     acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}),

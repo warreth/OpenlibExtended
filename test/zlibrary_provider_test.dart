@@ -180,6 +180,32 @@ void main() {
       expect(books, isEmpty);
     });
 
+    test('search URL encodes spaces as %20 in path instead of +', () async {
+      final requests = <String>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((HttpRequest request) {
+        requests.add(request.uri.toString());
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.html
+          ..write(results)
+          ..close();
+      });
+
+      try {
+        final provider = ZlibraryProvider(
+          mirrors: ['http://${server.address.host}:${server.port}'],
+        );
+        await provider.search(const SearchQuery(text: 'Pride and Prejudice'));
+
+        expect(requests, isNotEmpty);
+        expect(requests.first, equals('/s/Pride%20and%20Prejudice'));
+        expect(requests.first, isNot(contains('+')));
+      } finally {
+        await server.close();
+      }
+    });
+
     test('default mirror list prefers z-lib.gd and drops z-lib.fm', () {
       expect(ZlibraryProvider.defaultMirrors.first, 'https://z-lib.gd');
       expect(ZlibraryProvider.defaultMirrors, isNot(contains('z-lib.fm')));
