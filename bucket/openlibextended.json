@@ -1,13 +1,13 @@
 {
-    "version": "1.6.0",
+    "version": "1.6.1",
     "description": "Open-source cross-platform client for Anna's Archive - download, organize, and read your favorite books.",
     "homepage": "https://github.com/warreth/OpenlibExtended",
     "license": "AGPL-3.0-only",
     "notes": "The app stores books in the Documents/Openlib folder. Scoop users may want to set a different storage folder from Settings on first launch.",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/warreth/OpenlibExtended/releases/download/v1.6.0/openlib-windows-x64-1.6.0.exe",
-            "hash": "e9e7639811e71667262800eff36a6ce9a15e51ba519b30eadabef0a3a0a065a5",
+            "url": "https://github.com/warreth/OpenlibExtended/releases/download/v1.6.1/openlib-windows-x64-1.6.1.exe",
+            "hash": "ef87e8bd319e24032fec3f07332f89c6407b352f0cd7bf349d9b8d267850447b",
             "installer": {
                 "type": "innosetup",
                 "script": "OpenlibExtended"
