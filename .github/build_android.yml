@@ -1,0 +1,31 @@
+name: Build Android APK
+on:
+  workflow_dispatch: # ✅ 网页手动一键启动编译
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0' # 可根据项目实际flutter版本微调
+          channel: 'stable'
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Flutter 依赖拉取
+        run: flutter pub get
+
+      - name: 编译安卓Release APK
+        run: flutter build apk --release --split-per-abi
+        # --split-per-abi：分开输出 arm64-v8a / arm32 不同架构APK，手机大多arm64
+
+      - name: 上传编译产物APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenlibExtended-Android-APK
+          path: build/app/outputs/apk/release/*.apk
