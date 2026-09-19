@@ -7,7 +7,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/warreth/OpenlibExtended/releases/download/v1.6.1/openlib-windows-x64-1.6.1.exe",
-            "hash": "ef87e8bd319e24032fec3f07332f89c6407b352f0cd7bf349d9b8d267850447b",
+            "hash": "5ed83531ddefb4e11e5f373813c412d03e67bee73f241446fd3705e486701d06",
             "installer": {
                 "type": "innosetup",
                 "script": "OpenlibExtended"
