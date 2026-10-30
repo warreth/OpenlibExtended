@@ -7,120 +7,13 @@ import 'package:flutter/foundation.dart';
 
 // Package imports:
 import 'package:dio/dio.dart';
-import 'package:html/dom.dart' as dom;
-import 'package:html/parser.dart' as html_parser;
 
 // Project imports:
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/preference_store.dart';
 
-/// Which shadow-library family a mirror belongs to.
-///
-/// This is the single source of truth for "who is a provider": the
-/// search providers, the settings page and the instance manager all
-/// speak in these values.
-enum MirrorService {
-  annasArchive,
-  libgen,
-  zlibrary,
-
-  /// WeLib (open-slum.org's "other" page). Its search sits behind
-  /// Cloudflare, so it is the last-resort source.
-  welib,
-}
-
-/// What open-slum.org (SLUM) last saw for a mirror.
-enum SlumStatus { up, protected, degraded, down, unknown }
-
-/// The bot-protection gate a mirror sits behind, ordered from easiest
-/// to hardest to pass without a browser:
-///
-///   none       - plain HTTP works
-///   diamwall   - SHA1 proof-of-work, solvable in-app (see DiamWallSolver)
-///   ddosGuard  - JS challenge, needs the webview solver
-///   cloudflare - JS challenge, needs the webview solver
-///   unknown    - a gate SLUM could not classify
-///
-/// Auto mode tries them in this order; a mirror that is DOWN is never
-/// tried at all.
-enum Protection { none, diamwall, ddosGuard, cloudflare, unknown }
-
-extension ProtectionRank on Protection {
-  /// Lower is tried first. Exposed so ordering lives in one place.
-  int get rank => switch (this) {
-        Protection.none => 0,
-        Protection.diamwall => 1,
-        Protection.ddosGuard => 2,
-        Protection.cloudflare => 3,
-        Protection.unknown => 4,
-      };
-
-  /// Label for the settings UI.
-  String get label => switch (this) {
-        Protection.none => 'Unprotected',
-        Protection.diamwall => 'DiamWall',
-        Protection.ddosGuard => 'DDoS-Guard',
-        Protection.cloudflare => 'Cloudflare',
-        Protection.unknown => 'Unknown',
-      };
-
-  /// True when a plain Dio client has any chance without a browser.
-  /// Used to decide whether a provider should even attempt a mirror.
-  bool get solvableHeadless => this == Protection.none || this == Protection.diamwall;
-}
-
-/// One mirror as open-slum.org reports it, plus the two facts SLUM
-/// gives that matter for ordering: how it is protected and whether it
-/// is currently up.
-@immutable
-class SlumSite {
-  final MirrorService service;
-  final String url;
-
-  /// Bare host, e.g. `z-lib.gd`. The stable key for user preferences.
-  final String host;
-
-  final SlumStatus status;
-  final Protection protection;
-
-  /// HTTP status SLUM's last check received (null when it could not
-  /// connect at all).
-  final int? httpStatus;
-
-  /// SLUM's measured latency in milliseconds.
-  final int? latencyMs;
-
-  const SlumSite({
-    required this.service,
-    required this.url,
-    required this.host,
-    required this.status,
-    required this.protection,
-    this.httpStatus,
-    this.latencyMs,
-  });
-
-  /// SLUM says it is down: never search or download on it.
-  bool get isDown => status == SlumStatus.down;
-
-  /// A mirror we may attempt: not down. `unknown` is attempted last -
-  /// SLUM simply has no reading, which is not the same as down.
-  bool get isAttemptable => !isDown;
-
-  /// Sort key inside auto mode. Down mirrors sort last so a stable
-  /// order still exists when a caller asks for "everything".
-  int get statusTier => switch (status) {
-        SlumStatus.up => 0,
-        SlumStatus.degraded => 1,
-        SlumStatus.protected => 2,
-        SlumStatus.unknown => 3,
-        SlumStatus.down => 9,
-      };
-
-  @override
-  String toString() =>
-      'SlumSite($host, ${status.name}, ${protection.name})';
-}
+import 'package:openlib/core/slum.dart';
+export 'package:openlib/core/slum.dart';
 
 /// Reads mirror lists and their status from open-slum.org.
 ///
@@ -235,8 +128,7 @@ class SlumCatalogue {
     if (!force &&
         nothingKnown &&
         _lastAttemptAt != null &&
-        DateTime.now().difference(_lastAttemptAt!) <
-            _retryAfterFailedFetch) {
+        DateTime.now().difference(_lastAttemptAt!) < _retryAfterFailedFetch) {
       return _cache;
     }
     _lastAttemptAt = DateTime.now();
@@ -295,136 +187,17 @@ class SlumCatalogue {
   /// cache) can feed captured HTML without network.
   @visibleForTesting
   List<SlumSite> parsePage(String html, MirrorService service) {
-    final document = html_parser.parse(html);
-    final sites = <SlumSite>[];
-
-    for (final card in document.querySelectorAll('div.card[id]')) {
-      final link = card.querySelector('a.card-title');
-      final href = link?.attributes['href'];
-      if (href == null || href.isEmpty) continue;
-
-      final uri = Uri.tryParse(href);
-      final host = uri?.host;
-      if (host == null || host.isEmpty) continue;
-
-      // The "other" page mixes WeLib with unrelated libraries; only the
-      // service's own hosts become mirrors.
-      if (service == MirrorService.welib) {
-        if (!host.contains('welib') || _otherPageSkipHosts.contains(host)) {
-          continue;
-        }
-      }
-
-      final status = _parseStatus(card);
-      final protection = _parseProtection(card, status);
-      final httpStatus = _parseIntAfterLabel(card, 'Status:');
-      final latencyMs = _parseIntAfterLabel(card, 'Latency:');
-
-      sites.add(SlumSite(
-        service: service,
-        url: _normalize(href),
-        host: host,
-        status: status,
-        protection: protection,
-        httpStatus: httpStatus,
-        latencyMs: latencyMs,
-      ));
-    }
-
-    return sites;
+    return parseSlumPage(html,
+        service: service, skipHosts: _otherPageSkipHosts);
   }
-
-  /// The badge class carries the current status (`status-badge down`).
-  /// Falls back to the last timeline reading when the badge is absent
-  /// (or a variant SLUM did not style).
-  SlumStatus _parseStatus(dom.Element card) {
-    final badge = card.querySelector('.status-badge');
-    final raw = badge?.attributes['class'] ?? '';
-    final match = RegExp(r'\b(up|protected|degraded|down|unknown)\b',
-            caseSensitive: false)
-        .firstMatch(raw);
-    final fromBadge = _statusFromWord(match?.group(1));
-    if (fromBadge != null) return fromBadge;
-
-    // Timeline readings are oldest first; the last one is the newest.
-    final readings =
-        card.querySelectorAll('[data-status]').map((e) => e.attributes['data-status']);
-    for (final value in readings.toList().reversed) {
-      final parsed = _statusFromWord(value);
-      if (parsed != null) return parsed;
-    }
-    return SlumStatus.unknown;
-  }
-
-  SlumStatus? _statusFromWord(String? word) => switch (word?.toLowerCase()) {
-        'up' => SlumStatus.up,
-        'protected' => SlumStatus.protected,
-        'degraded' => SlumStatus.degraded,
-        'down' => SlumStatus.down,
-        'unknown' => SlumStatus.unknown,
-        _ => null,
-      };
-
-  /// The "Protected Site" block names the vendor. A protected mirror
-  /// without a vendor is [Protection.unknown]; an UP mirror has no gate.
-  Protection _parseProtection(dom.Element card, SlumStatus status) {
-    final vendor = _vendorName(card);
-    if (vendor != null) {
-      final lower = vendor.toLowerCase();
-      if (lower.contains('diamwall')) return Protection.diamwall;
-      if (lower.contains('ddos')) return Protection.ddosGuard;
-      if (lower.contains('cloudflare')) return Protection.cloudflare;
-      return Protection.unknown;
-    }
-    // No vendor label: only claim "none" when SLUM saw it plain.
-    return status == SlumStatus.up ? Protection.none : Protection.unknown;
-  }
-
-  String? _vendorName(dom.Element card) {
-    for (final strong in card.querySelectorAll('strong')) {
-      if (strong.text.trim().toLowerCase().contains('protected site')) {
-        final span = strong.nextElementSibling;
-        final name = span?.text.trim() ?? '';
-        if (name.isNotEmpty) return name;
-      }
-    }
-    return null;
-  }
-
-  int? _parseIntAfterLabel(dom.Element card, String label) {
-    for (final div in card.querySelectorAll('div')) {
-      final text = div.text;
-      final index = text.indexOf(label);
-      if (index == -1) continue;
-      final match = RegExp(r'\d+').firstMatch(text.substring(index + label.length));
-      if (match != null) return int.tryParse(match.group(0)!);
-    }
-    return null;
-  }
-
-  String _normalize(String url) =>
-      url.endsWith('/') ? url.substring(0, url.length - 1) : url;
 
   /// Auto order: never-down mirrors first by protection difficulty
   /// (unprotected -> DiamWall -> DDoS-Guard/Cloudflare -> unknown), then
   /// by SLUM status, then by latency. Mirrors SLUM reports DOWN sort
   /// last whatever their protection - they are never attempted - and
   /// callers that must not touch them filter with [SlumSite.isDown].
-  static List<SlumSite> sortAuto(Iterable<SlumSite> sites) {
-    final list = sites.toList();
-    list.sort((a, b) {
-      if (a.isDown != b.isDown) return a.isDown ? 1 : -1;
-      final byProtection = a.protection.rank.compareTo(b.protection.rank);
-      if (byProtection != 0) return byProtection;
-      final byStatus = a.statusTier.compareTo(b.statusTier);
-      if (byStatus != 0) return byStatus;
-      final byLatency =
-          (a.latencyMs ?? 1 << 30).compareTo(b.latencyMs ?? 1 << 30);
-      if (byLatency != 0) return byLatency;
-      return a.host.compareTo(b.host);
-    });
-    return list;
-  }
+  static List<SlumSite> sortAuto(Iterable<SlumSite> sites) =>
+      sortSlumSites(sites);
 
   // ------------------------------------------------------------------
   // Persistence: the last good catalogue survives restarts and lets a

@@ -4,11 +4,10 @@ import 'dart:convert';
 
 // Package imports:
 import 'package:dio/dio.dart';
-import 'package:html/parser.dart' show parse;
-import 'package:html/dom.dart' as dom;
 import 'package:meta/meta.dart';
 
 // Project imports:
+import 'package:openlib/core/annas_archive.dart';
 import 'package:openlib/services/instance_manager.dart';
 import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/network_error.dart';
@@ -116,71 +115,16 @@ class AnnasArchieve {
   //    challenge actually uses (403/503), so a real search result page
   //    that happens to mention Cloudflare is not mistaken for a block.
   bool _isChallengeResponse(Response response) {
-    if (response.headers.value('cf-mitigated')?.toLowerCase() == 'challenge') {
-      _logger.warning('DDoS protection detected: cf-mitigated header',
-          tag: 'AnnasArchive');
-      return true;
+    final blocked = ArchiveParsing.isChallengeResponse(
+      statusCode: response.statusCode ?? 0,
+      cfMitigated: response.headers.value('cf-mitigated'),
+      body: response.data?.toString() ?? '',
+    );
+    if (blocked) {
+      _logger.warning('DDoS protection detected',
+          tag: 'AnnasArchive', metadata: {'statusCode': response.statusCode});
     }
-
-    final status = response.statusCode ?? 0;
-    final body = response.data?.toString().toLowerCase() ?? '';
-    if (body.isEmpty) return false;
-
-    final title =
-        RegExp(r'<title[^>]*>([^<]*)</title>').firstMatch(body)?.group(1)?.trim() ??
-            '';
-    const challengeTitles = [
-      'just a moment',
-      'ddos-guard',
-      'checking your browser',
-      'attention required',
-    ];
-    if (challengeTitles.any(title.startsWith)) {
-      _logger.warning('DDoS protection detected: challenge title',
-          tag: 'AnnasArchive', metadata: {'title': title});
-      return true;
-    }
-
-    // Unambiguous markers of a challenge document, whatever the status.
-    const hardMarkers = [
-      'cf-browser-verification',
-      'cf-challenge-running',
-      '/cdn-cgi/challenge-platform/',
-      'check.ddos-guard.net',
-      'data-ddg-origin',
-      '__ddg',
-    ];
-    for (final marker in hardMarkers) {
-      if (body.contains(marker)) {
-        _logger.warning('DDoS protection detected in response body',
-            tag: 'AnnasArchive',
-            metadata: {
-              'marker': marker,
-              'responseLength': body.length,
-              'statusCode': status,
-            });
-        return true;
-      }
-    }
-
-    if (status == 403 || status == 503) {
-      const softMarkers = [
-        'checking your browser',
-        'enable javascript and cookies',
-        'needs to review the security of your connection',
-        'verifying you are human',
-        'browser check',
-        'security check',
-      ];
-      for (final marker in softMarkers) {
-        if (body.contains(marker)) {
-          _logger.warning('DDoS protection suspected (HTTP $status)',
-              tag: 'AnnasArchive', metadata: {'marker': marker});
-          return true;
-        }
-      }
-    }
-    return false;
+    return blocked;
   }
 
   /// True when [html] is an Anna's Archive document rather than some other
@@ -193,14 +137,7 @@ class AnnasArchieve {
   /// "no results" answer and stop, hiding the mirrors that would have
   /// worked. Every Anna's Archive page carries "Anna's Archive" in its
   /// title; a page that does not is the wrong page, not an empty result.
-  bool _isAnnasArchivePage(String html) {
-    final title = RegExp(r'<title[^>]*>([^<]*)</title>', caseSensitive: false)
-            .firstMatch(html)
-            ?.group(1)
-            ?.toLowerCase() ??
-        '';
-    return title.contains('anna') && title.contains('archive');
-  }
+  bool _isAnnasArchivePage(String html) => ArchiveParsing.isArchivePage(html);
 
   // Convert DioException to user-friendly NetworkError with async diagnostics
   Future<NetworkError> _handleErrorAsync(dynamic error,
@@ -217,11 +154,11 @@ class AnnasArchieve {
     // libgen/zlib mirrors 404 on AA paths and waste every retry slot.
     // The list comes from open-slum.org; down mirrors are already
     // filtered out and the easiest (least protected) mirror comes first.
-    final urls =
-        await _instanceManager.enabledUrls(MirrorService.annasArchive);
+    final urls = await _instanceManager.enabledUrls(MirrorService.annasArchive);
 
     if (urls.isEmpty) {
-      _logger.error('No attemptable Anna\'s Archive mirror', tag: 'AnnasArchive');
+      _logger.error('No attemptable Anna\'s Archive mirror',
+          tag: 'AnnasArchive');
       throw await _handleErrorAsync(
         Exception('No Anna\'s Archive mirror is available right now'),
       );
@@ -317,7 +254,11 @@ class AnnasArchieve {
     if (status >= 200 && status < 300) return;
     _logger.warning('Anna\'s Archive returned an error status',
         tag: 'AnnasArchive',
-        metadata: {'status': status, 'url': url, 'length': response.data?.toString().length ?? 0});
+        metadata: {
+          'status': status,
+          'url': url,
+          'length': response.data?.toString().length ?? 0
+        });
     throw DioException.badResponse(
       statusCode: status,
       requestOptions: response.requestOptions,
@@ -325,191 +266,37 @@ class AnnasArchieve {
     );
   }
 
-  String getMd5(String url) {
-    final uri = Uri.parse(url);
-    final pathSegments = uri.pathSegments;
-    return pathSegments.isNotEmpty ? pathSegments.last : '';
-  }
+  String getMd5(String url) => ArchiveParsing.md5FromLink(url);
 
   // Remove emojis, icons and non-standard characters from text
-  String cleanText(String text) {
-    return text
-        .replaceAll(RegExp(r'[\u{1F300}-\u{1F9FF}]', unicode: true), '')
-        .replaceAll(RegExp(r'[\u{2600}-\u{26FF}]', unicode: true), '')
-        .replaceAll(RegExp(r'[\u{2700}-\u{27BF}]', unicode: true), '')
-        .replaceAll(RegExp(r'[\u{1F600}-\u{1F64F}]', unicode: true), '')
-        .replaceAll(RegExp(r'[\u{1F680}-\u{1F6FF}]', unicode: true), '')
-        .replaceAll(RegExp(r'🔍'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  String cleanText(String text) => ArchiveParsing.cleanText(text);
 
-  /// Text of an element as the browser would show it: script and style
-  /// contents are skipped. Anna's Archive embeds click handlers as inline
-  /// <script> tags inside the info boxes, and the html package happily
-  /// includes their source in `.text`.
-  String _visibleText(dom.Element? element) {
-    if (element == null) return '';
-    final clone = element.clone(true);
-    // Detaching is enough; the cloned nodes are never attached to the tree.
-    for (final node in clone.querySelectorAll('script, style')) {
-      node.remove();
-    }
-    return clone.text.trim();
-  }
-
-  String getFormat(String info) {
-    final infoLower = info.toLowerCase();
-    if (infoLower.contains('pdf')) {
-      return 'pdf';
-    } else if (infoLower.contains('cbr')) {
-      return "cbr";
-    } else if (infoLower.contains('cbz')) {
-      return "cbz";
-    }
-    return "epub";
-  }
+  String getFormat(String info) => ArchiveParsing.formatFromInfo(info);
 
   // --------------------------------------------------------------------
   // _parser FUNCTION (Search Results - Fixed nth-of-type issue)
   // --------------------------------------------------------------------
   List<BookData> _parser(
       dynamic resData, String fileType, String currentBaseUrl) {
-    var document = parse(resData.toString());
-
-    var bookContainers =
-        document.querySelectorAll('div.flex.pt-3.pb-3.border-b');
-
-    _logger.debug('Parser started', tag: 'AnnasArchive', metadata: {
-      'containerCount': bookContainers.length,
-      'fileType': fileType,
-      'currentBaseUrl': currentBaseUrl,
-    });
-
-    // FALLBACK: If primary selector finds nothing, try alternative selectors
-    // because Anna's Archive changes its HTML structure periodically.
-    if (bookContainers.isEmpty) {
-      _logger.warning('Primary selector found 0 containers, trying fallbacks',
-          tag: 'AnnasArchive');
-
-      // Try 1: any link with /md5/ in href, find their parent containers
-      final md5Links = document.querySelectorAll('a[href*="/md5/"]');
-      _logger.debug('Found md5 links',
-          tag: 'AnnasArchive', metadata: {'count': md5Links.length});
-
-      // Try 2: divs with border-b class
-      final borderDivs = document.querySelectorAll('div[class*="border-b"]');
-      _logger.debug('Found border-b divs',
-          tag: 'AnnasArchive', metadata: {'count': borderDivs.length});
-
-      // Try 3: any div containing md5 link
-      if (md5Links.isNotEmpty) {
-        bookContainers = md5Links
-            .map((link) {
-              var parent = link.parent;
-              while (parent != null && parent.localName != 'div') {
-                parent = parent.parent;
-              }
-              return parent;
-            })
-            .whereType<dom.Element>()
-            .toList();
-        _logger.debug('Using fallback: md5 link parents',
-            tag: 'AnnasArchive', metadata: {'count': bookContainers.length});
-      }
-    }
-
-    List<BookData> bookList = [];
-
-    for (int idx = 0; idx < bookContainers.length; idx++) {
-      var container = bookContainers[idx];
-      final mainLinkElement =
-          container.querySelector('a.line-clamp-\\[3\\].js-vim-focus');
-
-      // Fallback: any link with /md5/ in href
-      final md5LinkElement = container.querySelector('a[href*="/md5/"]');
-      final effectiveLinkElement = mainLinkElement ?? md5LinkElement;
-
-      final thumbnailElement = container.querySelector('a[href*="/md5/"] img');
-
-      if (effectiveLinkElement == null ||
-          effectiveLinkElement.attributes['href'] == null) {
-        _logger.debug('Skipped container (no mainLink)',
-            tag: 'AnnasArchive', metadata: {'containerIdx': idx});
-        continue;
-      }
-
-      final String title = cleanText(effectiveLinkElement.text.trim());
-      final String link =
-          currentBaseUrl + effectiveLinkElement.attributes['href']!;
-      final String md5 = getMd5(effectiveLinkElement.attributes['href']!);
-      final String? thumbnail = thumbnailElement?.attributes['src'];
-
-      // Fix: Use sequential traversal instead of :nth-of-type
-      dom.Element? authorLinkElement = effectiveLinkElement.nextElementSibling;
-      dom.Element? publisherLinkElement = authorLinkElement?.nextElementSibling;
-
-      if (authorLinkElement?.attributes['href']?.startsWith('/search?q=') !=
-          true) {
-        authorLinkElement = null;
-      }
-      if (publisherLinkElement?.attributes['href']?.startsWith('/search?q=') !=
-          true) {
-        publisherLinkElement = null;
-      }
-
-      final String? authorRaw = authorLinkElement?.text.trim();
-      final String? author = (authorRaw != null && authorRaw.contains('icon-'))
-          ? cleanText(authorRaw.split(' ').skip(1).join(' ').trim())
-          : (authorRaw != null ? cleanText(authorRaw) : null);
-
-      final String? publisherRaw = publisherLinkElement?.text.trim();
-      final String? publisher =
-          publisherRaw != null ? cleanText(publisherRaw) : null;
-
-      final infoElement = container.querySelector('div.text-gray-800');
-      // No need for _safeParse here if we only treat info as a string
-      final String? info = infoElement?.text.trim();
-
-      // If info is null (HTML structure changed) or no filter is specified,
-      // include the book. Only filter when a specific file type is requested.
-      final bool hasMatchingFileType = fileType.isEmpty
-          ? true
-          : info?.toLowerCase().contains(fileType.toLowerCase()) == true;
-
-      if (!hasMatchingFileType) {
-        _logger.debug('Skipped container (no matching fileType)',
-            tag: 'AnnasArchive',
-            metadata: {
-              'containerIdx': idx,
-              'title':
-                  title.substring(0, title.length > 50 ? 50 : title.length),
-              'info': info ?? '(null)',
-              'fileType': fileType,
-            });
-        continue;
-      }
-
-      final BookData book = BookData(
-        title: title,
-        author: author?.isEmpty == true ? "unknown" : author,
-        thumbnail: thumbnail,
-        link: link,
-        md5: md5,
-        publisher: publisher?.isEmpty == true ? "unknown" : publisher,
-        info: info,
-      );
-      bookList.add(book);
-
-      _logger.debug('Added book', tag: 'AnnasArchive', metadata: {
-        'title': title.substring(0, title.length > 50 ? 50 : title.length),
-        'md5': md5,
-      });
-    }
-
+    final parsed = ArchiveParsing.parseSearchResults(
+      resData.toString(),
+      baseUrl: currentBaseUrl,
+      fileType: fileType,
+    );
     _logger.info('Parser completed',
-        tag: 'AnnasArchive', metadata: {'booksFound': bookList.length});
-    return bookList;
+        tag: 'AnnasArchive', metadata: {'booksFound': parsed.length});
+    return [
+      for (final book in parsed)
+        BookData(
+          title: book.title,
+          author: book.author,
+          thumbnail: book.thumbnail,
+          link: book.link,
+          md5: book.md5,
+          publisher: book.publisher,
+          info: book.info,
+        ),
+    ];
   }
 
   /// Test-only wrappers around the private parsers so tests can verify real
@@ -530,83 +317,26 @@ class AnnasArchieve {
   // --------------------------------------------------------------------
   Future<BookInfoData?> _bookInfoParser(
       dynamic resData, String url, String currentBaseUrl) async {
-    var document = parse(resData.toString());
-    final main = document.querySelector('div.main-inner');
-    if (main == null) return null;
-
-    // --- Mirror Link Extraction ---
-    String? mirror;
-
-    final slowDownloadLinks =
-        main.querySelectorAll('ul.list-inside a[href*="/slow_download/"]');
-    if (slowDownloadLinks.isNotEmpty &&
-        slowDownloadLinks.first.attributes['href'] != null) {
-      mirror = currentBaseUrl + slowDownloadLinks.first.attributes['href']!;
-    }
-    // --------------------------------
-
-    // --- Core Info Extraction ---
-
-    // Title
-    final titleElement = main.querySelector('div.font-semibold.text-2xl');
-
-    // Author
-    final authorLinkElement =
-        main.querySelector('a[href^="/search?q="].text-base');
-
-    // Publisher
-    dom.Element? publisherLinkElement = authorLinkElement?.nextElementSibling;
-    if (publisherLinkElement?.localName != 'a' ||
-        publisherLinkElement?.attributes['href']?.startsWith('/search?q=') !=
-            true) {
-      publisherLinkElement = null;
-    }
-
-    // Thumbnail
-    final thumbnailElement = main.querySelector('div[id^="list_cover_"] img');
-
-    // Info/Metadata
-    final infoElement = main.querySelector('div.text-gray-800');
-
-    // Description
-    dom.Element? descriptionElement;
-    final descriptionLabel = main.querySelector(
-        'div.js-md5-top-box-description div.text-xs.text-gray-500.uppercase');
-
-    if (descriptionLabel?.text.trim().toLowerCase() == 'description') {
-      descriptionElement = descriptionLabel?.nextElementSibling;
-    }
-    String description = _visibleText(descriptionElement);
-
-    if (titleElement == null) {
-      return null;
-    }
-
-    final String title =
-        cleanText(titleElement.text.trim().split('<span')[0].trim());
-    final String author =
-        cleanText(authorLinkElement?.text.trim() ?? "unknown");
-    final String? thumbnail = thumbnailElement?.attributes['src'];
-
-    final String publisher =
-        cleanText(publisherLinkElement?.text.trim() ?? "unknown");
-    // NOTE: If you extract any numeric data from the 'info' string later in your app (e.g., file size or page count)
-    // and attempt to convert it to an integer or double, that's where you should use _safeParse.
-    final String info = _visibleText(infoElement);
-
+    final details = ArchiveParsing.parseBookDetails(
+      resData.toString(),
+      url: url,
+      baseUrl: currentBaseUrl,
+    );
+    if (details == null) return null;
     return BookInfoData(
-      title: title,
-      author: author,
-      thumbnail: thumbnail,
-      publisher: publisher,
-      info: info,
-      link: url,
-      md5: getMd5(url),
-      format: getFormat(info),
-      mirror: mirror,
-      description: description,
+      title: details.title,
+      author: details.author,
+      thumbnail: details.thumbnail,
+      publisher: details.publisher,
+      info: details.info,
+      link: details.link,
+      md5: details.md5,
+      format: details.format,
+      mirror: details.slowDownloadUrl,
+      description: details.description,
     );
   }
+
   // --------------------------------------------------------------------
 
   String urlEncoder(
@@ -621,69 +351,19 @@ class AnnasArchieve {
       required bool enableFilters,
       required String currentBaseUrl,
       int page = 1}) {
-    // Anna's Archive accepts field-scoped terms in the query string:
-    // q=author:"jrr tolkien" publisher:"harper" hobbit. Advanced
-    // search fields ride the same parameter instead of inventing new
-    // ones the site ignores.
-    final fieldTerms = StringBuffer();
-    if (author.trim().isNotEmpty) {
-      final encoded = Uri.encodeQueryComponent(author.trim());
-      fieldTerms.write('author:%22$encoded%22 ');
-    }
-    if (publisher.trim().isNotEmpty) {
-      final encoded = Uri.encodeQueryComponent(publisher.trim());
-      fieldTerms.write('publisher:%22$encoded%22 ');
-    }
-    searchQuery = (fieldTerms.toString() + searchQuery).replaceAll(" ", "+");
-    // Anna's Archive paginates with &page=N after the query; page 1 is
-    // the default and the parameter is omitted to keep cached challenge
-    // pages matching.
-    final pageParam = page > 1 ? '&page=$page' : '';
-    if (!enableFilters) {
-      return '$currentBaseUrl/search?q=$searchQuery$pageParam';
-    }
-
-    // Build URL with parameters in correct order for Anna's Archive
-    // Working format: /search?index=&sort=&lang=nl&display=&q=query
-    String url = '$currentBaseUrl/search?index=&sort=$sort';
-
-    // Add language filter if specified (must be before q=)
-    if (language.isNotEmpty) {
-      url += '&lang=$language';
-    }
-
-    // Add display parameter
-    url += '&display=';
-
-    // Add search query
-    url += '&q=$searchQuery';
-
-    // Add content filter only if specified
-    if (content.isNotEmpty) {
-      url += '&content=$content';
-    }
-
-    // Add extension filter only if specified
-    if (fileType.isNotEmpty) {
-      url += '&ext=$fileType';
-    }
-
-    // Add year filter if specified
-    if (year.isNotEmpty) {
-      if (year == "Before 1980") {
-        url += '&year_end=1979';
-      } else if (year.contains('-')) {
-        // Handle year ranges like "2020-2024"
-        final parts = year.split('-');
-        if (parts.length == 2) {
-          url += '&year_from=${parts[0].trim()}&year_end=${parts[1].trim()}';
-        }
-      } else {
-        url += '&year=$year';
-      }
-    }
-
-    return '$url$pageParam';
+    return ArchiveParsing.buildSearchUrl(
+      baseUrl: currentBaseUrl,
+      query: searchQuery,
+      content: content,
+      sort: sort,
+      fileType: fileType,
+      language: language,
+      year: year,
+      author: author,
+      publisher: publisher,
+      enableFilters: enableFilters,
+      page: page,
+    );
   }
 
   Future<List<BookData>> searchBooks(

@@ -4,9 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openlib/cli/annas_archive.dart';
 import 'package:openlib/cli/slum.dart';
+import 'package:openlib/core/annas_archive.dart';
+import 'package:openlib/core/slum.dart';
 
-String _fixture(String name) =>
-    File('test/fixtures/$name').readAsStringSync();
+String _fixture(String name) => File('test/fixtures/$name').readAsStringSync();
 
 Response _response(int status, String body,
         {Map<String, List<String>> headers = const {}}) =>
@@ -20,7 +21,7 @@ Response _response(int status, String body,
 void main() {
   group('CliAnnasArchive URL building', () {
     test('plain query has no filter parameters', () {
-      final url = CliAnnasArchive.buildSearchUrl(
+      final url = ArchiveParsing.buildSearchUrl(
         baseUrl: 'https://annas-archive.gl',
         query: 'docker',
       );
@@ -28,7 +29,7 @@ void main() {
     });
 
     test('filters produce the documented parameter set', () {
-      final url = CliAnnasArchive.buildSearchUrl(
+      final url = ArchiveParsing.buildSearchUrl(
         baseUrl: 'https://annas-archive.gl',
         query: 'The Great Gatsby',
         content: 'book_fiction',
@@ -49,7 +50,7 @@ void main() {
     });
 
     test('author and publisher become field-scoped terms', () {
-      final url = CliAnnasArchive.buildSearchUrl(
+      final url = ArchiveParsing.buildSearchUrl(
         baseUrl: 'https://annas-archive.gl',
         query: 'hobbit',
         author: 'JRR Tolkien',
@@ -59,9 +60,9 @@ void main() {
     });
 
     test('pagination appends and page 1 omits', () {
-      final page1 = CliAnnasArchive.buildSearchUrl(
+      final page1 = ArchiveParsing.buildSearchUrl(
           baseUrl: 'https://annas-archive.gl', query: 'docker');
-      final page2 = CliAnnasArchive.buildSearchUrl(
+      final page2 = ArchiveParsing.buildSearchUrl(
           baseUrl: 'https://annas-archive.gl', query: 'docker', page: 2);
       expect(page1, isNot(contains('page=')));
       expect(page2, contains('&page=2'));
@@ -99,14 +100,16 @@ void main() {
       expect(books.first.publisher, equals('Farrar, Straus and Giroux'));
       expect(books.first.md5, equals('1b0142979e5db11b7f0fb37c28f24cd1'));
       expect(books.first.format, equals('epub'));
-      expect(books.first.link,
-          contains('https://annas-archive.gl/md5/1b0142979e5db11b7f0fb37c28f24cd1'));
+      expect(
+          books.first.link,
+          contains(
+              'https://annas-archive.gl/md5/1b0142979e5db11b7f0fb37c28f24cd1'));
     });
 
     test('parses the captured search fixture', () {
       final html = _fixture('search_results_sample.html');
-      final books = client.parseSearchResults(html,
-          baseUrl: 'https://annas-archive.gl');
+      final books =
+          client.parseSearchResults(html, baseUrl: 'https://annas-archive.gl');
       expect(books, isNotEmpty);
       for (final book in books) {
         expect(book.md5, isNotEmpty);
@@ -116,8 +119,8 @@ void main() {
 
     test('fileType filter drops non-matching results', () {
       final html = _fixture('search_results_sample.html');
-      final all = client.parseSearchResults(html,
-          baseUrl: 'https://annas-archive.gl');
+      final all =
+          client.parseSearchResults(html, baseUrl: 'https://annas-archive.gl');
       final pdfOnly = client.parseSearchResults(html,
           fileType: 'pdf', baseUrl: 'https://annas-archive.gl');
       expect(pdfOnly.length, lessThanOrEqualTo(all.length));
@@ -133,7 +136,8 @@ void main() {
       expect(details, isNotNull);
       expect(details!.title, equals('Villa Coco: A Novel'));
       expect(details.md5, equals('9fbeb1ac79a509bcc8a17d6137b929e7'));
-      expect(details.slowDownloadUrl,
+      expect(
+          details.slowDownloadUrl,
           equals('https://annas-archive.gl'
               '/slow_download/aea690732da6694ee887aca6097612c2/0/0'));
       expect(details.format, isNotEmpty);
@@ -168,8 +172,7 @@ void main() {
       expect(relative, equals('https://m.example/get/abc'));
 
       // No link: null (the network path turns this into not_found).
-      expect(CliAnnasArchive.extractSlowDownloadLink('<html></html>'),
-          isNull);
+      expect(CliAnnasArchive.extractSlowDownloadLink('<html></html>'), isNull);
     });
   });
 
@@ -177,14 +180,12 @@ void main() {
     final client = CliAnnasArchive();
 
     test('detects Cloudflare interstitial by title', () {
-      final response =
-          _response(403, _fixture('cloudflare_interstitial.html'));
+      final response = _response(403, _fixture('cloudflare_interstitial.html'));
       expect(client.isChallengeResponse(response), isTrue);
     });
 
     test('detects DDoS-Guard interstitial by title', () {
-      final response =
-          _response(403, _fixture('ddosguard_interstitial.html'));
+      final response = _response(403, _fixture('ddosguard_interstitial.html'));
       expect(client.isChallengeResponse(response), isTrue);
     });
 
@@ -194,8 +195,7 @@ void main() {
     });
 
     test('search result pages are not mistaken for challenges', () {
-      final response =
-          _response(200, _fixture('search_results_sample.html'));
+      final response = _response(200, _fixture('search_results_sample.html'));
       expect(client.isChallengeResponse(response), isFalse);
       expect(client.isAnnasArchivePage(_fixture('search_results_sample.html')),
           isTrue);
@@ -203,8 +203,7 @@ void main() {
   });
 
   group('CliSlumCatalogue', () {
-    test('parses the captured SLUM page and orders attemptable first',
-        () {
+    test('parses the captured SLUM page and orders attemptable first', () {
       final catalogue = CliSlumCatalogue();
       final sites = catalogue.parsePage(_fixture('slum_annas.html'));
       expect(sites, isNotEmpty);
@@ -231,21 +230,39 @@ void main() {
   });
 
   group('CLI helpers', () {
-    test('reorderMirrors drops dead hosts and puts IPFS last', () {
-      final ordered = CliAnnasArchive.reorderMirrors([
-        'https://ipfs.example/ipfs/abc',
-        'https://annas-archive.org/md5/x',
-        'https://1lib.sk/x',
-        'https://gamma.example/direct',
-        'https://alpha.example/direct',
+    test('sortSlumSites orders by protection, status and latency', () {
+      SlumSite site(
+        String host, {
+        required Protection protection,
+        required SlumStatus status,
+        int? latency,
+      }) =>
+          SlumSite(
+            service: MirrorService.annasArchive,
+            url: 'https://$host',
+            host: host,
+            status: status,
+            protection: protection,
+            latencyMs: latency,
+          );
+
+      final ordered = sortSlumSites([
+        site('down.example',
+            protection: Protection.none, status: SlumStatus.down),
+        site('slow.example',
+            protection: Protection.cloudflare, status: SlumStatus.up),
+        site('fast.example',
+            protection: Protection.none, status: SlumStatus.up, latency: 20),
+        site('diam.example',
+            protection: Protection.diamwall,
+            status: SlumStatus.up,
+            latency: 10),
       ]);
       expect(
-          ordered,
-          equals([
-            'https://gamma.example/direct',
-            'https://alpha.example/direct',
-            'https://ipfs.example/ipfs/abc',
-          ]));
+        ordered.map((s) => s.host),
+        equals(
+            ['fast.example', 'diam.example', 'slow.example', 'down.example']),
+      );
     });
 
     test('bookFileName sanitizes and keeps a short md5 suffix', () {
@@ -275,8 +292,8 @@ void main() {
 
     test('resolveRelative resolves against the page URL', () {
       expect(
-          CliAnnasArchive.resolveRelative('/slow_download/a/0/0',
-              'https://m.example/slow_download/a/0/1'),
+          CliAnnasArchive.resolveRelative(
+              '/slow_download/a/0/0', 'https://m.example/slow_download/a/0/1'),
           equals('https://m.example/slow_download/a/0/0'));
       expect(
           CliAnnasArchive.resolveRelative(

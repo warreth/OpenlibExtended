@@ -89,6 +89,22 @@ flutter run
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+## Command line (CLI) 🖥️
+
+For scripts and AI agents, `bin/ai_cli.dart` exposes the same Anna's Archive flow as the app:
+
+```bash
+dart run bin/ai_cli.dart search "quantum computing" --ext epub --limit 5
+dart run bin/ai_cli.dart info <md5|book-url>
+dart run bin/ai_cli.dart download <md5|book-url> --output ~/books
+dart run bin/ai_cli.dart mirrors
+```
+
+Results are one JSON document on stdout; progress is JSON lines on stderr. Exit codes are
+`0` ok, `1` usage, `2` challenge-blocked, `3` not found and `4` network. `--base-url` pins one
+mirror, `--timeout` changes the per-request timeout and `--quiet` suppresses progress. Mirror
+URLs still come only from open-slum.org; the CLI shares the app's parsers through `lib/core/`.
+
 ## Donate 🎁
 
 If you like the app, consider supporting the original source or the development of this client.
