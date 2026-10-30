@@ -850,6 +850,7 @@ class _LanguageSelectorWidget extends ConsumerWidget {
       'de': 'Deutsch',
       'fr': 'Français',
       'es': 'Español',
+      'ru': 'Русский',
     };
 
     return DropdownButtonFormField<Locale?>(

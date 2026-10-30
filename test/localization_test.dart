@@ -21,7 +21,7 @@ Map<String, dynamic> _readArb(String locale) {
 }
 
 void main() {
-  final locales = ['en', 'de', 'fr', 'es'];
+  final locales = ['en', 'de', 'fr', 'es', 'ru'];
 
   test('generated delegates expose exactly the shipped locales', () {
     expect(AppLocalizations.supportedLocales.map((l) => l.languageCode),
@@ -77,6 +77,7 @@ void main() {
   testWidgets('localized strings resolve per locale', (tester) async {
     late AppLocalizations de;
     late AppLocalizations fr;
+    late AppLocalizations ru;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -101,10 +102,24 @@ void main() {
       ),
     );
 
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('ru'),
+        builder: (context, _) {
+          ru = AppLocalizations.of(context);
+          return const SizedBox();
+        },
+      ),
+    );
+
     expect(de.settingsTitle, 'Einstellungen');
     expect(de.cancel, 'Abbrechen');
     expect(fr.settingsTitle, 'Paramètres');
     expect(fr.cancel, 'Annuler');
+    expect(ru.settingsTitle, 'Настройки');
+    expect(ru.cancel, 'Отмена');
   });
 
   testWidgets('the language dropdown writes the locale preference',
