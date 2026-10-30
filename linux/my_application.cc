@@ -74,6 +74,13 @@ static void my_application_activate(GApplication *application)
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
+
+  // Flutter 3.47 made Impeller the default Linux renderer, but its OpenGLES
+  // backend segfaults on launch with several Mesa/Wayland drivers
+  // (flutter/flutter#192915). Stay on Skia by default; users can opt back in
+  // with FLUTTER_ENGINE_SWITCH_1=--enable-impeller, which overrides this.
+  fl_dart_project_set_enable_impeller(project, FALSE);
+
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
 
   FlView *view = fl_view_new(project);
