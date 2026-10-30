@@ -15,6 +15,7 @@ import 'package:desktop_webview_window/desktop_webview_window.dart';
 
 // Project imports:
 import 'package:openlib/l10n/app_localizations.dart';
+import 'package:openlib/l10n/locale_resolution.dart';
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/services/challenge_html_cache.dart';
@@ -265,6 +266,7 @@ class MyApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      localeListResolutionCallback: resolveAppLocale,
       locale: ref.watch(localeOverrideProvider),
       builder: (context, child) {
         final scale = ref.watch(fontSizeScaleProvider);
