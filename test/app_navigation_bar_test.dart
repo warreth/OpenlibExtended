@@ -35,6 +35,27 @@ Future<void> pumpBar(WidgetTester tester, List<int> selected) async {
 }
 
 void main() {
+  testWidgets(
+      'revealing labels stay clipped beside the icon during transitions',
+      (tester) async {
+    await pumpBar(tester, []);
+    await tester.tap(find.byIcon(Icons.search).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    final label = find.text('Search');
+    final clip = find.ancestor(of: label, matching: find.byType(ClipRect));
+    expect(clip, findsOneWidget,
+        reason:
+            'the label needs its own clip, not a clip around the whole pill');
+    final clipRect = tester.getRect(clip);
+    final iconRect = tester.getRect(find.byIcon(Icons.search).last);
+    expect(clipRect.left, greaterThanOrEqualTo(iconRect.right - 0.01));
+    expect(clipRect.width, lessThan(tester.getSize(label).width),
+        reason: 'only the revealed portion may paint while the pill expands');
+    expect(labelOpacity(tester, 'Search'), greaterThan(0));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('bottom bar leaves the page body visible', (tester) async {
     await tester.binding.setSurfaceSize(const Size(385, 834));
     addTearDown(() => tester.binding.setSurfaceSize(null));

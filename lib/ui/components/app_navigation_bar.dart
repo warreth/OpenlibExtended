@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_nav_bar/google_nav_bar.dart';
+import 'app_navigation_button.dart';
 import 'package:openlib/l10n/app_localizations.dart';
 
 class AppNavigationBar extends StatelessWidget {
@@ -46,7 +46,7 @@ class AppNavigationBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (var i = 0; i < icons.length; i++)
-                    GButton(
+                    AppNavigationButton(
                       active: selectedIndex == i,
                       icon: icons[i],
                       text: labels[i],
