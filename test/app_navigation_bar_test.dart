@@ -20,6 +20,7 @@ Future<void> pumpBar(WidgetTester tester, List<int> selected) async {
     supportedLocales: AppLocalizations.supportedLocales,
     home: StatefulBuilder(
       builder: (context, update) => Scaffold(
+        body: const SizedBox.expand(key: ValueKey('page-content')),
         bottomNavigationBar: AppNavigationBar(
           selectedIndex: index,
           onSelected: (value) => update(() {
@@ -34,6 +35,17 @@ Future<void> pumpBar(WidgetTester tester, List<int> selected) async {
 }
 
 void main() {
+  testWidgets('bottom bar leaves the page body visible', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(385, 834));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await pumpBar(tester, []);
+    final body = tester.getRect(find.byKey(const ValueKey('page-content')));
+    final bar = tester.getRect(find.byType(AppNavigationBar));
+    expect(body.height, greaterThan(700));
+    expect(bar.height, lessThan(120));
+    expect(body.bottom, bar.top);
+  });
+
   testWidgets('fits compact phone widths without overflowing', (tester) async {
     for (final width in [320.0, 360.0]) {
       await tester.binding.setSurfaceSize(Size(width, 640));

@@ -39,6 +39,7 @@ class AppNavigationBar extends StatelessWidget {
           // The row keeps its natural size when it fits and scales down as a
           // whole on narrow screens or with large text, so no label is clipped.
           child: Center(
+            heightFactor: 1,
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
