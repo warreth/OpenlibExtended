@@ -26,6 +26,7 @@ import 'package:openlib/services/logger.dart';
 import 'package:openlib/services/search_manager.dart';
 import 'package:openlib/services/webview_challenge_solver.dart';
 import 'package:openlib/ui/components/snack_bar_widget.dart';
+import 'package:openlib/ui/components/reader_app_setting.dart';
 import 'package:openlib/ui/about_page.dart';
 import 'package:openlib/ui/instances_page.dart';
 import 'package:openlib/ui/onboarding/onboarding_page.dart';
@@ -34,8 +35,6 @@ import 'package:openlib/state/state.dart'
     show
         themeModeProvider,
         fontSizeScaleProvider,
-        openPdfWithExternalAppProvider,
-        openEpubWithExternalAppProvider,
         showManualDownloadButtonProvider,
         backgroundVerificationProvider,
         donationKeyProvider,
@@ -276,8 +275,6 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Watch useful providers
     final themeMode = ref.watch(themeModeProvider);
-    final openPdfExternal = ref.watch(openPdfWithExternalAppProvider);
-    final openEpubExternal = ref.watch(openEpubWithExternalAppProvider);
     final showManualDownload = ref.watch(showManualDownloadButtonProvider);
     final backgroundVerification = ref.watch(backgroundVerificationProvider);
     final fontSizeScale = ref.watch(fontSizeScaleProvider);
@@ -285,248 +282,247 @@ class SettingsPage extends ConsumerWidget {
 
     MyLibraryDb dataBase = MyLibraryDb.instance;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.settingsTitle,
-                style: Theme.of(context).textTheme.displayLarge),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.searchProvidersSection),
-            const _SearchProvidersWidget(),
-            _SettingsSectionHeader(l10n.libraryInstancesSection),
-            _SettingsTile(
-              title: l10n.mirrorsAndProviders,
-              icon: Icons.dns,
-              onTap: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const InstancesPage()));
-              },
-            ),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.appearanceSection),
-            _SettingsCard(
-              title: l10n.languageSetting,
-              child: _LanguageSelectorWidget(),
-            ),
-            _SettingsCard(
-              title: l10n.themeTitle,
-              child: DropdownButtonFormField<ThemeMode>(
-                initialValue: themeMode,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 7),
+          child: Text(l10n.settingsTitle,
+              style: Theme.of(context).textTheme.displayLarge),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 13, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SettingsSectionHeader(l10n.searchProvidersSection),
+                const _SearchProvidersWidget(),
+                _SettingsSectionHeader(l10n.libraryInstancesSection),
+                _SettingsTile(
+                  title: l10n.mirrorsAndProviders,
+                  icon: Icons.dns,
+                  onTap: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const InstancesPage()));
+                  },
                 ),
-                items: [
-                  DropdownMenuItem(
-                      value: ThemeMode.system,
-                      child: Text(l10n.followSystem)),
-                  DropdownMenuItem(
-                      value: ThemeMode.light, child: Text(l10n.lightTheme)),
-                  DropdownMenuItem(
-                      value: ThemeMode.dark, child: Text(l10n.darkTheme)),
-                ],
-                onChanged: (ThemeMode? val) {
-                  if (val != null) {
-                    ref.read(themeModeProvider.notifier).setTheme(val);
-                  }
-                },
-              ),
-            ),
-            _SettingsCard(
-              title: l10n.fontSizeTitle,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.appearanceSection),
+                _SettingsCard(
+                  title: l10n.languageSetting,
+                  child: _LanguageSelectorWidget(),
+                ),
+                _SettingsCard(
+                  title: l10n.themeTitle,
+                  child: DropdownButtonFormField<ThemeMode>(
+                    initialValue: themeMode,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                          value: ThemeMode.system,
+                          child: Text(l10n.followSystem)),
+                      DropdownMenuItem(
+                          value: ThemeMode.light, child: Text(l10n.lightTheme)),
+                      DropdownMenuItem(
+                          value: ThemeMode.dark, child: Text(l10n.darkTheme)),
+                    ],
+                    onChanged: (ThemeMode? val) {
+                      if (val != null) {
+                        ref.read(themeModeProvider.notifier).setTheme(val);
+                      }
+                    },
+                  ),
+                ),
+                _SettingsCard(
+                  title: l10n.fontSizeTitle,
+                  child: Column(
                     children: [
-                      Text(l10n.scaleValue(fontSizeScale.toStringAsFixed(1))),
-                      Text(l10n.preview,
-                          textScaler: TextScaler.linear(fontSizeScale)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(l10n
+                              .scaleValue(fontSizeScale.toStringAsFixed(1))),
+                          Text(l10n.preview,
+                              textScaler: TextScaler.linear(fontSizeScale)),
+                        ],
+                      ),
+                      Slider(
+                        value: fontSizeScale,
+                        min: 0.8,
+                        max: 2.0,
+                        divisions: 12,
+                        label: fontSizeScale.toStringAsFixed(1),
+                        onChanged: (val) {
+                          ref.read(fontSizeScaleProvider.notifier).state = val;
+                        },
+                        onChangeEnd: (val) {
+                          dataBase.savePreference(
+                              'fontSizeScale', val.toString());
+                        },
+                      ),
                     ],
                   ),
-                  Slider(
-                    value: fontSizeScale,
-                    min: 0.8,
-                    max: 2.0,
-                    divisions: 12,
-                    label: fontSizeScale.toStringAsFixed(1),
-                    onChanged: (val) {
-                      ref.read(fontSizeScaleProvider.notifier).state = val;
-                    },
-                    onChangeEnd: (val) {
-                      dataBase.savePreference('fontSizeScale', val.toString());
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.generalSection),
-            FutureBuilder<dynamic>(
-              future: dataBase.getPreference('bookStorageDirectory'),
-              builder: (context, snapshot) {
-                String subtitle = "Change where books are saved";
-                if (snapshot.hasData && snapshot.data is String) {
-                  subtitle = snapshot.data as String;
-                }
-                return _SettingsTile(
-                  title: l10n.storageLocation,
-                  subtitle: subtitle,
-                  icon: Icons.folder,
-                  onTap: () async {
-                    final currentDirectory =
-                        await dataBase.getPreference('bookStorageDirectory');
-                    String? pickedDirectory = await pickBookStorageDirectory();
-                    if (pickedDirectory == null) return;
-                    await requestStoragePermission();
-
-                    // Move the books from wherever they live now - the
-                    // old code only moved them when leaving the internal
-                    // default, so switching between two custom folders
-                    // left every file behind and the library showed
-                    // "File not found" on the next open.
-                    if (currentDirectory != pickedDirectory) {
-                      await moveLibraryFiles(currentDirectory, pickedDirectory);
+                ),
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.generalSection),
+                FutureBuilder<dynamic>(
+                  future: dataBase.getPreference('bookStorageDirectory'),
+                  builder: (context, snapshot) {
+                    String subtitle = "Change where books are saved";
+                    if (snapshot.hasData && snapshot.data is String) {
+                      subtitle = snapshot.data as String;
                     }
+                    return _SettingsTile(
+                      title: l10n.storageLocation,
+                      subtitle: subtitle,
+                      icon: Icons.folder,
+                      onTap: () async {
+                        final currentDirectory = await dataBase
+                            .getPreference('bookStorageDirectory');
+                        String? pickedDirectory =
+                            await pickBookStorageDirectory();
+                        if (pickedDirectory == null) return;
+                        await requestStoragePermission();
 
-                    await dataBase.savePreference(
-                        'bookStorageDirectory', pickedDirectory);
-                    await scanAndImportBooks(pickedDirectory, dataBase, ref);
-                    // ignore: unused_result
-                    ref.refresh(myLibraryProvider);
-                    // The FutureBuilder reads the db future directly, so
-                    // rebuild manually to show the new path immediately.
-                    (context as Element).markNeedsBuild();
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.readerSection),
-            _SettingsSwitchTile(
-              title: l10n.openPdfExternally,
-              subtitle: l10n.useDefaultPdfViewer,
-              value: openPdfExternal,
-              onChanged: (val) {
-                ref.read(openPdfWithExternalAppProvider.notifier).state = val;
-                dataBase.savePreference('openPdfwithExternalApp', val);
-              },
-            ),
-            _SettingsSwitchTile(
-              title: l10n.openEpubExternally,
-              subtitle: l10n.useDefaultEpubReader,
-              value: openEpubExternal,
-              onChanged: (val) {
-                ref.read(openEpubWithExternalAppProvider.notifier).state = val;
-                dataBase.savePreference('openEpubwithExternalApp', val);
-              },
-            ),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.advancedSection),
-            _SettingsSwitchTile(
-              title: l10n.manualDownloadButton,
-              subtitle: l10n.showManualDownloadHint,
-              value: showManualDownload,
-              onChanged: (val) {
-                ref.read(showManualDownloadButtonProvider.notifier).state = val;
-                dataBase.savePreference('showManualDownloadButton', val);
-              },
-            ),
-            _SettingsSwitchTile(
-              title: l10n.backgroundVerification,
-              subtitle: l10n.backgroundVerificationHint,
-              value: backgroundVerification,
-              onChanged: (val) {
-                ref.read(backgroundVerificationProvider.notifier).state = val;
-                WebviewChallengeSolver.headlessEnabled = val;
-                dataBase.savePreference(
-                    'backgroundVerification', val ? 1 : 0);
-              },
-            ),
-            _SettingsTile(
-              title: l10n.donationKeyTitle,
-              subtitle: l10n.enterKeyForFasterDownloads,
-              icon: Icons.key,
-              onTap: () => _showDonationKeyDialog(context, ref, dataBase),
-            ),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.backupSection),
-            _BackupSettingsWidget(database: dataBase),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.updatesSection),
-            const _UpdateSettingsWidget(),
-            const SizedBox(height: 20),
-            _SettingsSectionHeader(l10n.aboutSection),
-            _SettingsTile(
-              title: l10n.aboutOpenlib,
-              icon: Icons.info_outline,
-              onTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const AboutPage()));
-              },
-            ),
-            _SettingsTile(
-              title: l10n.redoOnboarding,
-              subtitle: l10n.resetAppSetup,
-              icon: Icons.restart_alt,
-              onTap: () async {
-                // Clear relevant preferences
-                await dataBase.savePreference('onboardingCompleted', 0);
+                        // Move the books from wherever they live now - the
+                        // old code only moved them when leaving the internal
+                        // default, so switching between two custom folders
+                        // left every file behind and the library showed
+                        // "File not found" on the next open.
+                        if (currentDirectory != pickedDirectory) {
+                          await moveLibraryFiles(
+                              currentDirectory, pickedDirectory);
+                        }
 
-                if (context.mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                        builder: (context) => const OnboardingPage()),
-                    (route) => false,
-                  );
-                }
-              },
-            ),
-            _SettingsTile(
-              title: l10n.exportLogs,
-              subtitle: l10n.shareDiagnosticLogs,
-              icon: Icons.bug_report,
-              onTap: () async {
-                final l10n = AppLocalizations.of(context);
-                try {
-                  await AppLogger().exportLogs();
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(l10n.failedExportLogs('$e'))),
+                        await dataBase.savePreference(
+                            'bookStorageDirectory', pickedDirectory);
+                        await scanAndImportBooks(
+                            pickedDirectory, dataBase, ref);
+                        // ignore: unused_result
+                        ref.refresh(myLibraryProvider);
+                        // The FutureBuilder reads the db future directly, so
+                        // rebuild manually to show the new path immediately.
+                        (context as Element).markNeedsBuild();
+                      },
                     );
-                  }
-                }
-              },
+                  },
+                ),
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.readerSection),
+                const ReaderAppSetting(format: 'epub'),
+                const ReaderAppSetting(format: 'pdf'),
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.advancedSection),
+                _SettingsSwitchTile(
+                  title: l10n.manualDownloadButton,
+                  subtitle: l10n.showManualDownloadHint,
+                  value: showManualDownload,
+                  onChanged: (val) {
+                    ref.read(showManualDownloadButtonProvider.notifier).state =
+                        val;
+                    dataBase.savePreference('showManualDownloadButton', val);
+                  },
+                ),
+                _SettingsSwitchTile(
+                  title: l10n.backgroundVerification,
+                  subtitle: l10n.backgroundVerificationHint,
+                  value: backgroundVerification,
+                  onChanged: (val) {
+                    ref.read(backgroundVerificationProvider.notifier).state =
+                        val;
+                    WebviewChallengeSolver.headlessEnabled = val;
+                    dataBase.savePreference(
+                        'backgroundVerification', val ? 1 : 0);
+                  },
+                ),
+                _SettingsTile(
+                  title: l10n.donationKeyTitle,
+                  subtitle: l10n.enterKeyForFasterDownloads,
+                  icon: Icons.key,
+                  onTap: () => _showDonationKeyDialog(context, ref, dataBase),
+                ),
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.backupSection),
+                _BackupSettingsWidget(database: dataBase),
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.updatesSection),
+                const _UpdateSettingsWidget(),
+                const SizedBox(height: 20),
+                _SettingsSectionHeader(l10n.aboutSection),
+                _SettingsTile(
+                  title: l10n.aboutOpenlib,
+                  icon: Icons.info_outline,
+                  onTap: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const AboutPage()));
+                  },
+                ),
+                _SettingsTile(
+                  title: l10n.redoOnboarding,
+                  subtitle: l10n.resetAppSetup,
+                  icon: Icons.restart_alt,
+                  onTap: () async {
+                    // Clear relevant preferences
+                    await dataBase.savePreference('onboardingCompleted', 0);
+
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                            builder: (context) => const OnboardingPage()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
+                _SettingsTile(
+                  title: l10n.exportLogs,
+                  subtitle: l10n.shareDiagnosticLogs,
+                  icon: Icons.bug_report,
+                  onTap: () async {
+                    final l10n = AppLocalizations.of(context);
+                    try {
+                      await AppLogger().exportLogs();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.failedExportLogs('$e'))),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return Center(
+                        child: Text(
+                          "Version ${snapshot.data!.version}+${snapshot.data!.buildNumber}",
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.tertiary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 20),
-            FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return Center(
-                    child: Text(
-                      "Version ${snapshot.data!.version}+${snapshot.data!.buildNumber}",
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.tertiary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -612,8 +608,7 @@ class _UpdateSettingsWidgetState extends State<_UpdateSettingsWidget> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text(updateL10n.onLatestVersion(result.currentVersion)),
+            content: Text(updateL10n.onLatestVersion(result.currentVersion)),
             backgroundColor: Colors.green,
           ),
         );
@@ -706,8 +701,7 @@ class _SearchProvidersWidget extends ConsumerWidget {
                 onChanged: (on) async {
                   if (!on && enabledIds.length == 1) {
                     showSnackBar(
-                        context: context,
-                        message: l10n.atLeastOneSource);
+                        context: context, message: l10n.atLeastOneSource);
                     return;
                   }
                   await manager.setProviderEnabled(provider.$1, on);
@@ -788,9 +782,7 @@ class _BackupSettingsWidget extends ConsumerWidget {
       final restored = await service.restoreBackupFile(path);
       if (!restored) {
         if (context.mounted) {
-          showSnackBar(
-              context: context,
-              message: importL10n.notABackup);
+          showSnackBar(context: context, message: importL10n.notABackup);
         }
         return;
       }

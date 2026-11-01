@@ -193,7 +193,10 @@ class DownloadManager {
 
     const deadHosts = ['annas-archive.org', '1lib.sk'];
     for (final element in mirrors) {
-      if (deadHosts.any(element.contains)) continue;
+      final host = Uri.tryParse(element)?.host.toLowerCase() ?? '';
+      if (deadHosts.any((dead) => host == dead || host.endsWith('.$dead'))) {
+        continue;
+      }
       if (element.contains('ipfs')) {
         ipfsMirrors.add(element);
       } else {

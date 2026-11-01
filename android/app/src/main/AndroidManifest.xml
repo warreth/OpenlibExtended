@@ -14,6 +14,14 @@
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="content" android:mimeType="application/epub+zip"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="content" android:mimeType="application/pdf"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
             <category android:name="android.intent.category.BROWSABLE"/>
             <data android:scheme="https"/>
         </intent>

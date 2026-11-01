@@ -1,13 +1,11 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
-import 'package:openlib/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
-import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/extensions.dart';
 import 'package:openlib/ui/results_page.dart';
 import 'package:openlib/ui/components/error_widget.dart';
@@ -389,7 +387,7 @@ class CategoryListingPage extends ConsumerWidget {
     return Scaffold(
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          title: Text(AppLocalizations.of(context).appTitle),
+          title: Text(title),
           titleTextStyle: Theme.of(context).textTheme.displayLarge,
         ),
         body: booksBasedOnGenre.when(
@@ -399,9 +397,6 @@ class CategoryListingPage extends ConsumerWidget {
                 padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
                 child: CustomScrollView(
                   slivers: [
-                    SliverToBoxAdapter(
-                      child: TitleText(title),
-                    ),
                     SliverPadding(
                       padding: const EdgeInsets.all(5),
                       sliver: SliverGrid(

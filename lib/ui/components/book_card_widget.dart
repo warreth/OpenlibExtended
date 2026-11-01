@@ -1,3 +1,5 @@
+import 'package:openlib/core/book_language.dart';
+import 'package:openlib/l10n/app_localizations.dart';
 // Flutter imports:
 import 'package:flutter/material.dart';
 
@@ -7,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import 'package:openlib/state/state.dart'
-    show checkIdExists, languageCodeToDisplay, resultCoverProvider;
+    show checkIdExists, resultCoverProvider;
 import 'package:openlib/ui/extensions.dart';
 
 // Extract file type from book info string
@@ -21,32 +23,7 @@ String? getFileType(String? info) {
   return null;
 }
 
-// Extract language code from book info string
-// Info format typically: "[en], pdf, 5.2MB" or "English, pdf, 5.2MB"
-String? getLanguage(String? info) {
-  if (info == null || info.isEmpty) return null;
-
-  // Try to match [xx] pattern for language code
-  final bracketMatch =
-      RegExp(r'\[([a-z]{2})\]', caseSensitive: false).firstMatch(info);
-  if (bracketMatch != null) {
-    final code = bracketMatch.group(1)?.toLowerCase();
-    if (code != null && languageCodeToDisplay.containsKey(code)) {
-      return languageCodeToDisplay[code];
-    }
-  }
-
-  // Try to find language code at start of info (common format: "en, pdf, ...")
-  final parts = info.split(',');
-  if (parts.isNotEmpty) {
-    final firstPart = parts[0].trim().toLowerCase();
-    if (languageCodeToDisplay.containsKey(firstPart)) {
-      return languageCodeToDisplay[firstPart];
-    }
-  }
-
-  return null;
-}
+String? getLanguage(String? info) => bookLanguageName(info);
 
 /// Same-host Referer for libgen cover URLs, null for everything else.
 /// libgen mirrors serve /covers/ only with an ads.php Referer from the
@@ -100,9 +77,8 @@ class BookInfoCard extends ConsumerWidget {
     // LibGen search rows ship without covers; resolve one lazily from
     // the book's ads.php page (it carries the cover URL).
     final hasThumbnail = thumbnail != null && thumbnail!.isNotEmpty;
-    final lazyCover = hasThumbnail
-        ? null
-        : ref.watch(resultCoverProvider(link)).valueOrNull;
+    final lazyCover =
+        hasThumbnail ? null : ref.watch(resultCoverProvider(link)).valueOrNull;
     final coverUrl = hasThumbnail ? thumbnail : lazyCover;
 
     return InkWell(
@@ -110,7 +86,7 @@ class BookInfoCard extends ConsumerWidget {
       onLongPress: onLongPress,
       child: Container(
         width: double.infinity,
-        height: 120,
+        height: 140,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(5),
           color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -123,7 +99,7 @@ class BookInfoCard extends ConsumerWidget {
             Stack(
               children: [
                 CachedNetworkImage(
-                  height: 120,
+                  height: 140,
                   width: 90,
                   imageUrl: coverUrl ?? "",
                   // libgen mirrors serve /covers/ only with a same-host
@@ -145,7 +121,7 @@ class BookInfoCard extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(5),
                       color: "#F8C0C8".toColor(),
                     ),
-                    height: 120,
+                    height: 140,
                     width: 90,
                   ),
                   errorWidget: (context, url, error) {
@@ -154,7 +130,7 @@ class BookInfoCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(5),
                         color: "#F8C0C8".toColor(),
                       ),
-                      height: 120,
+                      height: 140,
                       width: 90,
                       child: const Center(
                         child: Icon(Icons.image_rounded),
@@ -202,7 +178,9 @@ class BookInfoCard extends ConsumerWidget {
                       maxLines: 2,
                     ),
                     Text(
-                      publisher,
+                      publisher.isEmpty
+                          ? ''
+                          : '${AppLocalizations.of(context).publisher}: $publisher',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -211,6 +189,15 @@ class BookInfoCard extends ConsumerWidget {
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
+                    ),
+                    Text(
+                      '${AppLocalizations.of(context).languageSetting}: ${language ?? AppLocalizations.of(context).unknown}',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.tertiary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -265,32 +252,6 @@ class BookInfoCard extends ConsumerWidget {
                             ),
                           ),
                         if (fileType != null)
-                          const SizedBox(
-                            width: 3,
-                          ),
-                        // Language badge
-                        if (language != null)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: "#6b8cce".toColor(),
-                              borderRadius: BorderRadius.circular(2.5),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
-                              child: Text(
-                                language,
-                                style: const TextStyle(
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ),
-                        if (language != null)
                           const SizedBox(
                             width: 3,
                           ),

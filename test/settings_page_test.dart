@@ -50,6 +50,13 @@ void main() {
   Future<void> pumpPage(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          // Reader preference persistence is covered in reader_preferences_test.
+          // Keep sqlite/plugin work out of this page-structure test's fake zone.
+          readerPreferenceProvider
+              .overrideWith((ref, format) async => 'internal'),
+          installedReadersProvider.overrideWith((ref, format) async => []),
+        ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -89,8 +96,8 @@ void main() {
       'Theme',
       'Font Size',
       'Storage Location',
-      'Open PDF externally',
-      'Open EPUB externally',
+      'PDF reader',
+      'EPUB reader',
       'Manual Download Button',
       "Anna's Archive Donation Key",
       'Include Beta Updates',
@@ -102,6 +109,23 @@ void main() {
       expect(find.text(label), findsOneWidget,
           reason: 'tile "$label" must render');
     }
+  });
+
+  testWidgets('page title stays pinned while settings scroll beneath it',
+      (tester) async {
+    await pumpPage(tester);
+    final title = find.text('Settings');
+    final titleBefore = tester.getTopLeft(title);
+    final sectionBefore = tester.getTopLeft(find.text('Search Providers'));
+
+    await tester.drag(
+        find.byType(SingleChildScrollView).first, const Offset(0, -300));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(tester.getTopLeft(title), titleBefore);
+    expect(tester.getTopLeft(find.text('Search Providers')).dy,
+        lessThan(sectionBefore.dy));
+    expect(title.hitTestable(), findsOneWidget);
   });
 
   testWidgets('theme dropdown updates the provider state', (tester) async {

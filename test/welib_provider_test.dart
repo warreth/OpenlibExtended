@@ -72,6 +72,12 @@ void main() {
   });
 
   group('parseResults', () {
+    test('reads language and format from the metadata row instead of author', () {
+      final books = WelibProvider().parseResults(_fixture(), 'https://welib.org');
+      expect(books.first.info, 'English, PDF, 2015, 1.7 MB');
+      expect(books.first.info, isNot(contains('Elle Kennedy')));
+    });
+
     test('reads the book cards welib renders (related books)', () {
       final books = WelibProvider().parseResults(_fixture(), 'https://welib.org');
 

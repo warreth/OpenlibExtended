@@ -38,8 +38,6 @@ class BookInfoPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text(AppLocalizations.of(context).appTitle),
-        titleTextStyle: Theme.of(context).textTheme.displayLarge,
         actions: [
           bookInfo.maybeWhen(data: (data) {
             return IconButton(
@@ -209,7 +207,8 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                               'WeLib did not offer a download link for this book.';
                         }
                       } catch (e) {
-                        welibRefusal = 'Could not read the WeLib download page.';
+                        welibRefusal =
+                            'Could not read the WeLib download page.';
                       }
                     }
 
@@ -319,15 +318,13 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                           // file URL only comes out of the public-server
                           // page captured above, so that page is used.
                           linkRefresher: isZlib
-                              ? (pageUrl) async =>
-                                  (await ZlibraryProvider()
-                                          .resolveBookDownload(pageUrl))
-                                      .url
+                              ? (pageUrl) async => (await ZlibraryProvider()
+                                      .resolveBookDownload(pageUrl))
+                                  .url
                               : welibPageUrl != null
-                                  ? (_) async =>
-                                      (await WelibProvider()
-                                              .resolveDownload(welibPageUrl))
-                                          .url
+                                  ? (_) async => (await WelibProvider()
+                                          .resolveDownload(welibPageUrl))
+                                      .url
                                   : null,
                         );
 
@@ -448,4 +445,3 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
     );
   }
 }
-

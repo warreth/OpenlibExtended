@@ -18,6 +18,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 
 // Project imports:
 import 'package:openlib/ui/epub_viewer.dart';
+import 'package:openlib/ui/components/file_buttons_widget.dart';
 import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/state/state.dart' show filePathProvider;
@@ -73,6 +74,28 @@ void main() {
 
   tearDown(() {
     tmpDir.deleteSync(recursive: true);
+  });
+
+  testWidgets('uppercase EPUB opens the EPUB reader instead of generic apps',
+      (tester) async {
+    final file = File('${tmpDir.path}/sample.EPUB');
+    _writeMinimalEpub(file);
+    await tester.runAsync(() => MyLibraryDb.instance.savePreference(
+        'bookStorageDirectory', tmpDir.path));
+    final gate = Completer<String>();
+    await tester.pumpWidget(ProviderScope(overrides: [
+      filePathProvider.overrideWith((ref, fileName) => gate.future),
+    ], child: MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(body: FileOpenAndDeleteButtons(id: 'book',
+        format: 'EPUB', fileName: 'sample.EPUB', onDelete: () {})),
+    )));
+    final button = tester.widget<TextButton>(find.widgetWithText(TextButton, 'Open'));
+    await tester.runAsync(() async => await (button.onPressed as dynamic)());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(EpubViewerWidget), findsOneWidget);
   });
 
   test('test epub creation helper produces a parseable minimal book', () {

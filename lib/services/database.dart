@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart';
+import 'package:openlib/core/book_description.dart';
 
 class MyBook {
   final String id;
@@ -46,7 +47,7 @@ class MyBook {
       'publisher': publisher,
       'info': info,
       'format': format,
-      'description': description,
+      'description': normalizedBookDescription(description),
       'fileName': fileName
     };
   }
@@ -183,6 +184,20 @@ class MyLibraryDb {
     );
   }
 
+  /// Fills only absent metadata, preserving the book record, file and progress.
+  Future<void> saveMissingDescription(String id, String description) async {
+    final normalized = normalizedBookDescription(description);
+    if (normalized == null) return;
+    final dbInstance = await instance.database;
+    await dbInstance.update(
+      tableName,
+      {'description': normalized},
+      where: "id = ? AND (description IS NULL OR trim(description) = '' "
+          "OR lower(trim(description)) = 'null')",
+      whereArgs: [id],
+    );
+  }
+
   Future<void> delete(String id) async {
     final dbInstance = await instance.database;
     await dbInstance.delete(
@@ -236,7 +251,8 @@ class MyLibraryDb {
           publisher: maps[i]['publisher'],
           info: maps[i]['info'],
           format: maps[i]['format'],
-          description: maps[i]['description'],
+          description:
+              normalizedBookDescription(maps[i]['description'] as String?),
           fileName: maps[i]['fileName']);
     });
     return myBookList.reversed.toList();
@@ -299,7 +315,9 @@ class MyLibraryDb {
     final rows = await dbInstance.query('booktags');
     final map = <String, Set<String>>{};
     for (final row in rows) {
-      map.putIfAbsent(row['bookId'].toString(), () => {}).add(row['tag'].toString());
+      map
+          .putIfAbsent(row['bookId'].toString(), () => {})
+          .add(row['tag'].toString());
     }
     return map;
   }
@@ -323,8 +341,8 @@ class MyLibraryDb {
   /// True when the book is flagged completed.
   Future<bool> isCompleted(String fileName) async {
     final dbInstance = await instance.database;
-    final rows = await dbInstance.query('bookposition',
-        where: 'fileName = ?', whereArgs: [fileName]);
+    final rows = await dbInstance
+        .query('bookposition', where: 'fileName = ?', whereArgs: [fileName]);
     if (rows.isEmpty) return false;
     return rows.first['completed'] == 1;
   }
@@ -334,7 +352,10 @@ class MyLibraryDb {
   Future<Map<String, String?>> getPositionsForAll() async {
     final dbInstance = await instance.database;
     final rows = await dbInstance.query('bookposition');
-    return {for (final row in rows) row['fileName'].toString(): row['position']?.toString()};
+    return {
+      for (final row in rows)
+        row['fileName'].toString(): row['position']?.toString()
+    };
   }
 
   /// Map of fileName to completed flag for the whole library.
@@ -342,8 +363,7 @@ class MyLibraryDb {
     final dbInstance = await instance.database;
     final rows = await dbInstance.query('bookposition');
     return {
-      for (final row in rows)
-        row['fileName'].toString(): row['completed'] == 1
+      for (final row in rows) row['fileName'].toString(): row['completed'] == 1
     };
   }
 

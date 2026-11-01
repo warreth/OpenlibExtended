@@ -8,6 +8,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart' show BookData;
+import 'package:openlib/services/search_manager.dart';
+import 'package:openlib/services/network_error.dart';
 import 'package:openlib/state/state.dart' as app_state;
 import 'package:openlib/ui/book_info_page.dart';
 import 'package:openlib/ui/components/book_card_widget.dart';
@@ -28,16 +30,38 @@ extension StringExtension on String {
 /// Search results with pagination: the first page loads with the page,
 /// and scrolling near the bottom quietly fetches the next one and
 /// appends it. Anna's Archive serves 50 results per page.
-class ResultPage extends ConsumerStatefulWidget {
+class ResultPage extends StatefulWidget {
   const ResultPage({super.key, required this.searchQuery});
-
   final String searchQuery;
 
   @override
-  ConsumerState<ResultPage> createState() => _ResultPageState();
+  State<ResultPage> createState() => _SourceSelectionState();
 }
 
-class _ResultPageState extends ConsumerState<ResultPage> {
+class _SourceSelectionState extends State<ResultPage> {
+  SearchProviderId? _source;
+
+  @override
+  Widget build(BuildContext context) => _SourceResultPage(
+    key: ValueKey((widget.searchQuery, _source)),
+    searchQuery: widget.searchQuery,
+    source: _source,
+    onSourceChanged: (source) => setState(() => _source = source),
+  );
+}
+
+class _SourceResultPage extends ConsumerStatefulWidget {
+  const _SourceResultPage({super.key, required this.searchQuery,
+    required this.source, required this.onSourceChanged});
+  final String searchQuery;
+  final SearchProviderId? source;
+  final ValueChanged<SearchProviderId?> onSourceChanged;
+
+  @override
+  ConsumerState<_SourceResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends ConsumerState<_SourceResultPage> {
   final _scrollController = ScrollController();
 
   /// Results accumulated across all loaded pages.
@@ -46,6 +70,8 @@ class _ResultPageState extends ConsumerState<ResultPage> {
   /// Pages fully merged into [_books]; the next fetch starts at +1.
   int _loadedPages = 0;
   bool _fetchingNextPage = false;
+  Object? _paginationError;
+  bool _paginationErrorDismissed = false;
 
   /// A page that returned nothing stops the pager - there is no page
   /// after the last one, and endless empty fetches would spin forever.
@@ -58,7 +84,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     // Page 1 may resolve before the first build; merge it the moment it
     // does. Once loaded, the pager owns accumulation from there.
     ref.listenManual(
-      app_state.searchProvider(app_state.SearchPageKey(widget.searchQuery, 1)),
+      app_state.searchProvider(app_state.SearchPageKey(widget.searchQuery, 1, source: widget.source)),
       (previous, next) {
         final books = next.valueOrNull;
         if (books != null && _loadedPages == 0) {
@@ -83,30 +109,48 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     if (_scrollController.position.pixels >=
             _scrollController.position.maxScrollExtent - 200 &&
         !_fetchingNextPage &&
-        !_reachedEnd) {
+        !_reachedEnd &&
+        _paginationError == null) {
       _loadNextPage();
     }
   }
 
   Future<void> _loadNextPage() async {
     if (!mounted) return;
-    setState(() => _fetchingNextPage = true);
+    if (_fetchingNextPage) return;
+    setState(() {
+      _fetchingNextPage = true;
+      _paginationError = null;
+      _paginationErrorDismissed = false;
+    });
 
     final page = _loadedPages + 1;
-    final nextPage = await ref.read(app_state
-        .searchProvider(app_state.SearchPageKey(widget.searchQuery, page))
+    try {
+      final nextPage = await ref.read(app_state
+        .searchProvider(app_state.SearchPageKey(widget.searchQuery, page, source: widget.source))
         .future);
 
-    if (!mounted) return;
-    setState(() {
-      if (nextPage.isEmpty) {
-        _reachedEnd = true;
-      } else {
-        _books.addAll(nextPage);
-        _loadedPages = page;
-      }
-      _fetchingNextPage = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        if (nextPage.isEmpty) {
+          _reachedEnd = true;
+        } else {
+          _books.addAll(nextPage);
+          _loadedPages = page;
+        }
+      });
+    } catch (error) {
+      if (mounted) setState(() => _paginationError = error);
+    } finally {
+      if (mounted) setState(() => _fetchingNextPage = false);
+    }
+  }
+
+  void _retryNextPage() {
+    ref.invalidate(app_state.searchProvider(app_state.SearchPageKey(
+      widget.searchQuery, _loadedPages + 1, source: widget.source,
+    )));
+    _loadNextPage();
   }
 
   @override
@@ -114,7 +158,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     // Page 1 is watched so a fresh query rebuilds everything; deeper
     // pages are read on demand by the pager.
     final firstPage = ref.watch(app_state
-        .searchProvider(app_state.SearchPageKey(widget.searchQuery, 1)));
+        .searchProvider(app_state.SearchPageKey(widget.searchQuery, 1, source: widget.source)));
     final String capitalizedQuery = widget.searchQuery.capitalizeFirst;
 
     return Scaffold(
@@ -126,6 +170,36 @@ class _ResultPageState extends ConsumerState<ResultPage> {
             .titleLarge
             ?.copyWith(fontWeight: FontWeight.bold),
         backgroundColor: Theme.of(context).colorScheme.surface,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(68),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: DropdownButtonFormField<SearchProviderId>(
+              key: const Key('search-source-selector'),
+              initialValue: widget.source,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context).searchSource,
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              hint: Text(AppLocalizations.of(context).automaticSource),
+              items: [
+                DropdownMenuItem(value: null,
+                  child: Text(AppLocalizations.of(context).automaticSource)),
+                const DropdownMenuItem(value: SearchProviderId.annasArchive,
+                  child: Text("Anna's Archive")),
+                const DropdownMenuItem(value: SearchProviderId.libgen,
+                  child: Text('Library Genesis')),
+                const DropdownMenuItem(value: SearchProviderId.zlibrary,
+                  child: Text('Z-Library')),
+                const DropdownMenuItem(value: SearchProviderId.welib,
+                  child: Text('WeLib')),
+              ],
+              onChanged: widget.onSourceChanged,
+            ),
+          ),
+        ),
       ),
       body: firstPage.when(
         data: (pageOne) {
@@ -190,7 +264,39 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                       );
                     },
                   ),
-                  if (_fetchingNextPage || !_reachedEnd)
+                  if (_paginationError != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          children: [
+                            if (!_paginationErrorDismissed)
+                              Row(
+                                key: const Key('pagination-error'),
+                                children: [
+                                  Expanded(
+                                    child: Text((_paginationError is NetworkError
+                                        ? _paginationError as NetworkError
+                                        : NetworkError.fromException(_paginationError))
+                                        .userMessage),
+                                  ),
+                                  IconButton(
+                                    tooltip: AppLocalizations.of(context).close,
+                                    icon: const Icon(Icons.close_rounded),
+                                    onPressed: () => setState(() =>
+                                        _paginationErrorDismissed = true),
+                                  ),
+                                ],
+                              ),
+                            TextButton(
+                              onPressed: _retryNextPage,
+                              child: Text(AppLocalizations.of(context).retry),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_fetchingNextPage)
                     const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
@@ -203,6 +309,8 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                         ),
                       ),
                     ),
+                  if (!_fetchingNextPage && !_reachedEnd && _paginationError == null)
+                    const SliverToBoxAdapter(child: SizedBox(height: 54)),
                 ],
               ),
             );
@@ -250,10 +358,12 @@ class _ResultPageState extends ConsumerState<ResultPage> {
                 _books.clear();
                 _loadedPages = 0;
                 _reachedEnd = false;
+                _paginationError = null;
+                _paginationErrorDismissed = false;
               });
               // ignore: unused_result
               ref.refresh(app_state.searchProvider(
-                  app_state.SearchPageKey(widget.searchQuery, 1)));
+                  app_state.SearchPageKey(widget.searchQuery, 1, source: widget.source)));
             },
           );
         },

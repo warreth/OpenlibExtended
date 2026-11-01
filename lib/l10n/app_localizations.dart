@@ -104,6 +104,96 @@ abstract class AppLocalizations {
     Locale('ru')
   ];
 
+  /// Reader selection setting: readerForFormat
+  ///
+  /// In en, this message translates to:
+  /// **'{format} reader'**
+  String readerForFormat(String format);
+
+  /// Reader selection setting: builtInReader
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in reader'**
+  String get builtInReader;
+
+  /// Reader selection setting: askEveryTime
+  ///
+  /// In en, this message translates to:
+  /// **'Ask every time'**
+  String get askEveryTime;
+
+  /// Reader selection setting: systemDefaultReader
+  ///
+  /// In en, this message translates to:
+  /// **'System default app'**
+  String get systemDefaultReader;
+
+  /// Reader selection setting: readerSaveFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the reader. Try again.'**
+  String get readerSaveFailed;
+
+  /// Reader selection setting: readerLoadFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the reader. Tap to retry.'**
+  String get readerLoadFailed;
+
+  /// Reader selection setting: readerListFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not list installed readers.'**
+  String get readerListFailed;
+
+  /// Reader selection setting: readerListLoading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading installed readers…'**
+  String get readerListLoading;
+
+  /// Reader selection setting: readerOpenHint
+  ///
+  /// In en, this message translates to:
+  /// **'Used when you tap Open.'**
+  String get readerOpenHint;
+
+  /// Reader selection setting: readerLoading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading reader…'**
+  String get readerLoading;
+
+  /// Reader selection setting: readerUnavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Reader unavailable'**
+  String get readerUnavailable;
+
+  /// Reader selection setting: readerOpenFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the selected reader. Choose another in Settings.'**
+  String get readerOpenFailed;
+
+  /// Shown when the book source has no description
+  ///
+  /// In en, this message translates to:
+  /// **'No description available'**
+  String get noDescriptionAvailable;
+
+  /// Label for choosing a search catalog on the results page
+  ///
+  /// In en, this message translates to:
+  /// **'Search source'**
+  String get searchSource;
+
+  /// Search enabled catalogs in their automatic fallback order
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic (enabled sources)'**
+  String get automaticSource;
+
   /// Application name shown in the app bar and about page
   ///
   /// In en, this message translates to:

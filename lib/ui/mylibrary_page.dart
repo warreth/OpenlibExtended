@@ -133,9 +133,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
                           if (mode == sortMode)
                             Icon(Icons.check,
                                 size: 18,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .secondary)
+                                color: Theme.of(context).colorScheme.secondary)
                           else
                             const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -211,7 +209,8 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
     final l10n = AppLocalizations.of(context);
     final tagFilter = ref.watch(libraryTagFilterProvider);
     final statusFilter = ref.watch(libraryStatusFilterProvider);
-    final allTags = ref.watch(libraryTagsProvider).valueOrNull ?? const <String>{};
+    final allTags =
+        ref.watch(libraryTagsProvider).valueOrNull ?? const <String>{};
 
     Widget statusChip(String label, ReadingStatus? value) {
       final selected = statusFilter == value;
@@ -269,185 +268,191 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final libraryBooks = ref.watch(libraryBooksProvider);
-    return libraryBooks.when(
-      data: (data) {
-        final organized = ref.watch(organizedLibraryProvider);
-        final anyFilterActive = ref.watch(libraryTagFilterProvider).isNotEmpty ||
-            ref.watch(libraryStatusFilterProvider) != null ||
-            ref.watch(librarySearchQueryProvider).trim().isNotEmpty;
-        if (data.isNotEmpty) {
-          return RefreshIndicator(
-            onRefresh: () => _refreshLibrary(),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: <Widget>[
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 8),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: ActiveDownloadsWidget(),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildTitleWithRefresh(context),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildSearchField(context),
-                  ),
-                  if (data.length > 1 || anyFilterActive)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 5, right: 5),
-                        child: _buildFilterChips(context),
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        _buildTitleWithRefresh(context),
+        Expanded(
+            child: libraryBooks.when(
+          data: (data) {
+            final organized = ref.watch(organizedLibraryProvider);
+            final anyFilterActive =
+                ref.watch(libraryTagFilterProvider).isNotEmpty ||
+                    ref.watch(libraryStatusFilterProvider) != null ||
+                    ref.watch(librarySearchQueryProvider).trim().isNotEmpty;
+            if (data.isNotEmpty) {
+              return RefreshIndicator(
+                onRefresh: () => _refreshLibrary(),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: <Widget>[
+                      const SliverToBoxAdapter(child: ActiveDownloadsWidget()),
+                      SliverToBoxAdapter(
+                        child: _buildSearchField(context),
                       ),
-                    ),
-                  if (organized.isEmpty && anyFilterActive)
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(
-                          child: Text(
-                            "No books match the current filters",
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                      if (data.length > 1 || anyFilterActive)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 5, right: 5),
+                            child: _buildFilterChips(context),
                           ),
                         ),
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding:
-                          const EdgeInsets.only(left: 5, right: 5, top: 10),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate(organized
-                            .map((i) => BookInfoCard(
-                                title: i.title,
-                                author: i.author,
-                                publisher: i.book.publisher ?? "",
-                                thumbnail: i.book.thumbnail,
-                                info: i.book.info,
-                                link: i.book.link,
-                                onClick: () {
-                                  Navigator.push(context, MaterialPageRoute(
-                                      builder: (BuildContext context) {
-                                    return BookPage(id: i.id);
-                                  }));
-                                },
-                                onLongPress: () => _openTagEditor(i)))
-                            .toList()),
-                      ),
-                    ),
-                  // Add scroll-to-refresh hint for desktop
-                  if (PlatformUtils.isDesktop)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Center(
-                          child: _isRefreshing
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color:
-                                        Theme.of(context).colorScheme.secondary,
-                                  ),
-                                )
-                              : Text(
-                                  "Scroll down to sync library",
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 12,
-                                  ),
-                                ),
+                      if (organized.isEmpty && anyFilterActive)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(
+                              child: Text(
+                                "No books match the current filters",
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding:
+                              const EdgeInsets.only(left: 5, right: 5, top: 10),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate(organized
+                                .map((i) => BookInfoCard(
+                                    title: i.title,
+                                    author: i.author,
+                                    publisher: i.book.publisher ?? "",
+                                    thumbnail: i.book.thumbnail,
+                                    info: i.book.info,
+                                    link: i.book.link,
+                                    onClick: () {
+                                      Navigator.push(context, MaterialPageRoute(
+                                          builder: (BuildContext context) {
+                                        return BookPage(id: i.id);
+                                      }));
+                                    },
+                                    onLongPress: () => _openTagEditor(i)))
+                                .toList()),
+                          ),
                         ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        } else {
-          return RefreshIndicator(
-            onRefresh: () => _refreshLibrary(),
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height * 0.7,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Add refresh button for desktop when library is empty
-                    if (PlatformUtils.isDesktop)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: Center(
-                          child: IconButton(
-                            onPressed: _isRefreshing ? null : _refreshLibrary,
-                            icon: _isRefreshing
-                                ? SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .secondary,
+                      // Add scroll-to-refresh hint for desktop
+                      if (PlatformUtils.isDesktop)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Center(
+                              child: _isRefreshing
+                                  ? SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondary,
+                                      ),
+                                    )
+                                  : Text(
+                                      "Scroll down to sync library",
+                                      style: TextStyle(
+                                        color: Colors.grey[500],
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                  )
-                                : Icon(
-                                    Icons.refresh,
-                                    color:
-                                        Theme.of(context).colorScheme.secondary,
-                                  ),
+                            ),
                           ),
                         ),
-                      ),
-                    SizedBox(
-                      width: 200,
-                      child: SvgPicture.asset(
-                        'assets/empty_mylib.svg',
-                        width: 200,
-                      ),
-                    ),
-                    const SizedBox(
-                      height: 30,
-                    ),
-                    Text(
-                      "My Library Is Empty!",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: "#4D4D4D".toColor(),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    )
-                  ],
+                    ],
+                  ),
                 ),
+              );
+            } else {
+              return RefreshIndicator(
+                onRefresh: () => _refreshLibrary(),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: MediaQuery.of(context).size.height * 0.7,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const ActiveDownloadsWidget(),
+                        // Add refresh button for desktop when library is empty
+                        if (PlatformUtils.isDesktop)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: Center(
+                              child: IconButton(
+                                onPressed:
+                                    _isRefreshing ? null : _refreshLibrary,
+                                icon: _isRefreshing
+                                    ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .secondary,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.refresh,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondary,
+                                      ),
+                              ),
+                            ),
+                          ),
+                        SizedBox(
+                          width: 200,
+                          child: SvgPicture.asset(
+                            'assets/empty_mylib.svg',
+                            width: 200,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 30,
+                        ),
+                        Text(
+                          "My Library Is Empty!",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: "#4D4D4D".toColor(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+          },
+          error: (error, _) {
+            return CustomErrorWidget(
+                error: error, stackTrace: StackTrace.empty);
+          },
+          loading: () {
+            return Center(
+                child: SizedBox(
+              width: 25,
+              height: 25,
+              child: CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.secondary,
               ),
-            ),
-          );
-        }
-      },
-      error: (error, _) {
-        return CustomErrorWidget(error: error, stackTrace: StackTrace.empty);
-      },
-      loading: () {
-        return Center(
-            child: SizedBox(
-          width: 25,
-          height: 25,
-          child: CircularProgressIndicator(
-            color: Theme.of(context).colorScheme.secondary,
-          ),
-        ));
-      },
+            ));
+          },
+        )),
+      ],
     );
   }
 }
@@ -511,8 +516,7 @@ class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration:
-              InputDecoration(hintText: dialogL10n.collectionNameHint),
+          decoration: InputDecoration(hintText: dialogL10n.collectionNameHint),
         ),
         actions: [
           TextButton(
@@ -533,7 +537,8 @@ class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final allTags = ref.watch(libraryTagsProvider).valueOrNull ?? const <String>{};
+    final allTags =
+        ref.watch(libraryTagsProvider).valueOrNull ?? const <String>{};
     return FutureBuilder<Set<String>>(
       future: _bookTags,
       builder: (context, snapshot) {
@@ -566,9 +571,8 @@ class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
                       FilterChip(
                         label: Text(tag, style: const TextStyle(fontSize: 12)),
                         selected: bookTags.contains(tag),
-                        onSelected: (selected) => selected
-                            ? _addTag(tag)
-                            : _removeTag(tag),
+                        onSelected: (selected) =>
+                            selected ? _addTag(tag) : _removeTag(tag),
                       ),
                     ActionChip(
                       label: Text(AppLocalizations.of(context).newCollection,

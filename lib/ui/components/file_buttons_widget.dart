@@ -46,10 +46,11 @@ class FileOpenAndDeleteButtons extends ConsumerWidget {
                   color: Theme.of(context).colorScheme.primary,
                 )),
             onPressed: () async {
-              if (format == 'pdf') {
+              final normalizedFormat = format.trim().toLowerCase();
+              if (normalizedFormat == 'pdf') {
                 await launchPdfViewer(
                     fileName: actualFileName, context: context, ref: ref);
-              } else if (format == 'epub') {
+              } else if (normalizedFormat == 'epub') {
                 await launchEpubViewer(
                     fileName: actualFileName, context: context, ref: ref);
               } else {
