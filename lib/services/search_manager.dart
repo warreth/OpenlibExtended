@@ -296,8 +296,8 @@ class LibgenProvider implements SearchProvider {
       params.write('&page=${query.page}');
     }
 
-    final mirrors = _mirrors ??
-        await InstanceManager().enabledUrls(MirrorService.libgen);
+    final mirrors =
+        _mirrors ?? await InstanceManager().enabledUrls(MirrorService.libgen);
 
     if (mirrors.isEmpty) {
       // Every libgen mirror SLUM knows is DOWN (or switched off by the
@@ -419,7 +419,7 @@ class ZlibraryProvider implements SearchProvider {
       if (query.page > 1) 'page': query.page,
       if (query.filtersEnabled && language != null) 'languages[]': language,
       if (query.filtersEnabled && query.fileType.isNotEmpty)
-        'extensions[]': query.fileType.toLowerCase(),
+        'extensions[]': query.fileType.toUpperCase(),
     };
 
     for (final mirror in mirrors) {
@@ -465,10 +465,17 @@ class ZlibraryProvider implements SearchProvider {
               metadata: {'mirror': mirror, 'status': response.statusCode});
           continue;
         }
-        final books = parseResults(response.data.toString(), mirror)
-            .where((book) => !query.filtersEnabled || language == null ||
-                bookLanguageName(book.info)?.toLowerCase() == language)
-            .toList();
+        final books =
+            parseResults(response.data.toString(), mirror).where((book) {
+          if (!query.filtersEnabled) return true;
+          final matchesLanguage = language == null ||
+              bookLanguageName(book.info)?.toLowerCase() == language;
+          final matchesType = query.fileType.isEmpty ||
+              (book.info ?? '')
+                  .toLowerCase()
+                  .contains(query.fileType.toLowerCase());
+          return matchesLanguage && matchesType;
+        }).toList();
         if (books.isNotEmpty) {
           _logger.info('Z-Library search returned ${books.length} books',
               tag: 'ZlibraryProvider', metadata: {'mirror': mirror});
@@ -501,7 +508,8 @@ class ZlibraryProvider implements SearchProvider {
       var hidden = false;
       while (ancestor != null) {
         if (ancestor.attributes.containsKey('hidden') ||
-            ancestor.attributes['aria-hidden']?.trim().toLowerCase() == 'true') {
+            ancestor.attributes['aria-hidden']?.trim().toLowerCase() ==
+                'true') {
           hidden = true;
           break;
         }
@@ -547,14 +555,15 @@ class ZlibraryProvider implements SearchProvider {
   /// resolved CDN download URL and `isFastDownload` true - the resolved
   /// link serves the file directly, exactly like libgen's get.php.
   /// Null when every mirror fails or the page cannot be parsed.
-  Future<BookInfoData?> bookInfo(String url, {
+  Future<BookInfoData?> bookInfo(
+    String url, {
     Duration timeout = const Duration(seconds: 20),
   }) async {
     final cancellation = CancelToken();
     try {
       return await _bookInfo(url, cancellation).timeout(timeout, onTimeout: () {
         _logger.warning('Z-Library book page timed out',
-          tag: 'ZlibraryProvider', metadata: {'url': url});
+            tag: 'ZlibraryProvider', metadata: {'url': url});
         return null;
       });
     } finally {
@@ -577,18 +586,20 @@ class ZlibraryProvider implements SearchProvider {
     for (final mirror in mirrors) {
       if (cancellation.isCancelled) return null;
       try {
-        var response = await _dio.get('$mirror$path', options: acceptAnyStatus,
-          cancelToken: cancellation);
+        var response = await _dio.get('$mirror$path',
+            options: acceptAnyStatus, cancelToken: cancellation);
         response = await _passDiamWall(mirror, response, '$mirror$path',
-          cancelToken: cancellation);
+            cancelToken: cancellation);
         if (response.statusCode != 200) continue;
         final pageUrl = '$mirror$path';
         final data = parseBookPage(response.data.toString(), mirror, pageUrl);
         if (data != null) return data;
       } catch (error) {
         if (cancellation.isCancelled) return null;
-        _logger.warning('Z-Library book page failed', tag: 'ZlibraryProvider',
-          error: error, metadata: {'mirror': mirror});
+        _logger.warning('Z-Library book page failed',
+            tag: 'ZlibraryProvider',
+            error: error,
+            metadata: {'mirror': mirror});
       }
     }
     return null;
@@ -597,8 +608,8 @@ class ZlibraryProvider implements SearchProvider {
   /// GETs [url], solving a DiamWall 503 (once) and a second 503 on the
   /// download hop if present. Returns the first response that is not a
   /// challenge. A non-challenge response is returned as-is.
-  Future<Response> _passDiamWall(
-      String mirror, Response first, String url, {CancelToken? cancelToken}) async {
+  Future<Response> _passDiamWall(String mirror, Response first, String url,
+      {CancelToken? cancelToken}) async {
     var response = first;
     final acceptAnyStatus = Options(validateStatus: (_) => true);
 
@@ -611,7 +622,8 @@ class ZlibraryProvider implements SearchProvider {
     final cookieHeader =
         cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
 
-    response = await _dio.get(url, cancelToken: cancelToken,
+    response = await _dio.get(url,
+        cancelToken: cancelToken,
         options: acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}));
     // A second challenge can appear right at the download hop; solve
     // it too before giving up on this mirror.
@@ -621,7 +633,8 @@ class ZlibraryProvider implements SearchProvider {
       if (again != null) {
         final header =
             again.entries.map((e) => '${e.key}=${e.value}').join('; ');
-        response = await _dio.get(url, cancelToken: cancelToken,
+        response = await _dio.get(url,
+            cancelToken: cancelToken,
             options: acceptAnyStatus.copyWith(headers: {'Cookie': header}));
       }
     }
@@ -794,12 +807,12 @@ class ZlibraryProvider implements SearchProvider {
   /// caller never shows an invented message.
   String? _refusalFromPage(String html) {
     final text = html_parser
-        .parse(html)
-        .body
-        ?.text
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim()
-        .toLowerCase() ??
+            .parse(html)
+            .body
+            ?.text
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim()
+            .toLowerCase() ??
         '';
     if (text.isEmpty) return null;
 
@@ -873,10 +886,15 @@ class ZlibraryProvider implements SearchProvider {
     final descriptionElement = document.querySelector('#bookDescriptionBox');
     final description = descriptionElement == null
         ? ''
-        : html_parser.parseFragment(descriptionElement.innerHtml
-            .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-            .replaceAll(RegExp(r'</p\s*>', caseSensitive: false), '\n\n'))
-            .text?.trim() ?? '';
+        : html_parser
+                .parseFragment(descriptionElement.innerHtml
+                    .replaceAll(
+                        RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+                    .replaceAll(
+                        RegExp(r'</p\s*>', caseSensitive: false), '\n\n'))
+                .text
+                ?.trim() ??
+            '';
 
     return BookInfoData(
       title: title,
@@ -1107,14 +1125,16 @@ class WelibProvider implements SearchProvider {
               .querySelector('div.overflow-x-auto.whitespace-nowrap')
               ?.children
               .where((element) => element.localName == 'span')
-              .map((element) => element.text
-                  .replaceFirst(RegExp(r'^\s*·\s*'), '')
-                  .trim())
+              .map((element) =>
+                  element.text.replaceFirst(RegExp(r'^\s*·\s*'), '').trim())
               .where((value) => value.isNotEmpty)
               .toList() ??
           const <String>[];
-      final language = metadata.skip(1)
-          .map(bookLanguageName).whereType<String>().firstOrNull;
+      final language = metadata
+          .skip(1)
+          .map(bookLanguageName)
+          .whereType<String>()
+          .firstOrNull;
       final info = [
         if (language != null) language,
         if (metadata.isNotEmpty) metadata.first.toUpperCase(),
@@ -1198,9 +1218,10 @@ class WelibProvider implements SearchProvider {
     final description = document
         .querySelector('meta[name="description"]')
         ?.attributes['content'];
-    final author = description != null && description.contains('Downloaded from')
-        ? description.split('Downloaded from').first.trim()
-        : null;
+    final author =
+        description != null && description.contains('Downloaded from')
+            ? description.split('Downloaded from').first.trim()
+            : null;
 
     String? language;
     String? publisher;
@@ -1209,14 +1230,19 @@ class WelibProvider implements SearchProvider {
       if (text.length > 200) continue;
       final lower = text.toLowerCase();
       if (lower.startsWith('language') && language == null) {
-        language = text.replaceFirst(RegExp(r'^language', caseSensitive: false), '').trim();
+        language = text
+            .replaceFirst(RegExp(r'^language', caseSensitive: false), '')
+            .trim();
       }
       if (lower.startsWith('publisher') && publisher == null) {
-        publisher = text.replaceFirst(RegExp(r'^publisher', caseSensitive: false), '').trim();
+        publisher = text
+            .replaceFirst(RegExp(r'^publisher', caseSensitive: false), '')
+            .trim();
       }
     }
 
-    final slowDownload = document.querySelector('a[href^="/slow_download/"]')
+    final slowDownload = document
+            .querySelector('a[href^="/slow_download/"]')
             ?.attributes['href'] ??
         '/slow_download/$id/0/0';
 
@@ -1236,7 +1262,9 @@ class WelibProvider implements SearchProvider {
       md5: id,
       format: format?.toLowerCase() ?? 'epub',
       description: null,
-      mirror: slowDownload.startsWith('http') ? slowDownload : '$baseUrl$slowDownload',
+      mirror: slowDownload.startsWith('http')
+          ? slowDownload
+          : '$baseUrl$slowDownload',
       isFastDownload: false,
     );
   }
@@ -1411,8 +1439,11 @@ class SearchManager {
   /// Errors are collected and surface only when every provider fails.
   Future<SearchManagerResult> search(SearchQuery query) async {
     final enabled = await enabledProviders();
-    final active = _providers.where((p) => query.source == null
-        ? enabled.contains(p.id) : p.id == query.source).toList();
+    final active = _providers
+        .where((p) => query.source == null
+            ? enabled.contains(p.id)
+            : p.id == query.source)
+        .toList();
     if (active.isEmpty) {
       return const SearchManagerResult(books: [], failedProviders: []);
     }
@@ -1445,7 +1476,9 @@ class SearchManager {
       'source': resultSource,
     });
     return SearchManagerResult(
-        books: _dedupe(books), failedProviders: failed, resultSource: resultSource);
+        books: _dedupe(books),
+        failedProviders: failed,
+        resultSource: resultSource);
   }
 
   Future<_Outcome> _searchOne(
@@ -1456,10 +1489,13 @@ class SearchManager {
           tag: 'SearchManager');
       // Stamp every result with its catalog so the UI can show where
       // each book came from.
-      final language = query.filtersEnabled ? bookLanguageName(query.language) : null;
+      final language =
+          query.filtersEnabled ? bookLanguageName(query.language) : null;
       final tagged = books
-          .where((book) => language == null || bookLanguageName(book.info) == language)
-          .map((b) => b.copyWith(source: provider.displayName)).toList();
+          .where((book) =>
+              language == null || bookLanguageName(book.info) == language)
+          .map((b) => b.copyWith(source: provider.displayName))
+          .toList();
       return _Outcome(provider, tagged, null);
     } catch (e) {
       logger.warning('${provider.displayName} search failed',

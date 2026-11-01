@@ -58,42 +58,8 @@ List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
 // Language filter values (display name: code)
 Map<String, String> languageValues = {
   'All': '',
-  for (final language in bookLanguageNames.entries) language.value: language.key,
-};
-
-// Reverse map: language code to uppercase display code
-Map<String, String> languageCodeToDisplay = {
-  "en": "EN",
-  "es": "ES",
-  "fr": "FR",
-  "de": "DE",
-  "it": "IT",
-  "pt": "PT",
-  "ru": "RU",
-  "zh": "ZH",
-  "ja": "JA",
-  "ko": "KO",
-  "ar": "AR",
-  "hi": "HI",
-  "ml": "ML",
-  "nl": "NL",
-  "pl": "PL",
-  "tr": "TR",
-  "sv": "SV",
-  "id": "ID",
-  "vi": "VI",
-  "cs": "CS",
-  "el": "EL",
-  "ro": "RO",
-  "hu": "HU",
-  "uk": "UK",
-  "he": "HE",
-  "th": "TH",
-  "fa": "FA",
-  "bn": "BN",
-  "fi": "FI",
-  "no": "NO",
-  "da": "DA",
+  for (final language in bookLanguageNames.entries)
+    language.value: language.key,
 };
 
 // Year filter values for publishing year range
@@ -224,16 +190,20 @@ final pdfCurrentPage = StateProvider.autoDispose<int>((ref) => 0);
 final totalPdfPage = StateProvider.autoDispose<int>((ref) => 0);
 final openPdfWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
-final readerPreferencesProvider = Provider<ReaderPreferences>((ref) => ReaderPreferences());
+final readerPreferencesProvider =
+    Provider<ReaderPreferences>((ref) => ReaderPreferences());
 final readerAppsProvider = Provider<ReaderApps>((ref) => const ReaderApps());
-final readerPreferenceProvider = FutureProvider.family<String, String>((ref, format) {
+final readerPreferenceProvider =
+    FutureProvider.family<String, String>((ref, format) {
   final legacyExternal = ref.watch(format == 'pdf'
-      ? openPdfWithExternalAppProvider : openEpubWithExternalAppProvider);
-  return ref.watch(readerPreferencesProvider).read(format, legacyExternal: legacyExternal);
+      ? openPdfWithExternalAppProvider
+      : openEpubWithExternalAppProvider);
+  return ref
+      .watch(readerPreferencesProvider)
+      .read(format, legacyExternal: legacyExternal);
 });
 final installedReadersProvider = FutureProvider.family<List<ReaderApp>, String>(
     (ref, format) => ref.watch(readerAppsProvider).installedReaders(format));
-
 
 // Download Settings
 final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
@@ -375,7 +345,10 @@ class SearchPageKey {
 
   @override
   bool operator ==(Object other) =>
-      other is SearchPageKey && other.query == query && other.page == page && other.source == source;
+      other is SearchPageKey &&
+      other.query == query &&
+      other.page == page &&
+      other.source == source;
 
   @override
   int get hashCode => Object.hash(query, page, source);

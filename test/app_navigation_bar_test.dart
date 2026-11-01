@@ -34,6 +34,15 @@ Future<void> pumpBar(WidgetTester tester, List<int> selected) async {
 }
 
 void main() {
+  testWidgets('fits compact phone widths without overflowing', (tester) async {
+    for (final width in [320.0, 360.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 640));
+      await pumpBar(tester, []);
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+    await tester.binding.setSurfaceSize(null);
+  });
+
   testWidgets('keeps the original icon-only inactive tabs and selected label',
       (tester) async {
     await pumpBar(tester, []);

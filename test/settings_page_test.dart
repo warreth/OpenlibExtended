@@ -111,6 +111,18 @@ void main() {
     }
   });
 
+  testWidgets('renders on compact phone widths without overflowing',
+      (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final width in [320.0, 360.0]) {
+      tester.view.physicalSize = Size(width, 800);
+      tester.view.devicePixelRatio = 1;
+      await pumpPage(tester);
+      expect(tester.takeException(), isNull, reason: 'width $width');
+    }
+  });
+
   testWidgets('page title stays pinned while settings scroll beneath it',
       (tester) async {
     await pumpPage(tester);

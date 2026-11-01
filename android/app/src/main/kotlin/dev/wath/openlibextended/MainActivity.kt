@@ -24,8 +24,11 @@ class MainActivity : FlutterActivity() {
                             val file = File(call.argument<String>("path") ?: "")
                             require(file.isFile) { "The book file could not be found." }
                             val reader = call.argument<String>("reader") ?: "ask"
+                            // The app already declares this FileProvider with
+                            // the same roots, so do not depend on the private
+                            // authority owned by the open_file plugin.
                             val uri = FileProvider.getUriForFile(this,
-                                "$packageName.fileProvider.com.crazecoder.openfile", file)
+                                "$packageName.fileprovider", file)
                             val intent = Intent(Intent.ACTION_VIEW).apply {
                                 setDataAndType(uri, mime)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

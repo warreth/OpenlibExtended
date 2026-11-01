@@ -319,6 +319,7 @@ class SettingsPage extends ConsumerWidget {
                   title: l10n.themeTitle,
                   child: DropdownButtonFormField<ThemeMode>(
                     initialValue: themeMode,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
@@ -346,8 +347,12 @@ class SettingsPage extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(l10n
-                              .scaleValue(fontSizeScale.toStringAsFixed(1))),
+                          Expanded(
+                            child: Text(
+                              l10n.scaleValue(fontSizeScale.toStringAsFixed(1)),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           Text(l10n.preview,
                               textScaler: TextScaler.linear(fontSizeScale)),
                         ],
@@ -847,6 +852,7 @@ class _LanguageSelectorWidget extends ConsumerWidget {
 
     return DropdownButtonFormField<Locale?>(
       initialValue: locale,
+      isExpanded: true,
       decoration: const InputDecoration(
         border: InputBorder.none,
         contentPadding: EdgeInsets.zero,

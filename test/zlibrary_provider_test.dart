@@ -18,28 +18,35 @@ import 'package:openlib/services/diamwall_solver.dart';
 import 'package:openlib/services/search_manager.dart';
 
 void main() {
-  test('German filter reaches Z-Library and returns the filtered edition', () async {
+  test('German filter reaches Z-Library and returns the filtered edition',
+      () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     final requests = <Uri>[];
     server.listen((request) async {
       requests.add(request.uri);
       final german = request.uri.queryParameters['languages[]'] == 'german';
-      request.response.write('<z-bookcard href="/book/1/test" language="${german ? 'German' : 'Spanish'}" extension="epub"><div slot="title">${german ? 'German edition' : 'Spanish edition'}</div></z-bookcard>');
+      request.response.write(
+          '<z-bookcard href="/book/1/test" language="${german ? 'German' : 'Spanish'}" extension="epub"><div slot="title">${german ? 'German edition' : 'Spanish edition'}</div></z-bookcard>');
       await request.response.close();
     });
-    final provider = ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
-    final books = await provider.search(const SearchQuery(text: 'pihkal',
-      language: 'de', fileType: 'epub', filtersEnabled: true));
+    final provider =
+        ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
+    final books = await provider.search(const SearchQuery(
+        text: 'pihkal',
+        language: 'de',
+        fileType: 'epub',
+        filtersEnabled: true));
     expect(books.single.info, startsWith('German,'));
     expect(requests.single.queryParameters['languages[]'], 'german');
-    expect(requests.single.queryParameters['extensions[]'], 'epub');
+    expect(requests.single.queryParameters['extensions[]'], 'EPUB');
     requests.clear();
     await provider.search(const SearchQuery(text: 'pihkal', language: 'de'));
     expect(requests.single.queryParameters, isNot(contains('languages[]')));
   });
 
-  test('language filter excludes mislabeled results returned by the server', () async {
+  test('language filter excludes mislabeled results returned by the server',
+      () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     server.listen((request) async {
@@ -50,12 +57,33 @@ void main() {
 ''');
       await request.response.close();
     });
-    final provider = ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
-    final filtered = await provider.search(const SearchQuery(text: 'pihkal',
-      language: 'de', filtersEnabled: true));
+    final provider =
+        ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
+    final filtered = await provider.search(const SearchQuery(
+        text: 'pihkal', language: 'de', filtersEnabled: true));
     expect(filtered.map((book) => book.title), ['German edition']);
     final all = await provider.search(const SearchQuery(text: 'pihkal'));
     expect(all, hasLength(3));
+  });
+
+  test('file type filter uses the form value and drops mismatches', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final requests = <Uri>[];
+    server.listen((request) async {
+      requests.add(request.uri);
+      request.response.write('''
+<z-bookcard href="/book/1/epub" language="English" extension="epub"><div slot="title">EPUB edition</div></z-bookcard>
+<z-bookcard href="/book/2/pdf" language="English" extension="pdf"><div slot="title">PDF edition</div></z-bookcard>
+''');
+      await request.response.close();
+    });
+    final provider =
+        ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
+    final filtered = await provider.search(const SearchQuery(
+        text: 'pihkal', fileType: 'epub', filtersEnabled: true));
+    expect(filtered.map((book) => book.title), ['EPUB edition']);
+    expect(requests.single.queryParameters['extensions[]'], 'EPUB');
   });
 
   test('book details try the result origin before unrelated mirrors', () async {
@@ -71,11 +99,15 @@ void main() {
       addTearDown(() => s.close(force: true));
       return s;
     }
+
     final unrelated = await server('unrelated');
     final original = await server('original');
     final provider = ZlibraryProvider(mirrors: [
-      'http://127.0.0.1:${unrelated.port}', 'http://127.0.0.1:${original.port}']);
-    final result = await provider.bookInfo('http://127.0.0.1:${original.port}/book/123/title.html');
+      'http://127.0.0.1:${unrelated.port}',
+      'http://127.0.0.1:${original.port}'
+    ]);
+    final result = await provider
+        .bookInfo('http://127.0.0.1:${original.port}/book/123/title.html');
     expect(result, isNotNull);
     expect(hits, ['original']);
   });
@@ -83,15 +115,18 @@ void main() {
   test('book details stop when the total time budget expires', () async {
     var calls = 0;
     final s = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    s.listen((r) { calls++; }); // deliberately never answer
+    s.listen((r) {
+      calls++;
+    }); // deliberately never answer
     addTearDown(() => s.close(force: true));
     final url = 'http://127.0.0.1:${s.port}';
     final provider = ZlibraryProvider(mirrors: [url, url]);
     final result = await provider.bookInfo('$url/book/123/title.html',
-      timeout: const Duration(milliseconds: 80));
+        timeout: const Duration(milliseconds: 80));
     expect(result, isNull);
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(calls, 1, reason: 'timed-out work must not continue to more mirrors');
+    expect(calls, 1,
+        reason: 'timed-out work must not continue to more mirrors');
   }, timeout: const Timeout(Duration(seconds: 3)));
 
   final challenge =
@@ -187,12 +222,16 @@ void main() {
   });
 
   test('no-results page ignores hidden decoy book cards', () {
-    final html = File('test/fixtures/zlib_hidden_no_results.html').readAsStringSync();
+    final html =
+        File('test/fixtures/zlib_hidden_no_results.html').readAsStringSync();
     expect(ZlibraryProvider().parseResults(html, 'https://z-lib.gl'), isEmpty);
   });
 
-  test('hidden result ancestors are excluded without rejecting visible opaque IDs', () {
-    const card = '<z-bookcard href="/book/opaque123/title.html"><div slot="title">Visible book</div></z-bookcard>';
+  test(
+      'hidden result ancestors are excluded without rejecting visible opaque IDs',
+      () {
+    const card =
+        '<z-bookcard href="/book/opaque123/title.html"><div slot="title">Visible book</div></z-bookcard>';
     final html = '<div hidden>$card</div><div aria-hidden="true">$card</div>'
         '<div aria-hidden="false">$card</div>';
     final books = ZlibraryProvider().parseResults(html, 'https://z-lib.gl');
@@ -202,10 +241,12 @@ void main() {
 
   test('Z-Library details retain the book synopsis', () {
     final data = ZlibraryProvider().parseBookPage(
-      '<h1 itemprop="name">A book</h1>'
-      '<div id="bookDescriptionBox"><p>A first paragraph.</p><p>Another <b>important</b> paragraph.</p></div>',
-      'https://z-lib.gl', 'https://z-lib.gl/book/opaque123/title.html');
-    expect(data!.description, 'A first paragraph.\n\nAnother important paragraph.');
+        '<h1 itemprop="name">A book</h1>'
+            '<div id="bookDescriptionBox"><p>A first paragraph.</p><p>Another <b>important</b> paragraph.</p></div>',
+        'https://z-lib.gl',
+        'https://z-lib.gl/book/opaque123/title.html');
+    expect(data!.description,
+        'A first paragraph.\n\nAnother important paragraph.');
   });
 
   group('ZlibraryProvider.parseResults', () {
@@ -473,8 +514,7 @@ void main() {
       expect(download.data!.take(4).toList(), [0, 1, 2, 3]);
     });
 
-    test('reports the daily-limit reason from the live limiter page',
-        () async {
+    test('reports the daily-limit reason from the live limiter page', () async {
       final ids = bookPageDlIds(bookPage);
       server = await startServer(
         limiterIds: ids.toSet(),
@@ -493,8 +533,7 @@ void main() {
       expect(result.refusal, contains('Daily download limit'));
     });
 
-    test('invents no reason when the page says nothing recognizable',
-        () async {
+    test('invents no reason when the page says nothing recognizable', () async {
       final ids = bookPageDlIds(bookPage);
       // A realistic unrecognized page: it carries the site nav, which
       // includes a "Login" link on every z-lib page. That must not be
@@ -517,7 +556,6 @@ void main() {
           reason: 'never show a message the mirror did not give');
     });
   });
-
 }
 
 /// SHA1 digest bytes for the PoW verification test.

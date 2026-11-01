@@ -36,37 +36,46 @@ class AppNavigationBar extends StatelessWidget {
           color: isDark ? const Color(0xFF141414) : Colors.white,
           // Keep GNav's original pills and hidden labels. Its container blocks
           // every tap until an animation ends; direct GButtons stay responsive.
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (var i = 0; i < icons.length; i++)
-                GButton(
-                  active: selectedIndex == i,
-                  icon: icons[i],
-                  text: labels[i],
-                  semanticLabel: labels[i],
-                  haptic: true,
-                  debug: false,
-                  borderRadius: BorderRadius.circular(50),
-                  activeBorder: Border.all(color: theme.colorScheme.secondary),
-                  margin: const EdgeInsets.fromLTRB(13, 12, 13, 12),
-                  // A symmetric curve keeps expand/collapse motion consistent
-                  // when GButton flips its curve, including mid-animation taps.
-                  curve: Curves.easeInOutCubic,
-                  duration: duration,
-                  gap: 8,
-                  iconColor: isDark ? Colors.white : Colors.black,
-                  iconActiveColor: Colors.white,
-                  textColor: Colors.white,
-                  iconSize: 20,
-                  backgroundColor: theme.colorScheme.secondary,
-                  rippleColor: Colors.transparent,
-                  hoverColor: Colors.transparent,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  onPressed: () => onSelected(i),
-                ),
-            ],
+          // The row keeps its natural size when it fits and scales down as a
+          // whole on narrow screens or with large text, so no label is clipped.
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < icons.length; i++)
+                    GButton(
+                      active: selectedIndex == i,
+                      icon: icons[i],
+                      text: labels[i],
+                      semanticLabel: labels[i],
+                      haptic: true,
+                      debug: false,
+                      borderRadius: BorderRadius.circular(50),
+                      activeBorder:
+                          Border.all(color: theme.colorScheme.secondary),
+                      margin: const EdgeInsets.fromLTRB(6, 12, 6, 12),
+                      // A symmetric curve keeps expand/collapse motion
+                      // consistent when GButton flips its curve, including
+                      // mid-animation taps.
+                      curve: Curves.easeInOutCubic,
+                      duration: duration,
+                      gap: 8,
+                      iconColor: isDark ? Colors.white : Colors.black,
+                      iconActiveColor: Colors.white,
+                      textColor: Colors.white,
+                      iconSize: 20,
+                      backgroundColor: theme.colorScheme.secondary,
+                      rippleColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      onPressed: () => onSelected(i),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
