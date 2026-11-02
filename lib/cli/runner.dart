@@ -119,8 +119,7 @@ class CliRunner {
       mirrors = [for (final site in sites) site.url];
     }
 
-    final timeout =
-        options.intValue('timeout', defaultValue: 8, min: 1, max: 600);
+    final timeout = options.intValue('timeout', defaultValue: 8);
     return CliAnnasArchive(
       mirrors: mirrors,
       requestTimeout: Duration(seconds: timeout),
@@ -152,8 +151,8 @@ class CliRunner {
 
   Future<void> _search(CliOptions options) async {
     final query = options.requirePositional(0, 'search needs one query');
-    final page = options.intValue('page', defaultValue: 1, min: 1, max: 10000);
-    final limit = options.intValue('limit', defaultValue: 25, min: 1, max: 500);
+    final page = options.intValue('page', defaultValue: 1);
+    final limit = options.intValue('limit', defaultValue: 25);
 
     final client = await _client(options);
     final books = await client.searchBooks(

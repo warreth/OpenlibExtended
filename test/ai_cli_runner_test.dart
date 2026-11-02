@@ -148,6 +148,27 @@ void main() {
     }
   });
 
+  test('invalid numbers fail before any mirror lookup', () async {
+    var loadedMirrors = false;
+    final out = StringBuffer();
+    final err = StringBuffer();
+    final runner = CliRunner(
+      writeOut: out.write,
+      writeErr: err.write,
+      mirrorsLoader: () async {
+        loadedMirrors = true;
+        return const <SlumSite>[];
+      },
+    );
+
+    final code = await runner.run(['search', 'dune', '--timeout', '0']);
+
+    expect(code, 1);
+    expect(loadedMirrors, isFalse);
+    final json = jsonDecode(out.toString()) as Map<String, dynamic>;
+    expect(json['error']['code'], 'usage');
+  });
+
   test('an invalid base URL is a usage error', () async {
     final result = await _run([
       'search',

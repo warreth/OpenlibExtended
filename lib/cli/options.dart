@@ -30,6 +30,14 @@ class CliOptions {
 
   static const Set<String> _globalValueFlags = {'base-url', 'timeout'};
 
+  /// Accepted range for every numeric option, checked during parsing so a
+  /// bad invocation fails before the command starts any network work.
+  static const Map<String, (int, int)> _intBounds = {
+    'timeout': (1, 600),
+    'page': (1, 10000),
+    'limit': (1, 500),
+  };
+
   static const Map<String, Set<String>> _commandValueFlags = {
     'search': {
       'ext',
@@ -118,14 +126,10 @@ class CliOptions {
     return positionals[index];
   }
 
-  int intValue(
-    String name, {
-    required int defaultValue,
-    int min = 0,
-    int max = 1 << 31,
-  }) {
+  int intValue(String name, {required int defaultValue}) {
     final raw = values[name];
     if (raw == null) return defaultValue;
+    final (min, max) = _intBounds[name] ?? (0, 1 << 31);
     final parsed = int.tryParse(raw);
     if (parsed == null || parsed < min || parsed > max) {
       throw CliUsageException(
@@ -149,6 +153,10 @@ class CliOptions {
     }
 
     if (flag('help')) return;
+
+    for (final name in _intBounds.keys) {
+      intValue(name, defaultValue: 0);
+    }
 
     switch (command) {
       case 'search':
