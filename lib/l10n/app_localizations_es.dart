@@ -9,6 +9,57 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String readerForFormat(String format) {
+    return 'Lector de $format';
+  }
+
+  @override
+  String get builtInReader => 'Lector integrado';
+
+  @override
+  String get askEveryTime => 'Preguntar siempre';
+
+  @override
+  String get systemDefaultReader => 'Aplicación predeterminada del sistema';
+
+  @override
+  String get readerSaveFailed =>
+      'No se pudo guardar el lector. Inténtalo de nuevo.';
+
+  @override
+  String get readerLoadFailed =>
+      'No se pudo cargar el lector. Toca para reintentar.';
+
+  @override
+  String get readerListFailed =>
+      'No se pudieron listar los lectores instalados.';
+
+  @override
+  String get readerListLoading => 'Cargando lectores instalados…';
+
+  @override
+  String get readerOpenHint => 'Se usa al tocar Abrir.';
+
+  @override
+  String get readerLoading => 'Cargando lector…';
+
+  @override
+  String get readerUnavailable => 'Lector no disponible';
+
+  @override
+  String get readerOpenFailed =>
+      'No se pudo abrir el lector seleccionado. Elige otro en Ajustes.';
+
+  @override
+  String get noDescriptionAvailable => 'No hay descripción disponible';
+
+  @override
+  String get searchSource => 'Fuente de búsqueda';
+
+  @override
+  String get automaticSource => 'Automático (fuentes activadas)';
+
+  @override
   String get appTitle => 'OpenlibExtended';
 
   @override

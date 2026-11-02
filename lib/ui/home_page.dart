@@ -26,17 +26,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Scaffold(
       body: Column(
         children: [
-          const SizedBox(height: 8),
-          const ActiveDownloadsWidget(),
           Padding(
             padding:
-                const EdgeInsets.only(left: 5, right: 5, top: 10, bottom: 5),
+                const EdgeInsets.only(left: 5, right: 5, top: 8, bottom: 5),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TitleText(selectedIndex == 0
-        ? AppLocalizations.of(context).trending
-        : AppLocalizations.of(context).genres),
+                    ? AppLocalizations.of(context).trending
+                    : AppLocalizations.of(context).genres),
                 PelletContainer(
                   selectedIndex: selectedIndex,
                   onTrendingSelected: () => {
@@ -49,6 +47,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               ],
             ),
           ),
+          const ActiveDownloadsWidget(),
           Expanded(child: _pages[selectedIndex]), // Display the selected page
         ],
       ),

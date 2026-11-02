@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:openlib/services/annas_archieve.dart';
+import 'package:openlib/services/search_manager.dart';
 import 'package:openlib/l10n/app_localizations.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/components/book_card_widget.dart';
@@ -54,6 +55,79 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
   }
+
+  testWidgets('later-page error stops loading, can dismiss and retry without losing books', (tester) async {
+    var fail = true;
+    final calls = <int>[];
+    await tester.pumpWidget(ProviderScope(overrides: [
+      searchProvider.overrideWith((ref, key) async {
+        calls.add(key.page);
+        if (key.page == 1) return fakePage(1);
+        if (fail) throw StateError('temporary provider failure');
+        return fakePage(key.page);
+      }),
+    ], child: MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: const ResultPage(searchQuery: 'docker'),
+    )));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -4000));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('pagination-error')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(BookInfoCard), findsWidgets);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pump();
+    expect(find.byKey(const Key('pagination-error')), findsNothing);
+    expect(find.byType(BookInfoCard), findsWidgets);
+    fail = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(calls.where((page) => page == 2).length, 2);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('pagination-error')), findsNothing);
+  });
+
+  testWidgets('source selector replaces Z-Library results with Anna results', (tester) async {
+    final requests = <SearchPageKey>[];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [searchProvider.overrideWith((ref, key) async {
+        requests.add(key);
+        if (key.page > 1) return [];
+        final anna = key.source == SearchProviderId.annasArchive;
+        return [BookData(title: anna ? 'Anna PIHKAL' : 'Z-Library PIHKAL',
+          link: 'https://example.com/md5/1', md5: '1',
+          source: anna ? "Anna's Archive" : 'Z-Library')];
+      })],
+      child: MaterialApp(localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const ResultPage(searchQuery: 'pihkal')),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Z-Library PIHKAL'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('search-source-selector')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text("Anna's Archive").last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Anna PIHKAL'), findsOneWidget);
+    expect(find.text('Z-Library PIHKAL'), findsNothing);
+    expect(requests.last.source, SearchProviderId.annasArchive);
+    expect(requests.last.page, 1);
+  });
+
+  test('page cache separates sources for the same query', () {
+    expect(const SearchPageKey('pihkal', 1),
+      isNot(const SearchPageKey('pihkal', 1, source: SearchProviderId.annasArchive)));
+  });
 
   testWidgets('renders the first page of results', (tester) async {
     await pumpResults(tester);

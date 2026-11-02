@@ -8,7 +8,6 @@ import 'package:openlib/l10n/app_localizations.dart';
 // Package imports:
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:open_file/open_file.dart';
 
 // Project imports:
 import 'package:openlib/services/files.dart' show getFilePath;
@@ -19,7 +18,8 @@ import 'package:openlib/state/state.dart'
         filePathProvider,
         saveEpubState,
         getBookPosition,
-        openEpubWithExternalAppProvider;
+        readerPreferenceProvider,
+        readerAppsProvider;
 import 'package:openlib/services/database.dart' show MyLibraryDb;
 import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/ui/components/reader_help_overlay.dart';
@@ -29,35 +29,35 @@ Future<void> launchEpubViewer({
   required BuildContext context,
   required WidgetRef ref,
 }) async {
+  String path;
   try {
-    String path = await getFilePath(fileName);
-    bool openWithExternalApp = ref.watch(openEpubWithExternalAppProvider);
-
-    // Check if user wants external app
-    if (openWithExternalApp) {
-      await OpenFile.open(path,
-          linuxByProcess: true, type: "application/epub+zip");
-    } else {
-      try {
-        // Use internal Epub Viewer for all platforms (epub_view supports desktop)
-        if (context.mounted) {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (BuildContext context) {
-            return EpubViewerWidget(fileName: fileName);
-          }));
-        }
-      } catch (e) {
-        if (context.mounted) {
-          showSnackBar(context: context, message: "Unable to open epub!");
-        }
-      }
-    }
-  } catch (e) {
-    // File doesn't exist or can't be accessed
+    path = await getFilePath(fileName);
+  } catch (_) {
     if (context.mounted) {
       showSnackBar(
           context: context,
           message: "File not found. The download may have failed.");
+    }
+    return;
+  }
+  if (!context.mounted) return;
+  try {
+    final reader = await ref.read(readerPreferenceProvider('epub').future);
+    if (!context.mounted) return;
+    if (reader != 'internal') {
+      await ref
+          .read(readerAppsProvider)
+          .openBook(path: path, format: 'epub', reader: reader);
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) {
+      return EpubViewerWidget(fileName: fileName);
+    }));
+  } catch (_) {
+    if (context.mounted) {
+      showSnackBar(
+          context: context,
+          message: AppLocalizations.of(context).readerOpenFailed);
     }
   }
 }

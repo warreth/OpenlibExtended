@@ -2,7 +2,11 @@
 import 'package:flutter/material.dart';
 
 void showSnackBar({required BuildContext context, required String message}) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.clearSnackBars();
+  messenger.showSnackBar(SnackBar(
+    showCloseIcon: true,
+    closeIconColor: Colors.white,
     content: Text(
       message,
       style: const TextStyle(

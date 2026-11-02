@@ -1,3 +1,4 @@
+import 'package:openlib/core/book_language.dart';
 // Dart imports:
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -14,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlib/services/annas_archieve.dart';
 import 'package:openlib/services/book_detail_routing.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/reader_apps.dart';
 import 'package:openlib/services/libgen_service.dart';
 import 'package:openlib/services/search_manager.dart';
 import 'package:openlib/services/files.dart';
@@ -55,73 +57,9 @@ List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
 
 // Language filter values (display name: code)
 Map<String, String> languageValues = {
-  "All": "",
-  "English": "en",
-  "Spanish": "es",
-  "French": "fr",
-  "German": "de",
-  "Italian": "it",
-  "Portuguese": "pt",
-  "Russian": "ru",
-  "Chinese": "zh",
-  "Japanese": "ja",
-  "Korean": "ko",
-  "Arabic": "ar",
-  "Hindi": "hi",
-  "Malayalam": "ml",
-  "Dutch": "nl",
-  "Polish": "pl",
-  "Turkish": "tr",
-  "Swedish": "sv",
-  "Indonesian": "id",
-  "Vietnamese": "vi",
-  "Czech": "cs",
-  "Greek": "el",
-  "Romanian": "ro",
-  "Hungarian": "hu",
-  "Ukrainian": "uk",
-  "Hebrew": "he",
-  "Thai": "th",
-  "Persian": "fa",
-  "Bengali": "bn",
-  "Finnish": "fi",
-  "Norwegian": "no",
-  "Danish": "da",
-};
-
-// Reverse map: language code to uppercase display code
-Map<String, String> languageCodeToDisplay = {
-  "en": "EN",
-  "es": "ES",
-  "fr": "FR",
-  "de": "DE",
-  "it": "IT",
-  "pt": "PT",
-  "ru": "RU",
-  "zh": "ZH",
-  "ja": "JA",
-  "ko": "KO",
-  "ar": "AR",
-  "hi": "HI",
-  "ml": "ML",
-  "nl": "NL",
-  "pl": "PL",
-  "tr": "TR",
-  "sv": "SV",
-  "id": "ID",
-  "vi": "VI",
-  "cs": "CS",
-  "el": "EL",
-  "ro": "RO",
-  "hu": "HU",
-  "uk": "UK",
-  "he": "HE",
-  "th": "TH",
-  "fa": "FA",
-  "bn": "BN",
-  "fi": "FI",
-  "no": "NO",
-  "da": "DA",
+  'All': '',
+  for (final language in bookLanguageNames.entries)
+    language.value: language.key,
 };
 
 // Year filter values for publishing year range
@@ -252,6 +190,20 @@ final pdfCurrentPage = StateProvider.autoDispose<int>((ref) => 0);
 final totalPdfPage = StateProvider.autoDispose<int>((ref) => 0);
 final openPdfWithExternalAppProvider = StateProvider<bool>((ref) => false);
 final openEpubWithExternalAppProvider = StateProvider<bool>((ref) => false);
+final readerPreferencesProvider =
+    Provider<ReaderPreferences>((ref) => ReaderPreferences());
+final readerAppsProvider = Provider<ReaderApps>((ref) => const ReaderApps());
+final readerPreferenceProvider =
+    FutureProvider.family<String, String>((ref, format) {
+  final legacyExternal = ref.watch(format == 'pdf'
+      ? openPdfWithExternalAppProvider
+      : openEpubWithExternalAppProvider);
+  return ref
+      .watch(readerPreferencesProvider)
+      .read(format, legacyExternal: legacyExternal);
+});
+final installedReadersProvider = FutureProvider.family<List<ReaderApp>, String>(
+    (ref, format) => ref.watch(readerAppsProvider).installedReaders(format));
 
 // Download Settings
 final showManualDownloadButtonProvider = StateProvider<bool>((ref) => false);
@@ -387,14 +339,19 @@ class SearchPageKey {
   final String query;
   final int page;
 
-  const SearchPageKey(this.query, this.page);
+  final SearchProviderId? source;
+
+  const SearchPageKey(this.query, this.page, {this.source});
 
   @override
   bool operator ==(Object other) =>
-      other is SearchPageKey && other.query == query && other.page == page;
+      other is SearchPageKey &&
+      other.query == query &&
+      other.page == page &&
+      other.source == source;
 
   @override
-  int get hashCode => Object.hash(query, page);
+  int get hashCode => Object.hash(query, page, source);
 }
 
 // Provider for one page of search results across all enabled providers
@@ -418,6 +375,7 @@ final searchProvider = FutureProvider.family
     publisher: ref.watch(searchPublisherProvider),
     filtersEnabled: ref.watch(enableFiltersState),
     page: key.page,
+    source: key.source,
   ));
   final enabledCount = (await manager.enabledProviders()).length;
   if (result.books.isEmpty &&

@@ -9,6 +9,57 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String readerForFormat(String format) {
+    return 'Приложение для $format';
+  }
+
+  @override
+  String get builtInReader => 'Встроенное приложение';
+
+  @override
+  String get askEveryTime => 'Спрашивать каждый раз';
+
+  @override
+  String get systemDefaultReader => 'Приложение по умолчанию';
+
+  @override
+  String get readerSaveFailed =>
+      'Не удалось сохранить выбор приложения. Повторите попытку.';
+
+  @override
+  String get readerLoadFailed =>
+      'Не удалось загрузить приложение. Нажмите, чтобы повторить.';
+
+  @override
+  String get readerListFailed =>
+      'Не удалось получить список установленных приложений.';
+
+  @override
+  String get readerListLoading => 'Загрузка установленных приложений…';
+
+  @override
+  String get readerOpenHint => 'Используется при нажатии «Открыть».';
+
+  @override
+  String get readerLoading => 'Загрузка приложения…';
+
+  @override
+  String get readerUnavailable => 'Приложение недоступно';
+
+  @override
+  String get readerOpenFailed =>
+      'Не удалось открыть выбранное приложение. Выберите другое в настройках.';
+
+  @override
+  String get noDescriptionAvailable => 'Описание отсутствует';
+
+  @override
+  String get searchSource => 'Источник поиска';
+
+  @override
+  String get automaticSource => 'Автоматически (включённые источники)';
+
+  @override
   String get appTitle => 'OpenlibExtended';
 
   @override

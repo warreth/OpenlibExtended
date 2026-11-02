@@ -1,3 +1,4 @@
+import 'package:openlib/core/book_language.dart';
 // Dart imports:
 import 'dart:async';
 
@@ -53,6 +54,9 @@ class SearchQuery {
   final bool filtersEnabled;
   final int page;
 
+  /// Null keeps the automatic fallback chain; a selection searches only that catalog.
+  final SearchProviderId? source;
+
   const SearchQuery({
     required this.text,
     this.content = '',
@@ -64,6 +68,7 @@ class SearchQuery {
     this.publisher = '',
     this.filtersEnabled = false,
     this.page = 1,
+    this.source,
   });
 
   bool get isEmpty =>
@@ -291,8 +296,8 @@ class LibgenProvider implements SearchProvider {
       params.write('&page=${query.page}');
     }
 
-    final mirrors = _mirrors ??
-        await InstanceManager().enabledUrls(MirrorService.libgen);
+    final mirrors =
+        _mirrors ?? await InstanceManager().enabledUrls(MirrorService.libgen);
 
     if (mirrors.isEmpty) {
       // Every libgen mirror SLUM knows is DOWN (or switched off by the
@@ -408,12 +413,20 @@ class ZlibraryProvider implements SearchProvider {
     // Dio throws on non-2xx by default; the DiamWall gate is a 503
     // whose body we must read, so accept any status and inspect.
     final acceptAnyStatus = Options(validateStatus: (_) => true);
+    // Names and parameter keys come from Z-Library's search form.
+    final language = bookLanguageName(query.language)?.toLowerCase();
+    final parameters = <String, dynamic>{
+      if (query.page > 1) 'page': query.page,
+      if (query.filtersEnabled && language != null) 'languages[]': language,
+      if (query.filtersEnabled && query.fileType.isNotEmpty)
+        'extensions[]': query.fileType.toUpperCase(),
+    };
 
     for (final mirror in mirrors) {
       try {
         var response = await _dio.get(
           '$mirror/s/${Uri.encodeComponent(query.text)}',
-          queryParameters: {if (query.page > 1) 'page': query.page},
+          queryParameters: parameters,
           options: acceptAnyStatus,
         );
         if (_solver.looksLikeChallenge(
@@ -429,7 +442,7 @@ class ZlibraryProvider implements SearchProvider {
             try {
               response = await _dio.get(
                 '$mirror/s/${Uri.encodeComponent(query.text)}',
-                queryParameters: {if (query.page > 1) 'page': query.page},
+                queryParameters: parameters,
                 options:
                     acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}),
               );
@@ -452,7 +465,17 @@ class ZlibraryProvider implements SearchProvider {
               metadata: {'mirror': mirror, 'status': response.statusCode});
           continue;
         }
-        final books = parseResults(response.data.toString(), mirror);
+        final books =
+            parseResults(response.data.toString(), mirror).where((book) {
+          if (!query.filtersEnabled) return true;
+          final matchesLanguage = language == null ||
+              bookLanguageName(book.info)?.toLowerCase() == language;
+          final matchesType = query.fileType.isEmpty ||
+              (book.info ?? '')
+                  .toLowerCase()
+                  .contains(query.fileType.toLowerCase());
+          return matchesLanguage && matchesType;
+        }).toList();
         if (books.isNotEmpty) {
           _logger.info('Z-Library search returned ${books.length} books',
               tag: 'ZlibraryProvider', metadata: {'mirror': mirror});
@@ -479,6 +502,20 @@ class ZlibraryProvider implements SearchProvider {
     final document = html_parser.parse(html);
     final books = <BookData>[];
     for (final card in document.querySelectorAll('z-bookcard')) {
+      // No-results pages contain a realistic but hidden decoy card.
+      // Respect the page's visibility instead of treating it as a match.
+      dom.Element? ancestor = card;
+      var hidden = false;
+      while (ancestor != null) {
+        if (ancestor.attributes.containsKey('hidden') ||
+            ancestor.attributes['aria-hidden']?.trim().toLowerCase() ==
+                'true') {
+          hidden = true;
+          break;
+        }
+        ancestor = ancestor.parent;
+      }
+      if (hidden) continue;
       final href = card.attributes['href'];
       final title = card.querySelector('div[slot="title"]')?.text.trim() ?? '';
       if (href == null || href.isEmpty || title.isEmpty) continue;
@@ -518,22 +555,51 @@ class ZlibraryProvider implements SearchProvider {
   /// resolved CDN download URL and `isFastDownload` true - the resolved
   /// link serves the file directly, exactly like libgen's get.php.
   /// Null when every mirror fails or the page cannot be parsed.
-  Future<BookInfoData?> bookInfo(String url) async {
-    final mirrors = _mirrors ?? await _resolveMirrors();
+  Future<BookInfoData?> bookInfo(
+    String url, {
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final cancellation = CancelToken();
+    try {
+      return await _bookInfo(url, cancellation).timeout(timeout, onTimeout: () {
+        _logger.warning('Z-Library book page timed out',
+            tag: 'ZlibraryProvider', metadata: {'url': url});
+        return null;
+      });
+    } finally {
+      cancellation.cancel('Book detail request finished');
+    }
+  }
+
+  Future<BookInfoData?> _bookInfo(String url, CancelToken cancellation) async {
+    final available = _mirrors ?? await _resolveMirrors();
+    final origin = Uri.parse(url).origin;
+    // Start with the mirror that actually returned this result. Only use
+    // configured mirrors, retaining the user's disabled-host choices.
+    final mirrors = [
+      ...available.where((mirror) => Uri.parse(mirror).origin == origin),
+      ...available.where((mirror) => Uri.parse(mirror).origin != origin),
+    ];
     final path = Uri.parse(url).path;
     final acceptAnyStatus = Options(validateStatus: (_) => true);
 
     for (final mirror in mirrors) {
+      if (cancellation.isCancelled) return null;
       try {
-        var response = await _dio.get('$mirror$path', options: acceptAnyStatus);
-        response = await _passDiamWall(mirror, response, '$mirror$path');
+        var response = await _dio.get('$mirror$path',
+            options: acceptAnyStatus, cancelToken: cancellation);
+        response = await _passDiamWall(mirror, response, '$mirror$path',
+            cancelToken: cancellation);
         if (response.statusCode != 200) continue;
-
         final pageUrl = '$mirror$path';
         final data = parseBookPage(response.data.toString(), mirror, pageUrl);
         if (data != null) return data;
-      } catch (_) {
-        // Next mirror; Z-Library mirrors are unstable by nature.
+      } catch (error) {
+        if (cancellation.isCancelled) return null;
+        _logger.warning('Z-Library book page failed',
+            tag: 'ZlibraryProvider',
+            error: error,
+            metadata: {'mirror': mirror});
       }
     }
     return null;
@@ -542,8 +608,8 @@ class ZlibraryProvider implements SearchProvider {
   /// GETs [url], solving a DiamWall 503 (once) and a second 503 on the
   /// download hop if present. Returns the first response that is not a
   /// challenge. A non-challenge response is returned as-is.
-  Future<Response> _passDiamWall(
-      String mirror, Response first, String url) async {
+  Future<Response> _passDiamWall(String mirror, Response first, String url,
+      {CancelToken? cancelToken}) async {
     var response = first;
     final acceptAnyStatus = Options(validateStatus: (_) => true);
 
@@ -557,6 +623,7 @@ class ZlibraryProvider implements SearchProvider {
         cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
 
     response = await _dio.get(url,
+        cancelToken: cancelToken,
         options: acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}));
     // A second challenge can appear right at the download hop; solve
     // it too before giving up on this mirror.
@@ -567,6 +634,7 @@ class ZlibraryProvider implements SearchProvider {
         final header =
             again.entries.map((e) => '${e.key}=${e.value}').join('; ');
         response = await _dio.get(url,
+            cancelToken: cancelToken,
             options: acceptAnyStatus.copyWith(headers: {'Cookie': header}));
       }
     }
@@ -739,12 +807,12 @@ class ZlibraryProvider implements SearchProvider {
   /// caller never shows an invented message.
   String? _refusalFromPage(String html) {
     final text = html_parser
-        .parse(html)
-        .body
-        ?.text
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim()
-        .toLowerCase() ??
+            .parse(html)
+            .body
+            ?.text
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim()
+            .toLowerCase() ??
         '';
     if (text.isEmpty) return null;
 
@@ -815,6 +883,19 @@ class ZlibraryProvider implements SearchProvider {
       year,
     ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
 
+    final descriptionElement = document.querySelector('#bookDescriptionBox');
+    final description = descriptionElement == null
+        ? ''
+        : html_parser
+                .parseFragment(descriptionElement.innerHtml
+                    .replaceAll(
+                        RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+                    .replaceAll(
+                        RegExp(r'</p\s*>', caseSensitive: false), '\n\n'))
+                .text
+                ?.trim() ??
+            '';
+
     return BookInfoData(
       title: title,
       author: author,
@@ -826,7 +907,7 @@ class ZlibraryProvider implements SearchProvider {
       link: pageUrl,
       md5: _bookIdFromHref(pageUrl) ?? title,
       format: format ?? '',
-      description: null,
+      description: description.isEmpty ? null : description,
       mirror: dlHref == null ? null : '$baseUrl$dlHref',
       isFastDownload: false,
     );
@@ -1038,7 +1119,27 @@ class WelibProvider implements SearchProvider {
         img?.attributes['data-author'],
       ]);
 
-      final info = _firstNonEmpty([card.querySelector('.text-sm')?.text]);
+      // The first .text-sm is the author. File metadata lives in its own
+      // horizontally scrolling row: format, language, year and file size.
+      final metadata = card
+              .querySelector('div.overflow-x-auto.whitespace-nowrap')
+              ?.children
+              .where((element) => element.localName == 'span')
+              .map((element) =>
+                  element.text.replaceFirst(RegExp(r'^\s*·\s*'), '').trim())
+              .where((value) => value.isNotEmpty)
+              .toList() ??
+          const <String>[];
+      final language = metadata
+          .skip(1)
+          .map(bookLanguageName)
+          .whereType<String>()
+          .firstOrNull;
+      final info = [
+        if (language != null) language,
+        if (metadata.isNotEmpty) metadata.first.toUpperCase(),
+        ...metadata.skip(1).where((value) => bookLanguageName(value) == null),
+      ].join(', ');
 
       books.add(BookData(
         title: title,
@@ -1047,7 +1148,7 @@ class WelibProvider implements SearchProvider {
         link: href.startsWith('http') ? href : '$baseUrl$href',
         md5: _bookIdFromHref(href) ?? href,
         publisher: null,
-        info: info,
+        info: info.isEmpty ? null : info,
       ));
     }
     return books;
@@ -1117,9 +1218,10 @@ class WelibProvider implements SearchProvider {
     final description = document
         .querySelector('meta[name="description"]')
         ?.attributes['content'];
-    final author = description != null && description.contains('Downloaded from')
-        ? description.split('Downloaded from').first.trim()
-        : null;
+    final author =
+        description != null && description.contains('Downloaded from')
+            ? description.split('Downloaded from').first.trim()
+            : null;
 
     String? language;
     String? publisher;
@@ -1128,14 +1230,19 @@ class WelibProvider implements SearchProvider {
       if (text.length > 200) continue;
       final lower = text.toLowerCase();
       if (lower.startsWith('language') && language == null) {
-        language = text.replaceFirst(RegExp(r'^language', caseSensitive: false), '').trim();
+        language = text
+            .replaceFirst(RegExp(r'^language', caseSensitive: false), '')
+            .trim();
       }
       if (lower.startsWith('publisher') && publisher == null) {
-        publisher = text.replaceFirst(RegExp(r'^publisher', caseSensitive: false), '').trim();
+        publisher = text
+            .replaceFirst(RegExp(r'^publisher', caseSensitive: false), '')
+            .trim();
       }
     }
 
-    final slowDownload = document.querySelector('a[href^="/slow_download/"]')
+    final slowDownload = document
+            .querySelector('a[href^="/slow_download/"]')
             ?.attributes['href'] ??
         '/slow_download/$id/0/0';
 
@@ -1155,7 +1262,9 @@ class WelibProvider implements SearchProvider {
       md5: id,
       format: format?.toLowerCase() ?? 'epub',
       description: null,
-      mirror: slowDownload.startsWith('http') ? slowDownload : '$baseUrl$slowDownload',
+      mirror: slowDownload.startsWith('http')
+          ? slowDownload
+          : '$baseUrl$slowDownload',
       isFastDownload: false,
     );
   }
@@ -1330,7 +1439,11 @@ class SearchManager {
   /// Errors are collected and surface only when every provider fails.
   Future<SearchManagerResult> search(SearchQuery query) async {
     final enabled = await enabledProviders();
-    final active = _providers.where((p) => enabled.contains(p.id)).toList();
+    final active = _providers
+        .where((p) => query.source == null
+            ? enabled.contains(p.id)
+            : p.id == query.source)
+        .toList();
     if (active.isEmpty) {
       return const SearchManagerResult(books: [], failedProviders: []);
     }
@@ -1347,6 +1460,8 @@ class SearchManager {
       logger.debug('Trying ${provider.displayName}', tag: 'SearchManager');
       final outcome = await _searchOne(provider, query, logger);
       if (outcome.error != null) {
+        // Keep the website-check URL and recovery controls for an explicit source.
+        if (query.source != null) throw outcome.error!;
         failed.add(provider.displayName);
       } else {
         books.addAll(outcome.books);
@@ -1361,7 +1476,9 @@ class SearchManager {
       'source': resultSource,
     });
     return SearchManagerResult(
-        books: _dedupe(books), failedProviders: failed, resultSource: resultSource);
+        books: _dedupe(books),
+        failedProviders: failed,
+        resultSource: resultSource);
   }
 
   Future<_Outcome> _searchOne(
@@ -1372,8 +1489,13 @@ class SearchManager {
           tag: 'SearchManager');
       // Stamp every result with its catalog so the UI can show where
       // each book came from.
-      final tagged =
-          books.map((b) => b.copyWith(source: provider.displayName)).toList();
+      final language =
+          query.filtersEnabled ? bookLanguageName(query.language) : null;
+      final tagged = books
+          .where((book) =>
+              language == null || bookLanguageName(book.info) == language)
+          .map((b) => b.copyWith(source: provider.displayName))
+          .toList();
       return _Outcome(provider, tagged, null);
     } catch (e) {
       logger.warning('${provider.displayName} search failed',

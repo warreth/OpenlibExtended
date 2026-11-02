@@ -11,7 +11,6 @@ import 'package:openlib/l10n/app_localizations.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:open_file/open_file.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 // Project imports:
@@ -21,7 +20,8 @@ import 'package:openlib/ui/components/snack_bar_widget.dart';
 import 'package:openlib/state/state.dart'
     show
         filePathProvider,
-        openPdfWithExternalAppProvider,
+        readerPreferenceProvider,
+        readerAppsProvider,
         getBookPosition,
         savePdfPosition;
 
@@ -29,25 +29,36 @@ Future<void> launchPdfViewer(
     {required String fileName,
     required BuildContext context,
     required WidgetRef ref}) async {
-  bool openWithExternalApp = ref.watch(openPdfWithExternalAppProvider);
-
-  // The user can always prefer the external app; pdfrx covers every
-  // platform in-app otherwise.
-  if (openWithExternalApp) {
-    try {
-      String path = await getFilePath(fileName);
-      await OpenFile.open(path, linuxByProcess: true, type: "application/pdf");
-    } catch (e) {
-      if (context.mounted) {
-        showSnackBar(
-            context: context,
-            message: "File not found. The download may have failed.");
+  try {
+    final reader = await ref.read(readerPreferenceProvider('pdf').future);
+    if (!context.mounted) return;
+    if (reader != 'internal') {
+      String path;
+      try {
+        path = await getFilePath(fileName);
+      } catch (_) {
+        if (context.mounted) {
+          showSnackBar(
+              context: context,
+              message: "File not found. The download may have failed.");
+        }
+        return;
       }
+      if (!context.mounted) return;
+      await ref
+          .read(readerAppsProvider)
+          .openBook(path: path, format: 'pdf', reader: reader);
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (_) {
+        return PdfViewPage(fileName: fileName);
+      }));
     }
-  } else {
-    Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-      return PdfViewPage(fileName: fileName);
-    }));
+  } catch (_) {
+    if (context.mounted) {
+      showSnackBar(
+          context: context,
+          message: AppLocalizations.of(context).readerOpenFailed);
+    }
   }
 }
 

@@ -150,10 +150,20 @@ class ActiveDownloadsWidget extends ConsumerWidget {
                   ),
                   itemBuilder: (context, index) {
                     final task = downloads.values.elementAt(index);
-                    return _DownloadItem(
+                    final item = _DownloadItem(
+                      key: ValueKey(task.id),
                       task: task,
                       bytesToFileSize: _bytesToFileSize,
                       getStatusText: _getStatusText,
+                    );
+                    if (task.status != DownloadStatus.failed) return item;
+                    return Dismissible(
+                      key: ValueKey('failed-${task.id}'),
+                      direction: DismissDirection.horizontal,
+                      onDismissed: (_) => ref
+                          .read(downloadManagerProvider)
+                          .removeDownload(task.id),
+                      child: item,
                     );
                   },
                 ),
@@ -174,6 +184,7 @@ class _DownloadItem extends ConsumerStatefulWidget {
   final String Function(DownloadStatus) getStatusText;
 
   const _DownloadItem({
+    super.key,
     required this.task,
     required this.bytesToFileSize,
     required this.getStatusText,
@@ -414,6 +425,12 @@ class _DownloadItemState extends ConsumerState<_DownloadItem> {
                 ),
                 const SizedBox(width: 8),
               ],
+              if (task.status == DownloadStatus.failed)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: () => downloadManager.removeDownload(task.id),
+                  tooltip: AppLocalizations.of(context).close,
+                ),
               if (task.status != DownloadStatus.completed &&
                   task.status != DownloadStatus.failed)
                 IconButton(

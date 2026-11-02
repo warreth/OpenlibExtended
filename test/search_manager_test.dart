@@ -84,6 +84,18 @@ void main() {
     } catch (_) {}
   });
 
+  test('every source excludes books outside the selected language', () async {
+    for (final source in SearchProviderId.values) {
+      final provider = _FakeProvider(source.name, [
+        BookData(title: 'German', link: 'german', md5: 'de', info: 'German, epub'),
+        BookData(title: 'English', link: 'english', md5: 'en', info: 'English, epub'),
+      ]);
+      final result = await SearchManager(providers: [provider]).search(
+        SearchQuery(text: 'book', source: source, language: 'de', filtersEnabled: true));
+      expect(result.books.map((book) => book.title), ['German']);
+    }
+  });
+
   const libgenHtml = '''
   <html><body>
   <table class="c">
@@ -208,6 +220,30 @@ void main() {
   });
 
   group('SearchManager fan-out', () {
+    test('an explicit source searches Anna even when Z-Library has results', () async {
+      final zlib = _FakeProvider('zlibrary', [
+        BookData(title: 'Unusable Z result', link: 'https://z/book/1', md5: 'z1'),
+      ]);
+      final anna = _FakeProvider('annasArchive', [
+        BookData(title: 'PIHKAL: A Chemical Love Story', link: 'https://a/md5/1', md5: 'a1'),
+      ]);
+      final manager = SearchManager(database: MyLibraryDb.instance, providers: [zlib, anna]);
+      await manager.setProviderEnabled(SearchProviderId.zlibrary, true);
+      final result = await manager.search(const SearchQuery(
+        text: 'pihkal', source: SearchProviderId.annasArchive));
+      expect(result.books.single.title, 'PIHKAL: A Chemical Love Story');
+      expect(zlib.calls, 0);
+      expect(anna.calls, 1);
+    });
+
+    test('an explicit source preserves actionable errors instead of hiding them', () async {
+      final error = StateError('Complete the website check');
+      final anna = _FakeProvider('annasArchive', [], error: error);
+      final manager = SearchManager(database: MyLibraryDb.instance, providers: [anna]);
+      await expectLater(manager.search(const SearchQuery(
+        text: 'pihkal', source: SearchProviderId.annasArchive)), throwsA(same(error)));
+    });
+
     test('stops at the first provider with results, reports failures',
         () async {
       // Libgen first in the chain: fails -> chain moves on to AA, which

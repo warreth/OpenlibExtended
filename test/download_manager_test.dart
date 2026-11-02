@@ -171,6 +171,30 @@ void main() {
       await server.close();
     });
 
+    test('downloads a CDN URL whose filename mentions an old library domain', () async {
+      final bytes = Uint8List.fromList(List.generate(4096, (i) => i % 251));
+      server = await _RangeServer.start(bytes: bytes);
+      server._server.listen(server.handle);
+      final url = server.url.replace(queryParameters: {
+        'filename': 'PIHKAL (1lib.sk).epub',
+        'source': 'annas-archive.org',
+      }).toString();
+      final task = DownloadTask(id: 'cdn-filename', md5: 'cdn-filename',
+        title: 'CDN filename regression', mirrors: [url], format: 'epub',
+        link: url, isDirectLink: true);
+      final finished = manager.downloadsStream.firstWhere((tasks) =>
+        tasks[task.id]?.status == DownloadStatus.completed ||
+        tasks[task.id]?.status == DownloadStatus.failed);
+      await manager.addDownload(task);
+      final tasks = await finished.timeout(const Duration(seconds: 5));
+      expect(tasks[task.id]!.status, DownloadStatus.completed,
+        reason: 'A historical domain in metadata is not the download host');
+      final saved = File('$saveDir/${generateBookFileName(
+        title: task.title, format: task.format, md5: task.md5)}');
+      expect(saved.readAsBytesSync(), bytes);
+      manager.removeDownload(task.id);
+    });
+
     test('completes and verifies a full download', () async {
       final bytes = Uint8List.fromList(
           List.generate(1024 * 300, (i) => i % 251)); // ~300KB

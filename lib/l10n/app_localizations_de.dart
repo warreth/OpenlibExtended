@@ -9,6 +9,57 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String readerForFormat(String format) {
+    return '$format-Lese-App';
+  }
+
+  @override
+  String get builtInReader => 'Integrierte Lese-App';
+
+  @override
+  String get askEveryTime => 'Jedes Mal fragen';
+
+  @override
+  String get systemDefaultReader => 'Standard-App des Systems';
+
+  @override
+  String get readerSaveFailed =>
+      'Die Lese-App konnte nicht gespeichert werden. Bitte erneut versuchen.';
+
+  @override
+  String get readerLoadFailed =>
+      'Die Lese-App konnte nicht geladen werden. Zum Wiederholen tippen.';
+
+  @override
+  String get readerListFailed =>
+      'Installierte Lese-Apps konnten nicht aufgelistet werden.';
+
+  @override
+  String get readerListLoading => 'Installierte Lese-Apps werden geladen…';
+
+  @override
+  String get readerOpenHint => 'Wird beim Tippen auf Öffnen verwendet.';
+
+  @override
+  String get readerLoading => 'Lese-App wird geladen…';
+
+  @override
+  String get readerUnavailable => 'Lese-App nicht verfügbar';
+
+  @override
+  String get readerOpenFailed =>
+      'Die ausgewählte Lese-App konnte nicht geöffnet werden. Bitte in den Einstellungen eine andere wählen.';
+
+  @override
+  String get noDescriptionAvailable => 'Keine Beschreibung verfügbar';
+
+  @override
+  String get searchSource => 'Suchquelle';
+
+  @override
+  String get automaticSource => 'Automatisch (aktivierte Quellen)';
+
+  @override
   String get appTitle => 'OpenlibExtended';
 
   @override
