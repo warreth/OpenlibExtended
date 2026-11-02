@@ -42,6 +42,13 @@ void main() {
     }
   });
 
+  setUp(() async {
+    // The fake path lives under /tmp and survives between local runs, so
+    // start every test from a first-install state.
+    final database = await MyLibraryDb.instance.database;
+    await database.delete('preferences');
+  });
+
   group('compareVersions', () {
     test('orders dot-separated versions numerically, not lexically', () {
       expect(UpgradeDetector.compareVersions('1.0.9', '1.0.10'), lessThan(0));
