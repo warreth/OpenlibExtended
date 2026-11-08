@@ -566,6 +566,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noMirrors => 'Aucun miroir disponible !';
 
   @override
+  String get downloadLinksFailed =>
+      'Impossible de récupérer les liens de téléchargement. Réessayez ou choisissez une autre source.';
+
+  @override
   String get addToMyLibrary => 'Ajouter à ma bibliothèque';
 
   @override

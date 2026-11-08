@@ -555,6 +555,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMirrors => 'No mirrors available!';
 
   @override
+  String get downloadLinksFailed =>
+      'Could not fetch download links. Try again or pick another source.';
+
+  @override
   String get addToMyLibrary => 'Add To My Library';
 
   @override

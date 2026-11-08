@@ -43,7 +43,14 @@ class _WebviewState extends ConsumerState<Webview> {
   bool _linksFound = false;
   final List<String> _capturedDownloadLinks = [];
   Timer? _pollingTimer;
+  Timer? _overlayTimeout;
   desktop_webview.Webview? _desktopWebview;
+
+  /// How long the blocking overlay waits for a page that carries a
+  /// download link before it gives up. Without it a page that never
+  /// finishes loading (or a direct file link the WebView cannot render)
+  /// left "Preparing download..." on screen forever (issue #117).
+  static const Duration _overlayTimeoutDuration = Duration(seconds: 60);
 
   @override
   void initState() {
@@ -54,7 +61,19 @@ class _WebviewState extends ConsumerState<Webview> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openDesktopWebview();
       });
+    } else if (widget.showOverlay) {
+      // The overlay hides the page, so the user cannot act on whatever
+      // the WebView is showing. Never leave it up indefinitely.
+      _overlayTimeout = Timer(_overlayTimeoutDuration, _giveUpOnLinks);
     }
+  }
+
+  void _giveUpOnLinks() {
+    if (_linksFound || !mounted) return;
+    _linksFound = true;
+    _logger.warning('No download links found before the timeout',
+        tag: 'WebView', metadata: {'url': widget.url});
+    Navigator.pop(context, const <String>[]);
   }
 
   Future<void> _openDesktopWebview() async {
@@ -261,6 +280,7 @@ class _WebviewState extends ConsumerState<Webview> {
     if (_capturedDownloadLinks.isNotEmpty && !_linksFound && mounted) {
       _linksFound = true;
       _pollingTimer?.cancel();
+      _overlayTimeout?.cancel();
       _logger.info("Returning download links",
           tag: "WebView", metadata: {"count": _capturedDownloadLinks.length});
 
@@ -282,6 +302,7 @@ class _WebviewState extends ConsumerState<Webview> {
   @override
   void dispose() {
     _pollingTimer?.cancel();
+    _overlayTimeout?.cancel();
     // Don't close the webview - let it remain open to avoid OpenGL crash
     // The user will close it manually
     super.dispose();
@@ -379,6 +400,24 @@ class _WebviewState extends ConsumerState<Webview> {
                 webViewController = controller;
               },
               onLoadStart: (controller, url) {},
+              // A direct file link (see isDirectFileUrl) never reaches
+              // onLoadStop: Android hands the attachment to the download
+              // listener instead. Treat it as the link we came for.
+              onDownloadStartRequest: (controller, request) {
+                final url = request.url.toString();
+                if (!url.startsWith('http')) return;
+                _logger.info('WebView started a file download',
+                    tag: 'WebView',
+                    metadata: {
+                      'url': url,
+                      'mimeType': request.mimeType,
+                      'contentDisposition': request.contentDisposition,
+                    });
+                if (!_capturedDownloadLinks.contains(url)) {
+                  _capturedDownloadLinks.add(url);
+                }
+                _returnLinksAndClose();
+              },
               onLoadStop: (controller, url) async {
                 // Extract and store cookies after page load
                 try {
@@ -404,6 +443,10 @@ class _WebviewState extends ConsumerState<Webview> {
                       tag: 'WebView', metadata: {'error': e.toString()});
                 }
 
+                // The overlay timeout or a download-start callback may
+                // have returned while the cookies were being read.
+                if (!mounted || _linksFound) return;
+
                 List<String> bookDownloadLinks = [];
                 if (url.toString().contains("slow_download")) {
                   String query =
@@ -422,10 +465,18 @@ class _WebviewState extends ConsumerState<Webview> {
                 }
 
                 if (bookDownloadLinks.isNotEmpty) {
-                  Future.delayed(const Duration(milliseconds: 70), () {
-                    // ignore: use_build_context_synchronously
-                    Navigator.pop(context, bookDownloadLinks);
-                  });
+                  for (final link in bookDownloadLinks) {
+                    if (link.startsWith('http') &&
+                        !_capturedDownloadLinks.contains(link)) {
+                      _capturedDownloadLinks.add(link);
+                    }
+                  }
+                  // Keep the short settle delay, but let
+                  // _returnLinksAndClose decide: the overlay timeout or a
+                  // download-start callback may already have returned, and
+                  // a second pop would close the book page underneath.
+                  Future.delayed(
+                      const Duration(milliseconds: 70), _returnLinksAndClose);
                 }
               },
             ),

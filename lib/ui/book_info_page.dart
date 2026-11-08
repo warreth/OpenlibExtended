@@ -103,6 +103,34 @@ class ActionButtonWidget extends ConsumerStatefulWidget {
 }
 
 class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
+  /// Starts a background download with [mirrors] and reports it. Shared by
+  /// the manual WebView result and the direct-link shortcut.
+  Future<void> _startDownload(List<String> mirrors) async {
+    final downloadManager = ref.read(downloadManagerProvider);
+    final task = DownloadTask(
+      id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
+      md5: widget.data.md5,
+      title: widget.data.title,
+      author: widget.data.author,
+      thumbnail: widget.data.thumbnail,
+      publisher: widget.data.publisher,
+      info: widget.data.info,
+      format: widget.data.format!,
+      description: widget.data.description,
+      link: widget.data.link,
+      mirrors: mirrors,
+    );
+
+    await downloadManager.addDownload(task);
+
+    if (!mounted) return;
+    showSnackBar(
+      context: context,
+      message: AppLocalizations.of(context).downloadStartedBackground,
+    );
+    ref.invalidate(myLibraryProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isBookExist = ref.watch(checkIdExists(widget.data.md5));
@@ -152,8 +180,7 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
 
                     // Libgen serves its files directly (get.php -> CDN);
                     // no mirror scraping or donation key applies.
-                    var isDirectLink = downloadUrl != null &&
-                        downloadUrl.contains('/get.php?');
+                    var isDirectLink = isDirectFileUrl(downloadUrl);
                     if (isDirectLink) {
                       isFastDownload = true;
                     }
@@ -373,52 +400,43 @@ class _ActionButtonWidgetState extends ConsumerState<ActionButtonWidget> {
                       ),
                     ),
                     onPressed: () async {
-                      if (widget.data.mirror != null &&
-                          widget.data.mirror != '') {
-                        // Navigate to webview page
-                        final List<String>? mirrors = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (BuildContext context) =>
-                                Webview(url: widget.data.mirror!),
-                          ),
-                        );
-
-                        if (mirrors != null &&
-                            mirrors.isNotEmpty &&
-                            context.mounted) {
-                          // Start download in background with fetched mirrors
-                          final downloadManager =
-                              ref.read(downloadManagerProvider);
-                          final task = DownloadTask(
-                            id: '${widget.data.md5}_${DateTime.now().millisecondsSinceEpoch}',
-                            md5: widget.data.md5,
-                            title: widget.data.title,
-                            author: widget.data.author,
-                            thumbnail: widget.data.thumbnail,
-                            publisher: widget.data.publisher,
-                            info: widget.data.info,
-                            format: widget.data.format!,
-                            description: widget.data.description,
-                            link: widget.data.link,
-                            mirrors: mirrors, // Use manually fetched mirrors
-                          );
-
-                          await downloadManager.addDownload(task);
-
-                          if (context.mounted) {
-                            showSnackBar(
-                              context: context,
-                              message: AppLocalizations.of(context)
-                                  .downloadStartedBackground,
-                            );
-                          }
-                          ref.invalidate(myLibraryProvider);
-                        }
-                      } else {
+                      final mirror = widget.data.mirror;
+                      if (mirror == null || mirror.isEmpty) {
                         showSnackBar(
                             context: context,
                             message: AppLocalizations.of(context).noMirrors);
+                        return;
+                      }
+
+                      // A direct file link cannot be scraped in a WebView
+                      // (see isDirectFileUrl); hand it to the download
+                      // manager instead of leaving the overlay up.
+                      if (isDirectFileUrl(mirror)) {
+                        await _startDownload([mirror]);
+                        return;
+                      }
+
+                      // Navigate to webview page
+                      final List<String>? mirrors = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (BuildContext context) =>
+                              Webview(url: mirror),
+                        ),
+                      );
+                      if (!context.mounted) return;
+
+                      if (mirrors != null && mirrors.isNotEmpty) {
+                        // Start download in background with fetched mirrors
+                        await _startDownload(mirrors);
+                      } else if (mirrors != null) {
+                        // The page never produced a link (timeout or an
+                        // empty page): say so instead of silently staying
+                        // on the book page.
+                        showSnackBar(
+                            context: context,
+                            message: AppLocalizations.of(context)
+                                .downloadLinksFailed);
                       }
                     },
                     child: Text(

@@ -567,6 +567,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noMirrors => 'Keine Spiegel verfügbar!';
 
   @override
+  String get downloadLinksFailed =>
+      'Download-Links konnten nicht geladen werden. Versuche es erneut oder wähle eine andere Quelle.';
+
+  @override
   String get addToMyLibrary => 'Zu Meiner Bibliothek hinzufügen';
 
   @override

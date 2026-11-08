@@ -181,6 +181,7 @@
   "cancelDownload": "Download abbrechen",
   "copiedBookLink": "Buchlink in die Zwischenablage kopiert",
   "noMirrors": "Keine Spiegel verfügbar!",
+  "downloadLinksFailed": "Download-Links konnten nicht geladen werden. Versuche es erneut oder wähle eine andere Quelle.",
   "addToMyLibrary": "Zu Meiner Bibliothek hinzufügen",
   "downloadStartedBackground": "Download im Hintergrund gestartet",
   "bookDownloaded": "Buch wurde heruntergeladen!",

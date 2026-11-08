@@ -74,4 +74,46 @@ void main() {
       expect(target.hasUrl, isFalse);
     });
   });
+
+  group('isDirectFileUrl', () {
+    test('libgen get.php is a file, not a page', () {
+      // The exact shape the libgen book page hands the manual button.
+      expect(
+        isDirectFileUrl(
+            'https://libgen.li/get.php?md5=7fa1933240367d50818e83f75867605e&key=HHTIQRL70FJI3D1U'),
+        isTrue,
+      );
+    });
+
+    test('pages a WebView can scrape are not direct files', () {
+      expect(
+        isDirectFileUrl('https://annas-archive.gl/slow_download/abc/0/0'),
+        isFalse,
+      );
+      expect(isDirectFileUrl('https://z-lib.gd/dl/B39RQ6kmwG'), isFalse);
+      expect(
+        isDirectFileUrl(
+            'https://libgen.li/ads.php?md5=7fa1933240367d50818e83f75867605e'),
+        isFalse,
+      );
+    });
+
+    test('get.php only counts as the path, not as a query value', () {
+      expect(
+        isDirectFileUrl('https://example.com/ads.php?next=/get.php'),
+        isFalse,
+      );
+    });
+
+    test('a get.php without an md5 is not a libgen download', () {
+      expect(isDirectFileUrl('https://example.com/get.php'), isFalse);
+      expect(isDirectFileUrl('https://example.com/get.php?key=abc'), isFalse);
+    });
+
+    test('null, empty and unparseable URLs are not direct files', () {
+      expect(isDirectFileUrl(null), isFalse);
+      expect(isDirectFileUrl(''), isFalse);
+      expect(isDirectFileUrl('not a url'), isFalse);
+    });
+  });
 }

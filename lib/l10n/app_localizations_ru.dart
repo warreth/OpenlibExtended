@@ -564,6 +564,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noMirrors => 'Нет доступных зеркал!';
 
   @override
+  String get downloadLinksFailed =>
+      'Не удалось получить ссылки для скачивания. Повторите попытку или выберите другой источник.';
+
+  @override
   String get addToMyLibrary => 'Добавить в мою библиотеку';
 
   @override

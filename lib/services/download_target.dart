@@ -45,3 +45,20 @@ DownloadTarget chooseDownloadTarget({
   if (fast) return DownloadTarget(url: usable, fast: true);
   return DownloadTarget(refusal: refusal);
 }
+
+/// True when [url] answers with the file itself instead of a page a
+/// WebView could scrape.
+///
+/// Libgen's `get.php` mints a 307 to a CDN response carrying
+/// `Content-Disposition: attachment`. Android's WebView hands that to its
+/// download listener instead of loading it as a page, so `onLoadStop`
+/// never fires and the manual-download overlay sits on "Preparing
+/// download..." forever (issue #117). Such links go straight to the
+/// download manager.
+bool isDirectFileUrl(String? url) {
+  if (url == null || url.isEmpty) return false;
+  final uri = Uri.tryParse(url);
+  if (uri == null) return false;
+  return uri.path.endsWith('/get.php') &&
+      uri.queryParameters.containsKey('md5');
+}

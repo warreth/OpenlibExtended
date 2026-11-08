@@ -181,6 +181,7 @@
   "cancelDownload": "Annuler le téléchargement",
   "copiedBookLink": "Lien du livre copié dans le presse-papiers",
   "noMirrors": "Aucun miroir disponible !",
+  "downloadLinksFailed": "Impossible de récupérer les liens de téléchargement. Réessayez ou choisissez une autre source.",
   "addToMyLibrary": "Ajouter à ma bibliothèque",
   "downloadStartedBackground": "Téléchargement lancé en arrière-plan",
   "bookDownloaded": "Livre téléchargé !",

@@ -1112,6 +1112,12 @@ abstract class AppLocalizations {
   /// **'No mirrors available!'**
   String get noMirrors;
 
+  /// Snackbar when the manual download page produced no link
+  ///
+  /// In en, this message translates to:
+  /// **'Could not fetch download links. Try again or pick another source.'**
+  String get downloadLinksFailed;
+
   /// Button saving the book to the library
   ///
   /// In en, this message translates to:

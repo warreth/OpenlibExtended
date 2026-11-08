@@ -181,6 +181,7 @@
   "cancelDownload": "Cancelar descarga",
   "copiedBookLink": "Enlace del libro copiado al portapapeles",
   "noMirrors": "¡No hay espejos disponibles!",
+  "downloadLinksFailed": "No se pudieron obtener los enlaces de descarga. Inténtalo de nuevo o elige otra fuente.",
   "addToMyLibrary": "Añadir a mi biblioteca",
   "downloadStartedBackground": "Descarga iniciada en segundo plano",
   "bookDownloaded": "¡Libro descargado!",
