@@ -1,0 +1,35 @@
+appId: dev.wath.openlibextended
+---
+# Download the book opened by 02_search and read it from My Library.
+# The book may already be in the library from an earlier run; then the
+# page shows Open/Delete instead of the download button.
+- runFlow:
+    when:
+      visible: "Add To My Library"
+    commands:
+      - tapOn: "Add To My Library"
+# The snackbar says either "Download started in background" or "Fast
+# download started in background"; it is short-lived, so the library is
+# the durable signal that the transfer finished.
+# book detail -> search results -> main screen (the bottom nav lives there)
+- back
+- back
+- tapOn: "My Library"
+# The book is written to the library when the transfer finishes. Its
+# card (the only node with a Publisher line) opens the book page, where
+# the Open button lives.
+- extendedWaitUntil:
+    visible: ".*Publisher:.*"
+    timeout: 300000
+- tapOn:
+    text: ".*Publisher:.*"
+    index: 0
+- extendedWaitUntil:
+    visible: "Open"
+    timeout: 60000
+- tapOn: "Open"
+# The built-in EPUB reader opens with the app title in its app bar.
+- extendedWaitUntil:
+    visible: "OpenlibExtended"
+    timeout: 120000
+- back

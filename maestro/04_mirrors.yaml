@@ -1,0 +1,36 @@
+appId: dev.wath.openlibextended
+---
+# Every mirror the app knows about must be listed with its live status.
+- launchApp
+- runFlow: dismiss_dialogs.yaml
+- tapOn: "Settings"
+- tapOn: "Mirrors & Providers"
+# The page lists Library Genesis, Z-Library, WeLib, then Anna's Archive.
+# Section headers merge their title and subtitle into one accessibility
+# node, so match the title as a substring.
+- extendedWaitUntil:
+    visible: ".*Library Genesis.*"
+    timeout: 60000
+- assertVisible: ".*Z-Library.*"
+- assertVisible: ".*Automatic mirror order.*"
+# The list is fetched from open-slum.org; a host row proves it parsed.
+- extendedWaitUntil:
+    visible: "libgen.*"
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      text: ".*WeLib.*"
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Anna's Archive.*"
+    direction: DOWN
+    timeout: 30000
+# The header can be visible while its host rows are still below the fold.
+- scrollUntilVisible:
+    element:
+      text: "annas-archive.*"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "annas-archive.*"

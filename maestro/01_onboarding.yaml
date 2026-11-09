@@ -1,0 +1,19 @@
+appId: dev.wath.openlibextended
+---
+# First run: complete onboarding and land on the main screen.
+- launchApp:
+    clearState: true
+- assertVisible: ".*Welcome to OpenlibExtended.*"
+# Android shows seven onboarding pages: welcome, storage, updates,
+# donation, sponsor, notifications, theme. The last button is
+# "Get Started" instead of "Next".
+- repeat:
+    times: 6
+    commands:
+      - tapOn: "Next"
+- tapOn: "Get Started"
+# The update check and the notification prompt run after the first frame.
+- runFlow: dismiss_dialogs.yaml
+- extendedWaitUntil:
+    visible: "Trending"
+    timeout: 30000

@@ -1,0 +1,15 @@
+appId: dev.wath.openlibextended
+---
+# The startup update check shows a modal after ~2 s. The E2E suite runs
+# the debug build, whose version is below the latest release, so the
+# modal always appears; wait for it instead of racing the check.
+- extendedWaitUntil:
+    visible: "Later"
+    timeout: 15000
+- tapOn: "Later"
+# The notification prompt appears right after the update dialog.
+- runFlow:
+    when:
+      visible: "Maybe Later"
+    commands:
+      - tapOn: "Maybe Later"

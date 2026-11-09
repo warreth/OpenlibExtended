@@ -1,0 +1,28 @@
+appId: dev.wath.openlibextended
+---
+# Search one book through the real providers and open its detail page.
+- launchApp
+- runFlow: dismiss_dialogs.yaml
+- tapOn: "Search"
+# The page title, the field hint and the bottom-nav label all say
+# "Search"; the field is the one between the title and the nav.
+- tapOn:
+    text: "Search"
+    index: 1
+- inputText: "The Yellow Wallpaper"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Results for 'The Yellow Wallpaper'"
+    timeout: 180000
+# Result cards are the only nodes carrying a "Publisher:" line; tap the
+# first one so the flow does not depend on which edition ranks first.
+- extendedWaitUntil:
+    visible: ".*Publisher:.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Publisher:.*"
+    index: 0
+# A book already downloaded from an earlier run shows Open instead.
+- extendedWaitUntil:
+    visible: "^(Add To My Library|Open)$"
+    timeout: 120000
