@@ -152,6 +152,76 @@ void main() {
     });
   });
 
+  group('DiamWallSolver.looksLikeBlock', () {
+    test('recognizes the 517 Access Denied page', () {
+      final solver = DiamWallSolver();
+      expect(solver.looksLikeBlock(517, ''), isTrue);
+      expect(
+          solver.looksLikeBlock(
+              200,
+              '<title>Access Denied | DiamWall</title>'
+              '<p>unusual traffic from your computer network</p>'),
+          isTrue);
+      expect(solver.looksLikeBlock(200, results), isFalse);
+    });
+  });
+
+  group('DiamWall 307 self-redirect', () {
+    test('replays the __diamwall cookie and parses the page', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final cookiesSeen = <String?>[];
+      server.listen((request) async {
+        cookiesSeen.add(request.headers.value('cookie'));
+        if (request.headers.value('cookie')?.contains('__diamwall=') != true) {
+          request.response.statusCode = 307;
+          request.response.headers.set(
+              'location', 'http://127.0.0.1:${server.port}${request.uri}');
+          request.response.headers
+              .add('set-cookie', '__diamwall=0xabc; Path=/');
+        } else {
+          request.response.write(results);
+        }
+        await request.response.close();
+      });
+      final provider =
+          ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
+
+      final books = await provider.search(const SearchQuery(text: 'flutter'));
+
+      expect(books, isNotEmpty);
+      expect(cookiesSeen, hasLength(2));
+      expect(cookiesSeen.last, contains('__diamwall=0xabc'));
+    });
+
+    test('a 517 block is reported, not retried forever', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var requests = 0;
+      server.listen((request) async {
+        requests++;
+        if (request.headers.value('cookie')?.contains('__diamwall=') != true) {
+          request.response.statusCode = 307;
+          request.response.headers.set(
+              'location', 'http://127.0.0.1:${server.port}${request.uri}');
+          request.response.headers
+              .add('set-cookie', '__diamwall=0xabc; Path=/');
+        } else {
+          request.response.statusCode = 517;
+          request.response.write('<title>Access Denied | DiamWall</title>');
+        }
+        await request.response.close();
+      });
+      final provider =
+          ZlibraryProvider(mirrors: ['http://127.0.0.1:${server.port}']);
+
+      final books = await provider.search(const SearchQuery(text: 'flutter'));
+
+      expect(books, isEmpty);
+      expect(requests, 2);
+    });
+  });
+
   group('DiamWallSolver.solve', () {
     test('solves the captured challenge and returns c_token/c_time', () async {
       final solver = DiamWallSolver();

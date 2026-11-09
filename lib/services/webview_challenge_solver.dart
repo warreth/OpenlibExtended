@@ -63,6 +63,38 @@ class WebviewChallengeSolver {
 
   static bool get _isMobile => overrideIsMobile ?? PlatformUtils.isMobile;
 
+  /// Callers discard captured pages shorter than this. The solver must not
+  /// report success for a redirect stub they would throw away - that used
+  /// to log "Challenge solved" and then "no usable HTML" (issue #118).
+  static const int minUsableHtmlLength = 1000;
+
+  static bool isUsableHtml(String? html) =>
+      html != null && html.length >= minUsableHtmlLength;
+
+  /// A desktop window that never renders a document is a failed load, not
+  /// a slow challenge. Give up after this long instead of polling until
+  /// the full solve timeout (issue #118).
+  static const Duration desktopBlankTimeout = Duration(seconds: 15);
+
+  /// Only one desktop challenge window at a time. A second
+  /// `WebviewWindow.create` while the first exists destroys/reuses it on
+  /// Windows; its `onClose` then aborts the first solve. A second caller
+  /// waits briefly, then gives up instead of opening a competing window.
+  static bool _desktopSolveActive = false;
+  static const Duration _desktopQueueWait = Duration(seconds: 5);
+
+  /// Whether the solver closes its desktop window when the solve ends.
+  /// Linux keeps the old behaviour (GTK crashed on programmatic close in
+  /// earlier versions); tests override this to exercise the close path.
+  @visibleForTesting
+  static bool closeDesktopWindow = !PlatformUtils.isLinux;
+
+  /// Test seam for the desktop window; production uses
+  /// [desktop_webview.WebviewWindow.create].
+  @visibleForTesting
+  static Future<desktop_webview.Webview> Function(
+      desktop_webview.CreateConfiguration configuration)? desktopWindowFactory;
+
   /// Returns true when the given page looks like an unfinished DDoS protection
   /// challenge (DDoS-Guard or Cloudflare) instead of real content.
   static bool isChallengePage({
@@ -86,6 +118,24 @@ class WebviewChallengeSolver {
       'cf-browser-verification',
     ];
     return titleMarkers.any(t.contains) || bodyMarkers.any(b.contains);
+  }
+
+  /// True when the page is the browser's own error page (DNS failure,
+  /// refused connection, offline) rather than a challenge or real content.
+  /// WebView2 and WebKit use different wording; match the stable markers.
+  static bool looksLikeLoadError(String title, String bodySnippet) {
+    final text = '${title.toLowerCase()} ${bodySnippet.toLowerCase()}';
+    const markers = [
+      'err_name_not_resolved',
+      'err_connection',
+      'err_internet_disconnected',
+      'err_address_unreachable',
+      'dns_probe_finished',
+      "this site can't be reached",
+      "can't reach this page",
+      'server not found',
+    ];
+    return markers.any(text.contains);
   }
 
   /// Solves the challenge for [url] and returns the fully rendered page HTML,
@@ -121,9 +171,19 @@ class WebviewChallengeSolver {
       html = await visibleSolverFallback!(url);
     }
 
-    if (html != null) {
-      ChallengeHtmlCache.store(url, html);
+    // A short page (a redirect stub, a block notice) is not a solved
+    // challenge. Never cache it: the callers would discard it anyway and
+    // the cache would then hide the real attempt.
+    if (!isUsableHtml(html)) {
+      if (html != null) {
+        _logger.warning(
+            'Challenge solver returned a page below the usable threshold',
+            tag: 'ChallengeSolver',
+            metadata: {'length': html.length, 'url': url});
+      }
+      return null;
     }
+    ChallengeHtmlCache.store(url, html!);
     return html;
   }
 
@@ -138,8 +198,7 @@ class WebviewChallengeSolver {
   /// already been cleared. See the Android log regression this guards.
   @visibleForTesting
   static bool shouldCompleteFromLoadStop(String title, String? capturedHtml) =>
-      capturedHtml != null &&
-      capturedHtml.isNotEmpty &&
+      isUsableHtml(capturedHtml) &&
       !isChallengePage(title: title, bodySnippet: '');
 
   static Future<String?> _solveHeadless(String url, Duration timeout) async {
@@ -202,7 +261,7 @@ class WebviewChallengeSolver {
             if (title.isNotEmpty &&
                 !isChallengePage(title: title, bodySnippet: '')) {
               final html = await _captureHtml(controller);
-              if (html != null && html.isNotEmpty && !completer.isCompleted) {
+              if (isUsableHtml(html) && !completer.isCompleted) {
                 completer.complete(html);
               }
             }
@@ -243,74 +302,202 @@ class WebviewChallengeSolver {
 
   static Future<String?> _solveDesktopWindow(
       String url, Duration timeout) async {
-    desktop_webview.Webview? webview;
-    var closedByUser = false;
+    // Serialize desktop solves; see _desktopSolveActive.
+    final queueDeadline = DateTime.now().add(_desktopQueueWait);
+    while (_desktopSolveActive) {
+      if (DateTime.now().isAfter(queueDeadline)) {
+        _logger.warning('Another challenge window is already open; skipping',
+            tag: 'ChallengeSolver', metadata: {'url': url});
+        return null;
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    _desktopSolveActive = true;
     try {
-      webview = await desktop_webview.WebviewWindow.create(
-        configuration: const desktop_webview.CreateConfiguration(
-          windowHeight: 700,
-          windowWidth: 1000,
-          title: "Verifying access...",
-        ),
+      return await _solveDesktopWindowLocked(url, timeout);
+    } finally {
+      _desktopSolveActive = false;
+    }
+  }
+
+  static Future<String?> _solveDesktopWindowLocked(
+      String url, Duration timeout) async {
+    desktop_webview.Webview? webview;
+    try {
+      const configuration = desktop_webview.CreateConfiguration(
+        windowHeight: 700,
+        windowWidth: 1000,
+        title: "Verifying access...",
       );
-      webview.onClose.then((_) => closedByUser = true);
+      final factory = desktopWindowFactory;
+      webview = await (factory != null
+          ? factory(configuration)
+          : desktop_webview.WebviewWindow.create(configuration: configuration));
+      // The DDoS-Guard gate is a silent JS check with nothing to click:
+      // keep the window off-screen until an interactive challenge shows
+      // up. Linux does not implement the visibility call; it stays
+      // visible there, as before.
+      await _setWindowVisible(webview, false);
       webview.launch(url);
 
-      final deadline = DateTime.now().add(timeout);
-      var titleOkPolls = 0;
-      while (DateTime.now().isBefore(deadline)) {
-        await Future.delayed(const Duration(milliseconds: 1500));
-        if (closedByUser) {
-          _logger.info('Challenge webview closed by user',
-              tag: 'ChallengeSolver');
-          return null;
-        }
-
-        final title = await _js(webview, "document.title") ?? '';
-        final bodySnippet = await _js(
-              webview,
-              "(document.body ? document.body.innerHTML.slice(0, 3000) : '')",
-            ) ??
-            '';
-
-        if (title.isEmpty && bodySnippet.isEmpty) continue;
-
-        if (isChallengePage(title: title, bodySnippet: bodySnippet)) {
-          titleOkPolls = 0;
-          _logger.debug('Challenge still active',
-              tag: 'ChallengeSolver',
-              metadata: {'title': title.isEmpty ? '(none)' : title});
-          continue;
-        }
-
-        final readyState = await _js(webview, "document.readyState") ?? '';
-        if (readyState != 'complete') {
-          titleOkPolls++;
-          _logger.debug('Page rendering, waiting for readyState=complete',
-              tag: 'ChallengeSolver',
-              metadata: {'readyState': readyState, 'polls': titleOkPolls});
-          if (titleOkPolls < 10) continue;
-        }
-
-        final html = await _js(webview, "document.documentElement.outerHTML");
-        if (html != null && html.isNotEmpty) {
-          _logger.info('Challenge solved, captured page HTML',
-              tag: 'ChallengeSolver',
-              metadata: {'length': html.length, 'title': title});
-          return html;
-        }
-      }
-      _logger.warning('Challenge solver timed out', tag: 'ChallengeSolver');
-      return null;
+      return await solveDesktopWebview(webview, timeout: timeout);
     } catch (e, st) {
       _logger.error('Desktop challenge solver failed',
           tag: 'ChallengeSolver', error: e, stackTrace: st);
       return null;
     } finally {
-      // Closing programmatically crashed GTK in earlier versions; the user
-      // closes the window manually.
-      webview = null;
+      // The old code left the window for the user to close, so a failed
+      // search left stale "Verifying access..." windows behind (issue
+      // #118). GTK crashed on programmatic close in earlier versions, so
+      // Linux keeps the old behaviour; Windows/macOS close it.
+      if (closeDesktopWindow) {
+        try {
+          webview?.close();
+        } catch (e) {
+          _logger.debug('Could not close the challenge window',
+              tag: 'ChallengeSolver', metadata: {'error': e.toString()});
+        }
+      }
     }
+  }
+
+  /// Polls an already-launched desktop webview until it renders a usable
+  /// page, the user closes it, the document stays blank, or [timeout]
+  /// expires. Exposed for tests with a fake [desktop_webview.Webview].
+  static Future<String?> solveDesktopWebview(
+    desktop_webview.Webview webview, {
+    required Duration timeout,
+    Duration pollInterval = const Duration(milliseconds: 1500),
+    Duration blankTimeout = desktopBlankTimeout,
+  }) async {
+    var closedByUser = false;
+    unawaited(webview.onClose.then((_) => closedByUser = true));
+
+    final deadline = DateTime.now().add(timeout);
+    var blankSince = DateTime.now();
+    DateTime? shortSince;
+    var interactiveShown = false;
+    var titleOkPolls = 0;
+
+    while (DateTime.now().isBefore(deadline)) {
+      await Future.delayed(pollInterval);
+      if (closedByUser) {
+        _logger.info('Challenge webview closed by user',
+            tag: 'ChallengeSolver');
+        return null;
+      }
+
+      final title = await _js(webview, "document.title") ?? '';
+      final bodySnippet = await _js(
+            webview,
+            "(document.body ? document.body.innerHTML.slice(0, 3000) : '')",
+          ) ??
+          '';
+
+      if (title.isEmpty && bodySnippet.isEmpty) {
+        final blankFor = DateTime.now().difference(blankSince);
+        if (blankFor >= blankTimeout) {
+          _logger.warning('Challenge window stayed blank; giving up',
+              tag: 'ChallengeSolver',
+              metadata: {'blankFor': blankFor.inSeconds});
+          return null;
+        }
+        continue;
+      }
+      blankSince = DateTime.now();
+
+      if (looksLikeLoadError(title, bodySnippet)) {
+        _logger.warning('Challenge window showed a load error; giving up',
+            tag: 'ChallengeSolver', metadata: {'title': title});
+        return null;
+      }
+
+      if (isChallengePage(title: title, bodySnippet: bodySnippet)) {
+        titleOkPolls = 0;
+        if (!interactiveShown &&
+            hasInteractiveChallengeMarkers(bodySnippet)) {
+          interactiveShown = true;
+          await _setWindowVisible(webview, true);
+          await _bringToForeground(webview);
+          _logger.info('Challenge needs interaction; showing the window',
+              tag: 'ChallengeSolver', metadata: {'title': title});
+        }
+        _logger.debug('Challenge still active',
+            tag: 'ChallengeSolver',
+            metadata: {'title': title.isEmpty ? '(none)' : title});
+        continue;
+      }
+
+      final readyState = await _js(webview, "document.readyState") ?? '';
+      if (readyState != 'complete') {
+        titleOkPolls++;
+        _logger.debug('Page rendering, waiting for readyState=complete',
+            tag: 'ChallengeSolver',
+            metadata: {'readyState': readyState, 'polls': titleOkPolls});
+        if (titleOkPolls < 10) continue;
+      }
+
+      final html = await _js(webview, "document.documentElement.outerHTML");
+      if (isUsableHtml(html)) {
+        _logger.info('Challenge solved, captured page HTML',
+            tag: 'ChallengeSolver',
+            metadata: {'length': html!.length, 'title': title});
+        return html;
+      }
+      // A redirect stub or an empty shell is not a solved page; keep
+      // polling so the real page can land, but never report success for
+      // something the caller will discard. If it stays short, treat it
+      // as a failed load instead of polling to the full deadline.
+      shortSince ??= DateTime.now();
+      final shortFor = DateTime.now().difference(shortSince);
+      if (shortFor >= blankTimeout) {
+        _logger.warning(
+            'Captured page stayed below the usable threshold; giving up',
+            tag: 'ChallengeSolver',
+            metadata: {
+              'length': html?.length ?? 0,
+              'shortFor': shortFor.inSeconds,
+              'title': title,
+            });
+        return null;
+      }
+      _logger.debug('Captured page too short; still waiting',
+          tag: 'ChallengeSolver',
+          metadata: {'length': html?.length ?? 0, 'title': title});
+    }
+
+    _logger.warning('Challenge solver timed out', tag: 'ChallengeSolver');
+    return null;
+  }
+
+  /// True when a challenge page carries something a person can act on.
+  /// DDoS-Guard's silent JS check has none; Cloudflare's Turnstile does.
+  static bool hasInteractiveChallengeMarkers(String bodySnippet) {
+    final b = bodySnippet.toLowerCase();
+    return b.contains('<iframe') ||
+        b.contains('cf-turnstile') ||
+        b.contains('challenge-stage') ||
+        b.contains('type="checkbox"') ||
+        b.contains('<canvas') ||
+        b.contains('<button');
+  }
+
+  static Future<void> _setWindowVisible(
+      desktop_webview.Webview webview, bool visible) async {
+    try {
+      await webview.setWebviewWindowVisibility(visible);
+    } catch (e) {
+      // Linux does not implement this call; the window stays visible.
+      _logger.debug('Could not change challenge window visibility',
+          tag: 'ChallengeSolver', metadata: {'error': e.toString()});
+    }
+  }
+
+  static Future<void> _bringToForeground(
+      desktop_webview.Webview webview) async {
+    try {
+      await webview.bringToForeground();
+    } catch (_) {}
   }
 
   // ------------------------------------------------------------------

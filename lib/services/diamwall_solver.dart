@@ -56,6 +56,35 @@ class DiamWallSolver {
         lower.contains(_scriptMarker);
   }
 
+  /// DiamWall's newer gate responds with a 307 to the same URL and a
+  /// `__diamwall` cookie, then either serves the page or blocks the
+  /// request with a 517 "Access Denied" page. That block is not a
+  /// solvable challenge: report it instead of retrying forever.
+  static const _blockMarkers = [
+    'access denied | diamwall',
+    'unusual traffic from your computer network',
+  ];
+
+  bool looksLikeBlock(int statusCode, String html) {
+    if (statusCode == 517) return true;
+    final lower = html.toLowerCase();
+    return _blockMarkers.any(lower.contains);
+  }
+
+  /// The `__diamwall`/`dwid` cookies from a 307 or 517 response, as one
+  /// Cookie header value, or null when the response set neither.
+  static String? cookieHeaderFrom(Response response) {
+    final setCookies = response.headers.map['set-cookie'] ?? const <String>[];
+    final pairs = <String>[];
+    for (final raw in setCookies) {
+      final first = raw.split(';').first.trim();
+      if (first.startsWith('__diamwall=') || first.startsWith('dwid=')) {
+        pairs.add(first);
+      }
+    }
+    return pairs.isEmpty ? null : pairs.join('; ');
+  }
+
   /// 40-hex-char seed as embedded in the obfuscated array, e.g.
   /// `a0_0x2a54=['41422B67...','c_token=','array']`. Case-insensitive:
   /// the live page embeds uppercase hex.

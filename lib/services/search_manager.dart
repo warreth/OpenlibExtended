@@ -410,9 +410,6 @@ class ZlibraryProvider implements SearchProvider {
       'mirrors': mirrors.length,
     });
 
-    // Dio throws on non-2xx by default; the DiamWall gate is a 503
-    // whose body we must read, so accept any status and inspect.
-    final acceptAnyStatus = Options(validateStatus: (_) => true);
     // Names and parameter keys come from Z-Library's search form.
     final language = bookLanguageName(query.language)?.toLowerCase();
     final parameters = <String, dynamic>{
@@ -424,11 +421,17 @@ class ZlibraryProvider implements SearchProvider {
 
     for (final mirror in mirrors) {
       try {
-        var response = await _dio.get(
+        var response = await _followDiamWallRedirect(
           '$mirror/s/${Uri.encodeComponent(query.text)}',
           queryParameters: parameters,
-          options: acceptAnyStatus,
         );
+        if (_solver.looksLikeBlock(
+            response.statusCode ?? 0, response.data.toString())) {
+          _logger.warning('Z-Library blocked this network; trying next mirror',
+              tag: 'ZlibraryProvider',
+              metadata: {'mirror': mirror, 'status': response.statusCode});
+          continue;
+        }
         if (_solver.looksLikeChallenge(
             response.statusCode ?? 0, response.data.toString())) {
           // DiamWall 503: solve the embedded SHA1 proof-of-work,
@@ -440,11 +443,10 @@ class ZlibraryProvider implements SearchProvider {
             final cookieHeader =
                 cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
             try {
-              response = await _dio.get(
+              response = await _followDiamWallRedirect(
                 '$mirror/s/${Uri.encodeComponent(query.text)}',
                 queryParameters: parameters,
-                options:
-                    acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}),
+                headers: {'Cookie': cookieHeader},
               );
             } catch (e) {
               _logger.warning('Request failed after solving the challenge',
@@ -581,13 +583,12 @@ class ZlibraryProvider implements SearchProvider {
       ...available.where((mirror) => Uri.parse(mirror).origin != origin),
     ];
     final path = Uri.parse(url).path;
-    final acceptAnyStatus = Options(validateStatus: (_) => true);
 
     for (final mirror in mirrors) {
       if (cancellation.isCancelled) return null;
       try {
-        var response = await _dio.get('$mirror$path',
-            options: acceptAnyStatus, cancelToken: cancellation);
+        var response = await _followDiamWallRedirect('$mirror$path',
+            cancelToken: cancellation);
         response = await _passDiamWall(mirror, response, '$mirror$path',
             cancelToken: cancellation);
         if (response.statusCode != 200) continue;
@@ -605,13 +606,64 @@ class ZlibraryProvider implements SearchProvider {
     return null;
   }
 
+  /// GETs [url] and follows DiamWall's newer 307 self-redirect by
+  /// replaying its `__diamwall` cookie. Without this Dio sees a redirect
+  /// loop and the mirror is written off, even though a browser would
+  /// simply retry with the cookie. [headers] (e.g. a solved PoW cookie)
+  /// are kept on the replayed request and merged with the gate's cookie.
+  Future<Response> _followDiamWallRedirect(
+    String url, {
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    Map<String, String>? headers,
+  }) async {
+    final noRedirect = Options(
+      validateStatus: (_) => true,
+      followRedirects: false,
+      maxRedirects: 0,
+      headers: headers,
+    );
+    var response = await _dio.get(
+      url,
+      queryParameters: queryParameters,
+      cancelToken: cancelToken,
+      options: noRedirect,
+    );
+    for (var hop = 0; hop < 4; hop++) {
+      final status = response.statusCode ?? 0;
+      if (status < 300 || status >= 400) break;
+      final location = response.headers.value('location');
+      if (location == null) break;
+      final from = Uri.tryParse(url);
+      // A Location may be relative; resolve it before comparing origins.
+      final to = from?.resolve(location);
+      if (from == null || to == null || from.origin != to.origin) break;
+      final cookie = DiamWallSolver.cookieHeaderFrom(response);
+      final mergedHeaders = <String, String>{
+        ...?headers,
+        if (cookie != null)
+          'Cookie': [headers?['Cookie'], cookie]
+              .whereType<String>()
+              .join('; '),
+      };
+      response = await _dio.get(
+        to.toString(),
+        // The 307 target usually drops the query; keep the filters when
+        // it does, and let the target's own query win when it has one.
+        queryParameters: to.query.isEmpty ? queryParameters : null,
+        cancelToken: cancelToken,
+        options: noRedirect.copyWith(headers: mergedHeaders),
+      );
+    }
+    return response;
+  }
+
   /// GETs [url], solving a DiamWall 503 (once) and a second 503 on the
   /// download hop if present. Returns the first response that is not a
   /// challenge. A non-challenge response is returned as-is.
   Future<Response> _passDiamWall(String mirror, Response first, String url,
       {CancelToken? cancelToken}) async {
     var response = first;
-    final acceptAnyStatus = Options(validateStatus: (_) => true);
 
     if (!_solver.looksLikeChallenge(
         response.statusCode ?? 0, response.data.toString())) {
@@ -622,9 +674,8 @@ class ZlibraryProvider implements SearchProvider {
     final cookieHeader =
         cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
 
-    response = await _dio.get(url,
-        cancelToken: cancelToken,
-        options: acceptAnyStatus.copyWith(headers: {'Cookie': cookieHeader}));
+    response = await _followDiamWallRedirect(url,
+        cancelToken: cancelToken, headers: {'Cookie': cookieHeader});
     // A second challenge can appear right at the download hop; solve
     // it too before giving up on this mirror.
     if (_solver.looksLikeChallenge(
@@ -633,9 +684,8 @@ class ZlibraryProvider implements SearchProvider {
       if (again != null) {
         final header =
             again.entries.map((e) => '${e.key}=${e.value}').join('; ');
-        response = await _dio.get(url,
-            cancelToken: cancelToken,
-            options: acceptAnyStatus.copyWith(headers: {'Cookie': header}));
+        response = await _followDiamWallRedirect(url,
+            cancelToken: cancelToken, headers: {'Cookie': header});
       }
     }
     return response;
@@ -680,11 +730,10 @@ class ZlibraryProvider implements SearchProvider {
   Future<List<String>> _allDownloadLinks(String bookPageUrl) async {
     final mirrors = _mirrors ?? await _resolveMirrors();
     final path = Uri.parse(bookPageUrl).path;
-    final acceptAnyStatus = Options(validateStatus: (_) => true);
 
     for (final mirror in mirrors) {
       try {
-        var response = await _dio.get('$mirror$path', options: acceptAnyStatus);
+        var response = await _followDiamWallRedirect('$mirror$path');
         response = await _passDiamWall(mirror, response, '$mirror$path');
         if (response.statusCode != 200) {
           _logger.warning('Book page fetch got a non-200',
@@ -1051,7 +1100,7 @@ class WelibProvider implements SearchProvider {
     }
     final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(url);
     return (
-      html: (html != null && html.length > 1000) ? html : null,
+      html: WebviewChallengeSolver.isUsableHtml(html) ? html : null,
       status: status,
     );
   }

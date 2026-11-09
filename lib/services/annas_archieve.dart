@@ -476,7 +476,7 @@ class AnnasArchieve {
 
         final html = await WebviewChallengeSolver.fetchHtmlAfterChallenge(
             networkErr.blockedUrl!);
-        if (html != null && html.length > 1000) {
+        if (WebviewChallengeSolver.isUsableHtml(html)) {
           _logger.info('Challenge solved, parsing results from webview HTML',
               tag: 'AnnasArchive');
           final currentBaseUrl = Uri.parse(networkErr.blockedUrl!).origin;
@@ -652,7 +652,7 @@ class AnnasArchieve {
         final targetUrl = networkErr.blockedUrl!;
         final html =
             await WebviewChallengeSolver.fetchHtmlAfterChallenge(targetUrl);
-        if (html != null && html.length > 1000) {
+        if (WebviewChallengeSolver.isUsableHtml(html)) {
           _logger.info('Challenge solved, parsing bookInfo from webview HTML',
               tag: 'AnnasArchive');
           final currentBaseUrl = Uri.parse(targetUrl).origin;

@@ -22,11 +22,12 @@ class _FakeBookData {
   final String author = 'Thomas S. Kuhn';
   final String publisher = 'University of Chicago Press';
   final String info = 'English [en], EPUB, 1.5MB, 2012';
-  final String thumbnail = '';
+  final String? thumbnail;
   final String description;
   _FakeBookData(
       {this.description =
-          'A book about paradigm shifts in science and how they reshape whole fields.'});
+          'A book about paradigm shifts in science and how they reshape whole fields.',
+      this.thumbnail = ''});
 }
 
 void main() {
@@ -107,5 +108,26 @@ void main() {
 
     // The button in the child slot still exists and is reachable.
     expect(find.byType(ElevatedButton), findsOneWidget);
+  });
+
+  testWidgets('a book without a thumbnail still renders', (tester) async {
+    // Libgen results can carry no cover; the page used to throw
+    // "type 'Null' is not a subtype of type 'String'" at build time.
+    final data = _FakeBookData(thumbnail: null);
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [annaArchiveBaseUrlProvider.overrideWith((ref) async => null)],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: BookInfoWidget(data: data, child: const SizedBox()),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(data.title), findsOneWidget);
   });
 }

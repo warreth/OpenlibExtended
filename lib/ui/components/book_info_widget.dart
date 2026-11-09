@@ -54,6 +54,9 @@ class BookInfoWidget extends ConsumerWidget {
     final description =
         normalizedBookDescription(data.description as String?) ??
             AppLocalizations.of(context).noDescriptionAvailable;
+    // Libgen results can have no cover at all; CachedNetworkImage requires
+    // a non-null URL and used to crash the whole book page here.
+    final thumbnail = (data.thumbnail as String?) ?? '';
     // SelectionArea makes title, author, info and description copyable.
     // The container must not be selectable itself, or taps on buttons in
     // the child slot stop working.
@@ -76,10 +79,10 @@ class BookInfoWidget extends ConsumerWidget {
                   child: CachedNetworkImage(
                     height: 230,
                     width: 170,
-                    imageUrl: data.thumbnail,
+                    imageUrl: thumbnail,
                     // libgen.li serves /covers/ only with an ads.php
                     // Referer; the book page itself is a valid one.
-                    httpHeaders: data.thumbnail.contains('libgen')
+                    httpHeaders: thumbnail.contains('libgen')
                         ? {'Referer': data.link}
                         : null,
                     imageBuilder: (context, imageProvider) => Container(
