@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 // Project imports:
 import 'package:openlib/services/files.dart';
 import 'package:openlib/core/book_description.dart';
+import 'package:openlib/services/reading_status.dart';
 
 class MyBook {
   final String id;
@@ -94,7 +95,7 @@ class MyLibraryDb {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: (Database db, int version) async {
         await db.execute(
             'CREATE TABLE mybooks (id TEXT PRIMARY KEY, title TEXT,author TEXT,thumbnail TEXT,link TEXT,publisher TEXT,info TEXT,format TEXT,description TEXT,fileName TEXT)');
@@ -102,7 +103,7 @@ class MyLibraryDb {
             'CREATE TABLE preferences (name TEXT PRIMARY KEY,value TEXT)');
         // Create these tables for all platforms (both mobile and desktop)
         await db.execute(
-            'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT,completed INTEGER DEFAULT 0)');
+            'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT,completed INTEGER DEFAULT 0,manualStatus TEXT)');
         await db.execute(
             'CREATE TABLE browserOptions (name TEXT PRIMARY KEY,value TEXT)');
         await db.execute(
@@ -122,7 +123,7 @@ class MyLibraryDb {
         // Create bookposition table on all platforms if not exists
         if (isTableExist.isEmpty) {
           await db.execute(
-              'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT)');
+              'CREATE TABLE bookposition (fileName TEXT PRIMARY KEY,position TEXT,completed INTEGER DEFAULT 0,manualStatus TEXT)');
         }
         // Create browserOptions table on all platforms if not exists
         if (isbrowserOptionsExist.isEmpty) {
@@ -148,6 +149,15 @@ class MyLibraryDb {
           try {
             await db.execute(
                 'ALTER TABLE bookposition ADD COLUMN completed INTEGER DEFAULT 0');
+          } catch (_) {
+            // Column might already exist
+          }
+        }
+        // Manual reading-status overrides arrive with schema v8.
+        if (oldVersion < 8) {
+          try {
+            await db.execute(
+                'ALTER TABLE bookposition ADD COLUMN manualStatus TEXT');
           } catch (_) {
             // Column might already exist
           }
@@ -258,13 +268,24 @@ class MyLibraryDb {
     return myBookList.reversed.toList();
   }
 
+  /// Stores reader progress without disturbing a manual Completed mark or
+  /// the completed flag. Replacing the row used to wipe both. A manual
+  /// Unread or In Progress mark is no longer needed once progress exists.
   Future<void> saveBookState(String fileName, String position) async {
     final dbInstance = await instance.database;
-    await dbInstance.insert(
-      'bookposition',
-      {'fileName': fileName, 'position': position},
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    final updated = await dbInstance.rawUpdate(
+      "UPDATE bookposition SET position = ?, "
+      "manualStatus = CASE WHEN manualStatus = 'completed' "
+      "THEN manualStatus ELSE NULL END "
+      "WHERE fileName = ?",
+      [position, fileName],
     );
+    if (updated == 0) {
+      await dbInstance.insert(
+        'bookposition',
+        {'fileName': fileName, 'position': position},
+      );
+    }
   }
 
   // ------------------------------------------------------------------
@@ -323,18 +344,70 @@ class MyLibraryDb {
   }
 
   // ------------------------------------------------------------------
-  // Reading status: a book is completed when its position row is
-  // flagged; in progress when a position exists but is not flagged.
+  // Reading status: a manual choice (manualStatus) wins over automatic
+  // tracking; otherwise completed means Completed, a saved position means
+  // In Progress, and no position means Unread.
   // ------------------------------------------------------------------
 
-  /// Marks (or unmarks) a book as finished. The fileName key matches
-  /// the bookposition table.
-  Future<void> setCompleted(String fileName, bool completed) async {
+  /// Applies a manual status to one book.
+  ///
+  /// Unread is the reset: it clears the saved position so the reader opens
+  /// at the start again. In Progress and Completed keep the position so a
+  /// finished book does not lose where the reader left off.
+  Future<void> setReadingStatus(String fileName, ReadingStatus status) async {
     final dbInstance = await instance.database;
+    final rows = await dbInstance.query(
+      'bookposition',
+      columns: ['position'],
+      where: 'fileName = ?',
+      whereArgs: [fileName],
+      limit: 1,
+    );
+    final position =
+        rows.isEmpty ? '' : (rows.first['position']?.toString() ?? '');
     await dbInstance.insert(
       'bookposition',
-      {'fileName': fileName, 'position': '', 'completed': completed ? 1 : 0},
+      {
+        'fileName': fileName,
+        'position': status == ReadingStatus.unread ? '' : position,
+        'completed': status == ReadingStatus.completed ? 1 : 0,
+        'manualStatus': status.key,
+      },
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// The status of one book, manual choice included.
+  Future<ReadingStatus> getReadingStatus(String fileName) async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query(
+      'bookposition',
+      where: 'fileName = ?',
+      whereArgs: [fileName],
+      limit: 1,
+    );
+    if (rows.isEmpty) return ReadingStatus.unread;
+    final row = rows.first;
+    return readingStatusFrom(
+      manualStatus: row['manualStatus'],
+      position: row['position'],
+      completed: row['completed'],
+    );
+  }
+
+  /// Marks (or unmarks) a book as finished without discarding the saved
+  /// position. Unmarking leaves a book with progress In Progress.
+  Future<void> setCompleted(String fileName, bool completed) async {
+    if (completed) {
+      await setReadingStatus(fileName, ReadingStatus.completed);
+      return;
+    }
+    final position = await getBookState(fileName);
+    await setReadingStatus(
+      fileName,
+      position == null || position.isEmpty
+          ? ReadingStatus.unread
+          : ReadingStatus.inProgress,
     );
   }
 
@@ -364,6 +437,21 @@ class MyLibraryDb {
     final rows = await dbInstance.query('bookposition');
     return {
       for (final row in rows) row['fileName'].toString(): row['completed'] == 1
+    };
+  }
+
+  /// Map of fileName to resolved reading status for the whole library -
+  /// used to enrich the library without N+1 lookups.
+  Future<Map<String, ReadingStatus>> getStatusesForAll() async {
+    final dbInstance = await instance.database;
+    final rows = await dbInstance.query('bookposition');
+    return {
+      for (final row in rows)
+        row['fileName'].toString(): readingStatusFrom(
+          manualStatus: row['manualStatus'],
+          position: row['position'],
+          completed: row['completed'],
+        )
     };
   }
 

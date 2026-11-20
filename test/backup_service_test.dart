@@ -15,6 +15,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 // Project imports:
 import 'package:openlib/services/backup_service.dart';
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/reading_status.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   Future<String> _dir(String name) async {
@@ -67,6 +68,8 @@ void main() {
     await db.savePreference('bookStorageDirectory', '/books');
     await db.savePreference('readerFontSize', '18');
     await db.saveBookState('Backup Roundtrip Book-abc.epub', 'epubcfi(/6/4)');
+    await db.setReadingStatus(
+        'Backup Roundtrip Book-abc.epub', ReadingStatus.completed);
   }
 
   test('backup contains every user table and restores into a clean db',
@@ -102,6 +105,10 @@ void main() {
         await MyLibraryDb.instance
             .getBookState('Backup Roundtrip Book-abc.epub'),
         'epubcfi(/6/4)');
+    expect(
+        await MyLibraryDb.instance
+            .getReadingStatus('Backup Roundtrip Book-abc.epub'),
+        ReadingStatus.completed);
   });
 
   test('backup json is versioned and self-describing', () async {

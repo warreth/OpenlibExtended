@@ -368,16 +368,40 @@ abstract class AppLocalizations {
   /// **'Completed'**
   String get statusCompleted;
 
+  /// Label and tooltip for the manual reading-status picker
+  ///
+  /// In en, this message translates to:
+  /// **'Reading status'**
+  String get readingStatus;
+
+  /// Section heading above a book's tags
+  ///
+  /// In en, this message translates to:
+  /// **'Collections'**
+  String get collectionsLabel;
+
+  /// Confirmation after manually changing a book's reading status
+  ///
+  /// In en, this message translates to:
+  /// **'Marked as {status}'**
+  String markedAsStatus(String status);
+
+  /// Error shown when saving a manual reading status fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not change the reading status. Try again.'**
+  String get statusUpdateFailed;
+
   /// Hint for the new-collection name field
   ///
   /// In en, this message translates to:
   /// **'e.g. Favorites, Sci-Fi'**
   String get collectionNameHint;
 
-  /// Helper text in the collection editor sheet
+  /// Helper text in the book management sheet
   ///
   /// In en, this message translates to:
-  /// **'Long-press any book to manage its collections'**
+  /// **'Long-press any book to manage its reading status and collections'**
   String get manageCollectionsHint;
 
   /// Page header above search results

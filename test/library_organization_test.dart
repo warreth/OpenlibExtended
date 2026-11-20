@@ -18,6 +18,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 // Project imports:
 import 'package:openlib/services/database.dart';
 import 'package:openlib/services/library_organization.dart';
+import 'package:openlib/services/reading_status.dart';
 import 'package:openlib/state/state.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -106,10 +107,10 @@ void main() {
     });
 
     test('title A-Z and Z-A sort alphabetically ignoring case', () {
-      expect(sortLibrary(books, LibrarySortMode.titleAsc)
-          .map((b) => b.title), ['Alpha', 'Middle', 'Zenith']);
-      expect(sortLibrary(books, LibrarySortMode.titleDesc)
-          .map((b) => b.title), ['Zenith', 'Middle', 'Alpha']);
+      expect(sortLibrary(books, LibrarySortMode.titleAsc).map((b) => b.title),
+          ['Alpha', 'Middle', 'Zenith']);
+      expect(sortLibrary(books, LibrarySortMode.titleDesc).map((b) => b.title),
+          ['Zenith', 'Middle', 'Alpha']);
     });
 
     test('author sorts use the title as tiebreaker', () {
@@ -119,14 +120,18 @@ void main() {
         libBook('Beta 2', author: 'Same'),
         libBook('Beta 1', author: 'Same'),
       ];
-      expect(sortLibrary(sameAuthor, LibrarySortMode.authorAsc)
-          .map((b) => b.title), ['Beta 1', 'Beta 2']);
+      expect(
+          sortLibrary(sameAuthor, LibrarySortMode.authorAsc)
+              .map((b) => b.title),
+          ['Beta 1', 'Beta 2']);
     });
 
     test('file size sorts put missing sizes last ascending', () {
       final withMissing = [...books, libBook('Ghost', size: null)];
-      expect(sortLibrary(withMissing, LibrarySortMode.fileSizeDesc)
-          .map((b) => b.title), ['Zenith', 'Middle', 'Alpha', 'Ghost']);
+      expect(
+          sortLibrary(withMissing, LibrarySortMode.fileSizeDesc)
+              .map((b) => b.title),
+          ['Zenith', 'Middle', 'Alpha', 'Ghost']);
       expect(sortLibrary(withMissing, LibrarySortMode.fileSizeAsc).last.title,
           'Ghost');
     });
@@ -138,18 +143,20 @@ void main() {
         libBook('C', status: ReadingStatus.completed),
         libBook('P', status: ReadingStatus.inProgress),
       ];
-      expect(sortLibrary(mixed, LibrarySortMode.readingStatus)
-          .map((b) => b.status), [
-        ReadingStatus.unread,
-        ReadingStatus.inProgress,
-        ReadingStatus.completed,
-      ]);
+      expect(
+          sortLibrary(mixed, LibrarySortMode.readingStatus)
+              .map((b) => b.status),
+          [
+            ReadingStatus.unread,
+            ReadingStatus.inProgress,
+            ReadingStatus.completed,
+          ]);
     });
 
     test('fromKey restores a persisted mode and falls back on garbage', () {
       expect(LibrarySortMode.fromKey('titleAsc'), LibrarySortMode.titleAsc);
-      expect(LibrarySortMode.fromKey('nonsense'),
-          LibrarySortMode.dateAddedDesc);
+      expect(
+          LibrarySortMode.fromKey('nonsense'), LibrarySortMode.dateAddedDesc);
     });
 
     test('every mode has a unique stable key and a label', () {
@@ -182,8 +189,10 @@ void main() {
     });
 
     test('status filter isolates a reading state', () {
-      expect(filterLibrary(books, statusFilter: ReadingStatus.completed)
-          .map((b) => b.title), ['Done']);
+      expect(
+          filterLibrary(books, statusFilter: ReadingStatus.completed)
+              .map((b) => b.title),
+          ['Done']);
       expect(
           filterLibrary(books, statusFilter: ReadingStatus.unread).length, 2);
     });
@@ -264,6 +273,100 @@ void main() {
       expect(await db.getPositionsForAll(), {'a.pdf': '1', 'b.pdf': ''});
       expect(await db.getCompletedForAll(), {'a.pdf': false, 'b.pdf': true});
     });
+
+    test('manual status wins over automatic tracking', () {
+      expect(
+          readingStatusFrom(
+              manualStatus: 'inProgress', position: '', completed: 0),
+          ReadingStatus.inProgress);
+      expect(
+          readingStatusFrom(
+              manualStatus: 'completed', position: 'chapter/2', completed: 0),
+          ReadingStatus.completed);
+      expect(readingStatusFrom(manualStatus: 'unread', position: 'chapter/2'),
+          ReadingStatus.unread);
+      expect(
+          readingStatusFrom(position: 'chapter/2'), ReadingStatus.inProgress);
+      expect(readingStatusFrom(completed: 1), ReadingStatus.completed);
+      expect(readingStatusFrom(), ReadingStatus.unread);
+    });
+
+    test('manual status choices persist and resolve through the database',
+        () async {
+      final db = MyLibraryDb.instance;
+
+      await db.setReadingStatus('manual.pdf', ReadingStatus.inProgress);
+      expect(await db.getReadingStatus('manual.pdf'), ReadingStatus.inProgress);
+      // In Progress needs no saved position to be a real status.
+      expect(await db.getBookState('manual.pdf'), '');
+
+      await db.setReadingStatus('manual.pdf', ReadingStatus.completed);
+      expect(await db.getReadingStatus('manual.pdf'), ReadingStatus.completed);
+      expect(await db.isCompleted('manual.pdf'), isTrue);
+
+      await db.setReadingStatus('manual.pdf', ReadingStatus.unread);
+      expect(await db.getReadingStatus('manual.pdf'), ReadingStatus.unread);
+      expect(await db.isCompleted('manual.pdf'), isFalse);
+    });
+
+    test('unread resets saved progress, completed keeps it', () async {
+      final db = MyLibraryDb.instance;
+      await db.saveBookState('keep.pdf', 'chapter/9');
+
+      await db.setReadingStatus('keep.pdf', ReadingStatus.completed);
+      expect(await db.getBookState('keep.pdf'), 'chapter/9');
+      expect(await db.getReadingStatus('keep.pdf'), ReadingStatus.completed);
+
+      await db.setReadingStatus('keep.pdf', ReadingStatus.unread);
+      expect(await db.getBookState('keep.pdf'), '');
+      expect(await db.getReadingStatus('keep.pdf'), ReadingStatus.unread);
+    });
+
+    test('reader progress resumes manual unread but not manual completed',
+        () async {
+      final db = MyLibraryDb.instance;
+
+      await db.setReadingStatus('resume.pdf', ReadingStatus.unread);
+      await db.saveBookState('resume.pdf', '4');
+      expect(await db.getReadingStatus('resume.pdf'), ReadingStatus.inProgress);
+
+      await db.setReadingStatus('finished.pdf', ReadingStatus.completed);
+      await db.saveBookState('finished.pdf', '12');
+      expect(
+          await db.getReadingStatus('finished.pdf'), ReadingStatus.completed);
+      expect(await db.getBookState('finished.pdf'), '12');
+    });
+
+    test('setCompleted no longer discards the saved position', () async {
+      final db = MyLibraryDb.instance;
+      await db.saveBookState('resume.pdf', 'chapter/3');
+
+      await db.setCompleted('resume.pdf', true);
+      expect(await db.getBookState('resume.pdf'), 'chapter/3');
+
+      await db.setCompleted('resume.pdf', false);
+      expect(await db.isCompleted('resume.pdf'), isFalse);
+      expect(await db.getReadingStatus('resume.pdf'), ReadingStatus.inProgress);
+    });
+
+    test('bulk status map resolves manual and automatic state', () async {
+      final db = MyLibraryDb.instance;
+      await db.saveBookState('auto.pdf', '1');
+      await db.setReadingStatus('manual.pdf', ReadingStatus.completed);
+
+      expect(await db.getStatusesForAll(), {
+        'auto.pdf': ReadingStatus.inProgress,
+        'manual.pdf': ReadingStatus.completed,
+      });
+    });
+
+    test('schema carries the manualStatus column', () async {
+      final db = MyLibraryDb.instance;
+      final database = await db.database;
+      final columns =
+          await database.rawQuery('PRAGMA table_info(bookposition)');
+      expect(columns.map((column) => column['name']), contains('manualStatus'));
+    });
   });
 
   group('organized library provider pipeline', () {
@@ -284,6 +387,9 @@ void main() {
 
       await db.addTag('z-first', 'Favorites');
       await db.saveBookState('z-first.pdf', '3');
+      // A manually finished book with no saved position must still show
+      // Completed: the override, not the position, decides.
+      await db.setReadingStatus('a-second.pdf', ReadingStatus.completed);
 
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -298,7 +404,7 @@ void main() {
       expect(zed.fileSizeBytes, 500);
 
       final ay = enriched.firstWhere((b) => b.id == 'a-second');
-      expect(ay.status, ReadingStatus.unread);
+      expect(ay.status, ReadingStatus.completed);
       expect(ay.fileSizeBytes, 100);
 
       // Sorting the enrichment through the provider chain works end to end.
@@ -309,8 +415,8 @@ void main() {
 
       // Filter to the Favorites tag and only Ay remains hidden.
       container.read(libraryTagFilterProvider.notifier).state = {'Favorites'};
-      expect(
-          container.read(organizedLibraryProvider).map((b) => b.id), ['z-first']);
+      expect(container.read(organizedLibraryProvider).map((b) => b.id),
+          ['z-first']);
     });
   });
 }

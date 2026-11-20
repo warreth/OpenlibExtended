@@ -96,7 +96,7 @@ class BackupService {
         'fileName'
       ]);
       await _restoreTable(txn, 'bookposition', backup['bookPositions'],
-          ['fileName', 'position', 'completed']);
+          ['fileName', 'position', 'completed', 'manualStatus']);
       await _restoreTable(
           txn, 'browserOptions', backup['browserOptions'], ['name', 'value']);
       // Older backups predate tags; restore nothing rather than fail.

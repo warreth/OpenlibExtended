@@ -13,6 +13,7 @@ import 'package:openlib/services/platform_utils.dart';
 import 'package:openlib/state/state.dart';
 import 'package:openlib/ui/components/active_downloads_widget.dart';
 import 'package:openlib/ui/components/book_card_widget.dart';
+import 'package:openlib/ui/components/book_manage_sheet.dart';
 import 'package:openlib/ui/components/error_widget.dart';
 import 'package:openlib/ui/components/page_title_widget.dart';
 import 'package:openlib/ui/extensions.dart';
@@ -256,11 +257,16 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
     );
   }
 
-  void _openTagEditor(LibraryBook item) {
+  void _openBookSheet(LibraryBook item) {
     showModalBottomSheet<void>(
       context: context,
       builder: (BuildContext sheetContext) {
-        return _TagEditorSheet(bookId: item.id, title: item.title);
+        return BookManageSheet(
+          bookId: item.id,
+          fileName: item.book.getFileName(),
+          title: item.title,
+          initialStatus: item.status,
+        );
       },
     );
   }
@@ -332,7 +338,7 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
                                         return BookPage(id: i.id);
                                       }));
                                     },
-                                    onLongPress: () => _openTagEditor(i)))
+                                    onLongPress: () => _openBookSheet(i)))
                                 .toList()),
                           ),
                         ),
@@ -453,140 +459,6 @@ class _MyLibraryPageState extends ConsumerState<MyLibraryPage> {
           },
         )),
       ],
-    );
-  }
-}
-
-/// Bottom sheet to manage one book's tags: toggle existing tags, create
-/// new ones inline, and see the book's current set at a glance.
-class _TagEditorSheet extends ConsumerStatefulWidget {
-  const _TagEditorSheet({required this.bookId, required this.title});
-
-  final String bookId;
-  final String title;
-
-  @override
-  ConsumerState<_TagEditorSheet> createState() => _TagEditorSheetState();
-}
-
-class _TagEditorSheetState extends ConsumerState<_TagEditorSheet> {
-  late Future<Set<String>> _bookTags;
-
-  @override
-  void initState() {
-    super.initState();
-    _bookTags = dataBase.getTags(widget.bookId);
-  }
-
-  void _reload() {
-    setState(() {
-      _bookTags = dataBase.getTags(widget.bookId);
-    });
-    ref.invalidate(myLibraryProvider);
-    ref.invalidate(libraryBooksProvider);
-    ref.invalidate(libraryTagsProvider);
-  }
-
-  Future<void> _addTag(String rawTag) async {
-    final tag = rawTag.trim();
-    if (tag.isEmpty) return;
-    await dataBase.addTag(widget.bookId, tag);
-    _reload();
-  }
-
-  Future<void> _removeTag(String tag) async {
-    await dataBase.removeTag(widget.bookId, tag);
-    // Drop the tag from active filters if it just vanished everywhere.
-    final remaining = await dataBase.getAllTags();
-    if (!remaining.contains(tag)) {
-      final filter = Set<String>.of(ref.read(libraryTagFilterProvider));
-      filter.remove(tag);
-      ref.read(libraryTagFilterProvider.notifier).state = filter;
-    }
-    _reload();
-  }
-
-  Future<void> _createTag() async {
-    final controller = TextEditingController();
-    final dialogL10n = AppLocalizations.of(context);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(dialogL10n.newCollection),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(hintText: dialogL10n.collectionNameHint),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(dialogL10n.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: Text(dialogL10n.add),
-          ),
-        ],
-      ),
-    );
-    if (name != null && name.trim().isNotEmpty) {
-      await _addTag(name);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final allTags =
-        ref.watch(libraryTagsProvider).valueOrNull ?? const <String>{};
-    return FutureBuilder<Set<String>>(
-      future: _bookTags,
-      builder: (context, snapshot) {
-        final bookTags = snapshot.data ?? const <String>{};
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  AppLocalizations.of(context).manageCollectionsHint,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final tag in allTags)
-                      FilterChip(
-                        label: Text(tag, style: const TextStyle(fontSize: 12)),
-                        selected: bookTags.contains(tag),
-                        onSelected: (selected) =>
-                            selected ? _addTag(tag) : _removeTag(tag),
-                      ),
-                    ActionChip(
-                      label: Text(AppLocalizations.of(context).newCollection,
-                          style: const TextStyle(fontSize: 12)),
-                      avatar: const Icon(Icons.add, size: 15),
-                      onPressed: _createTag,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

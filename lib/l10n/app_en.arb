@@ -151,13 +151,34 @@
   "@statusCompleted": {
     "description": "Reading status filter chip"
   },
+  "readingStatus": "Reading status",
+  "@readingStatus": {
+    "description": "Label and tooltip for the manual reading-status picker"
+  },
+  "collectionsLabel": "Collections",
+  "@collectionsLabel": {
+    "description": "Section heading above a book's tags"
+  },
+  "markedAsStatus": "Marked as {status}",
+  "@markedAsStatus": {
+    "description": "Confirmation after manually changing a book's reading status",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "statusUpdateFailed": "Could not change the reading status. Try again.",
+  "@statusUpdateFailed": {
+    "description": "Error shown when saving a manual reading status fails"
+  },
   "collectionNameHint": "e.g. Favorites, Sci-Fi",
   "@collectionNameHint": {
     "description": "Hint for the new-collection name field"
   },
-  "manageCollectionsHint": "Long-press any book to manage its collections",
+  "manageCollectionsHint": "Long-press any book to manage its reading status and collections",
   "@manageCollectionsHint": {
-    "description": "Helper text in the collection editor sheet"
+    "description": "Helper text in the book management sheet"
   },
   "results": "Results",
   "@results": {

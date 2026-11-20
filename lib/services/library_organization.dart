@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 
 // Project imports:
 import 'package:openlib/services/database.dart';
+import 'package:openlib/services/reading_status.dart';
+
+export 'package:openlib/services/reading_status.dart' show ReadingStatus;
 
 /// How the library list is ordered. Each mode has a stable persisted key
 /// so the choice survives restarts.
@@ -50,11 +53,6 @@ enum LibrarySortMode {
     }
   }
 }
-
-/// A book's reading state, derived from the saved position: nothing
-/// saved means unread, a saved position marked finished means completed,
-/// anything else is in progress.
-enum ReadingStatus { unread, inProgress, completed }
 
 /// A [MyBook] enriched with everything sorting and filtering need: the
 /// tags it carries, its reading status and its file size in bytes.

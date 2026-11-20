@@ -151,11 +151,26 @@ class AppLocalizationsRu extends AppLocalizations {
   String get statusCompleted => 'Прочитано';
 
   @override
+  String get readingStatus => 'Статус чтения';
+
+  @override
+  String get collectionsLabel => 'Коллекции';
+
+  @override
+  String markedAsStatus(String status) {
+    return 'Отмечено как $status';
+  }
+
+  @override
+  String get statusUpdateFailed =>
+      'Не удалось изменить статус чтения. Повторите попытку.';
+
+  @override
   String get collectionNameHint => 'например, Избранное, Фантастика';
 
   @override
   String get manageCollectionsHint =>
-      'Нажмите и удерживайте книгу, чтобы управлять её коллекциями';
+      'Нажмите и удерживайте книгу, чтобы управлять статусом чтения и коллекциями';
 
   @override
   String get results => 'Результаты';

@@ -151,11 +151,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get statusCompleted => 'Fertig';
 
   @override
+  String get readingStatus => 'Lesestatus';
+
+  @override
+  String get collectionsLabel => 'Sammlungen';
+
+  @override
+  String markedAsStatus(String status) {
+    return 'Als $status markiert';
+  }
+
+  @override
+  String get statusUpdateFailed =>
+      'Der Lesestatus konnte nicht geändert werden. Bitte erneut versuchen.';
+
+  @override
   String get collectionNameHint => 'z. B. Favoriten, Science-Fiction';
 
   @override
   String get manageCollectionsHint =>
-      'Halten Sie ein Buch lange gedrückt, um seine Sammlungen zu verwalten';
+      'Halten Sie ein Buch lange gedrückt, um Lesestatus und Sammlungen zu verwalten';
 
   @override
   String get results => 'Ergebnisse';

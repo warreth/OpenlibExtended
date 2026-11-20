@@ -448,27 +448,17 @@ final libraryBooksProvider = FutureProvider<List<LibraryBook>>((ref) async {
   final books = await dataBase.getAll();
   if (books.isEmpty) return const [];
   final tags = await dataBase.getTagsForAll();
-  final positions = await dataBase.getPositionsForAll();
-  final completed = await dataBase.getCompletedForAll();
+  final statuses = await dataBase.getStatusesForAll();
   return [
     for (final book in books)
       LibraryBook(
         book: book,
         tags: tags[book.id] ?? const {},
-        status: _readingStatus(
-          position: positions[book.getFileName()],
-          completed: completed[book.getFileName()] ?? false,
-        ),
+        status: statuses[book.getFileName()] ?? ReadingStatus.unread,
         fileSizeBytes: await _fileSizeOf(book),
       ),
   ];
 });
-
-ReadingStatus _readingStatus({String? position, required bool completed}) {
-  if (completed) return ReadingStatus.completed;
-  if (position == null || position.isEmpty) return ReadingStatus.unread;
-  return ReadingStatus.inProgress;
-}
 
 Future<int?> _fileSizeOf(MyBook book) async {
   try {
