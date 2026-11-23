@@ -64,12 +64,6 @@ dependencies:
   cached_network_image: 3.3.0
 
   sqflite_common_ffi: ^2.3.0+2
-  # Bundles sqlite3 for desktop/mobile builds. package:sqlite3 3.x's
-  # native assets do not reach the Windows release bundle in this
-  # Flutter version, so the app shipped without sqlite3.dll and hung on
-  # a clean Windows machine (issue #104). 0.5.42 is the last release of
-  # this package; its successor is the native-asset route itself.
-  sqlite3_flutter_libs: ^0.5.42
   url_launcher: ^6.1.12
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
