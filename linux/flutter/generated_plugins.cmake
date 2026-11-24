@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_webview_window
   open_file_linux
-  sqlite3_flutter_libs
   url_launcher_linux
 )
 
