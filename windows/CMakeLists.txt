@@ -103,6 +103,14 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
+# A missing SQLite asset hangs the app before any window appears (issue #104).
+install(CODE "
+  file(GLOB sqlite_assets \"${INSTALL_BUNDLE_LIB_DIR}/sqlite3*.dll\")
+  if(NOT sqlite_assets)
+    message(FATAL_ERROR \"No sqlite3 native asset in ${INSTALL_BUNDLE_LIB_DIR} (see issue #104)\")
+  endif()
+  " COMPONENT Runtime)
+
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
